@@ -4,6 +4,31 @@
   
     
     <entry>
+      <title>第三篇文章</title>
+      <link href="/2022/10/29/2025-3-1%E7%AC%AC%E4%B8%89%E7%AF%87/"/>
+      <url>/2022/10/29/2025-3-1%E7%AC%AC%E4%B8%89%E7%AF%87/</url>
+      
+        <content type="html"><![CDATA[<p>这是我第三篇文章</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 2 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 标签2 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>第一篇文章</title>
       <link href="/2022/10/28/2025-3-1%E7%AC%AC%E4%B8%80%E7%AF%87/"/>
       <url>/2022/10/28/2025-3-1%E7%AC%AC%E4%B8%80%E7%AF%87/</url>
@@ -11,19 +36,18 @@
         <content type="html"><![CDATA[<p>这是我第一篇文章</p>]]></content>
       
       
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>第三篇文章</title>
-      <link href="/2022/10/28/2025-3-1%E7%AC%AC%E4%B8%89%E7%AF%87/"/>
-      <url>/2022/10/28/2025-3-1%E7%AC%AC%E4%B8%89%E7%AF%87/</url>
-      
-        <content type="html"><![CDATA[<p>这是我第三篇文章</p>]]></content>
+      <categories>
+          
+          <category> 1 </category>
+          
+      </categories>
       
       
+        <tags>
+            
+            <tag> 标签1 </tag>
+            
+        </tags>
       
     </entry>
     
@@ -37,6 +61,18 @@
         <content type="html"><![CDATA[<p>这是我第二篇文章</p>]]></content>
       
       
+      <categories>
+          
+          <category> 3 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 标签3 </tag>
+            
+        </tags>
       
     </entry>
     
