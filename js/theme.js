@@ -1,1 +1,74 @@
-function activateDarkMode(){document.documentElement.setAttribute("data-theme","dark"),document.getElementById("modeicon")&&document.getElementById("modeicon").setAttribute("xlink:href","#icon-sun"),saveToLocal.set("theme","dark",2)}function activateLightMode(){document.documentElement.setAttribute("data-theme","light"),document.getElementById("modeicon")&&document.getElementById("modeicon").setAttribute("xlink:href","#icon-moon"),saveToLocal.set("theme","light",2)}window.GLOBAL_CONFIG=window.GLOBAL_CONFIG||{},window.GLOBAL_CONFIG.Snackbar={day_to_night:"已切换至深色模式",night_to_day:"已切换至浅色模式"};const saveToLocal={get:function(e){try{return localStorage.getItem(e)}catch(e){return!1}},set:function(e,t,o){try{if(o){const t=new Date;t.setTime(t.getTime()+60*o*60*1e3),localStorage.setItem(e+"_exp",t.getTime().toString())}return localStorage.setItem(e,t),!0}catch(e){return!1}}};function initTheme(){const e=saveToLocal.get("theme"),t=window.matchMedia("(prefers-color-scheme: dark)").matches;e?"dark"===e?activateDarkMode():activateLightMode():t?activateDarkMode():activateLightMode()}window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").addListener((function(e){saveToLocal.get("theme")||(e.matches?activateDarkMode():activateLightMode())})),document.addEventListener("DOMContentLoaded",initTheme);
+// 主题相关的全局变量
+window.GLOBAL_CONFIG = window.GLOBAL_CONFIG || {};
+window.GLOBAL_CONFIG.Snackbar = {
+  day_to_night: '已切换至深色模式',
+  night_to_day: '已切换至浅色模式'
+};
+
+// 激活深色模式
+function activateDarkMode() {
+  document.documentElement.setAttribute('data-theme', 'dark');
+  if (document.getElementById('modeicon')) {
+    document.getElementById('modeicon').setAttribute('xlink:href', '#icon-sun');
+  }
+  saveToLocal.set('theme', 'dark', 2);
+}
+
+// 激活浅色模式
+function activateLightMode() {
+  document.documentElement.setAttribute('data-theme', 'light');
+  if (document.getElementById('modeicon')) {
+    document.getElementById('modeicon').setAttribute('xlink:href', '#icon-moon');
+  }
+  saveToLocal.set('theme', 'light', 2);
+}
+
+// localStorage操作
+const saveToLocal = {
+  get: function(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return false;
+    }
+  },
+  set: function(key, value, hours) {
+    try {
+      if (hours) {
+        const exp = new Date();
+        exp.setTime(exp.getTime() + hours * 60 * 60 * 1000);
+        localStorage.setItem(key + '_exp', exp.getTime().toString());
+      }
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+};
+
+// 初始化主题
+function initTheme() {
+  const theme = saveToLocal.get('theme');
+  const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const autoChangeMode = 1; // 跟随系统
+
+  if (theme) {
+    theme === 'dark' ? activateDarkMode() : activateLightMode();
+  } else if (autoChangeMode === 1) {
+    isDarkMode ? activateDarkMode() : activateLightMode();
+  }
+}
+
+// 监听系统主题变化
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addListener(function(e) {
+    const theme = saveToLocal.get('theme');
+    if (!theme) {
+      e.matches ? activateDarkMode() : activateLightMode();
+    }
+  });
+}
+
+// 页面加载完成后初始化主题
+document.addEventListener('DOMContentLoaded', initTheme); 
