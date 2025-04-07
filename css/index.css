@@ -5502,23 +5502,8 @@ body[data-type='about'] #web_bg {
   pointer-events: none;
   z-index: 3;
 }
-#about-page .author-content-item-group.column.mapAndInfo {
-  width: 100%;
-}
-#about-page .author-content-item-group.column {
-  -webkit-box-orient: horizontal;
-  -moz-box-orient: horizontal;
-  -o-box-orient: horizontal;
-  -webkit-flex-direction: row;
-  -ms-flex-direction: row;
-  flex-direction: row;
-}
-#about-page .author-content-item.map {
-  width: 50%;
-}
-#about-page .author-content-item.selfInfo {
-  height: 100%;
-  width: 49%;
+ {
+  body: 1;
 }
 @-moz-keyframes loading-bar {
   0% {
@@ -21306,7 +21291,7 @@ html.hide-aside .layout > div:first-child {
 
 /* 欢迎信息 */
 #welcome-info {
-  background: linear-gradient(45deg, #b9f4f3, #e3fbf9);
+  background: linear-gradient(45deg, #9ea4cd, #dbdff8);
   border-radius: 18px;
   padding: 8px;
 }
@@ -22056,7 +22041,7 @@ body:has(#anMusic-page) .aplayer .aplayer-info .aplayer-controller .aplayer-time
     width: 30%;
   }
   #anMusic-page ol > li.aplayer-list-light {
-    background: #33a673;
+    background: #4b5cc4;
     padding: 5px 20px;
     border-radius: 10px;
   }
@@ -22100,7 +22085,7 @@ body:has(#anMusic-page) .aplayer .aplayer-info .aplayer-controller .aplayer-time
     mask-image: linear-gradient(to bottom, #000, #000, #000, #000, #0000, #0000);
   }
   #anMusic-page .aplayer-info .aplayer-lrc p.aplayer-lrc-current {
-    color: #33a673;
+    color: #4b5cc4;
   }
   /* 控制按键和进度条 */
   #anMusic-page .aplayer-info .aplayer-controller {
@@ -22300,6 +22285,40 @@ main {
   transition: 0.3s;
 }
 
+/* 添加移动端导航栏样式 */
+@media screen and (max-width: 768px) {
+  #nav {
+    background: transparent !important;
+    backdrop-filter: none !important;
+  }
+  
+  #nav a {
+    color: var(--font-color) !important;
+  }
+  
+  #page-header.nav-fixed #nav {
+    background: var(--anzhiyu-card-bg) !important;
+    backdrop-filter: saturate(180%) blur(20px) !important;
+  }
+  
+  #page-header.nav-fixed #nav a {
+    color: var(--anzhiyu-fontcolor) !important;
+  }
+  
+  #nav #nav-group {
+    background: var(--anzhiyu-card-bg);
+  }
+}
+#about-page .author-box .author-img {
+  width: 180px;
+  height: 180px;
+  position: relative;
+  user-select: none;
+  margin: 0px 30px!important;
+  border-radius: 50%;
+  background: var(--anzhiyu-secondbg);
+  transition: 0.3s;
+}
 
 #aside-content .card-widget#card-wechat {
   background: #57bd6a;
