@@ -21291,7 +21291,7 @@ html.hide-aside .layout > div:first-child {
 
 /* 欢迎信息 */
 #welcome-info {
-  background: linear-gradient(45deg, #9ea4cd, #dbdff8);
+  background: linear-gradient(45deg, #ffffff, #dbdff8);
   border-radius: 18px;
   padding: 8px;
 }
@@ -22285,6 +22285,10 @@ main {
   transition: 0.3s;
 }
 
+.loading-img {
+  background: url(https://s21.ax1x.com/2025/03/21/pE0Mq0g.jpg) no-repeat center center;
+  background-size: cover;
+}
 /* 添加移动端导航栏样式 */
 @media screen and (max-width: 768px) {
   #nav {
