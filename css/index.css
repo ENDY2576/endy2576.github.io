@@ -22348,6 +22348,52 @@ main {
   z-index: 998;
 }
 
+#flink-banners {
+  height: 400px;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--anzhiyu-card-bg);
+  border-radius: 12px;
+}
+#flink-banners {
+  height: 400px;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;  /* 修改这里 */
+  justify-content: center;
+  background: var(--anzhiyu-card-bg);
+  border-radius: 12px;
+  padding: 0 2rem;  /* 添加左右内边距 */
+}
+
+.banners-title-big {
+  font-size: 36px;
+  line-height: 1;
+  font-weight: bold;
+  margin-bottom: 8px;
+  text-align: left;  /* 添加这行 */
+  width: 100%;  /* 添加这行 */
+}
+
+.banners-title-small {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--anzhiyu-secondtext);
+  margin-top: 8px;
+  margin-bottom: 0.5rem;
+  text-align: left;  /* 添加这行 */
+  width: 100%;  /* 添加这行 */
+}
+#skills-tags-group-all .tags-group-wrapper {
+  margin-top: 430px!important;
+  display: flex;
+  flex-wrap: nowrap;
+  animation: 60s linear 0s infinite normal none running rowup;
+}
 #aside-content .card-widget#card-wechat {
   background: #57bd6a;
   display: flex;
