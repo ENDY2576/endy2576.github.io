@@ -22388,7 +22388,7 @@ main {
   text-align: left;  /* 添加这行 */
   width: 100%;  /* 添加这行 */
 }
-#skills-tags-group-all .tags-group-wrapper {
+body[data-type="link"] #skills-tags-group-all .tags-group-wrapper {
   margin-top: 430px!important;
   display: flex;
   flex-wrap: nowrap;
