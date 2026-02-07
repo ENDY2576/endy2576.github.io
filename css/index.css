@@ -15436,7 +15436,6 @@ blockquote {
   -o-transition: all 0.5s;
   -ms-transition: all 0.5s;
   transition: all 0.5s;
-/* 为齿轮图标添加默认旋转效果，悬停时停止 */
 }
 @media screen and (max-width: 768px) {
   #rightside #switch-commentBarrage {
@@ -15496,20 +15495,6 @@ blockquote {
 #rightside > div > a:hover {
   background-color: var(--btn-hover-color);
 }
-#rightside #rightside-config i.anzhiyu-icon-gear {
-  -webkit-animation: gear-rotate 3s linear infinite;
-  -moz-animation: gear-rotate 3s linear infinite;
-  -o-animation: gear-rotate 3s linear infinite;
-  -ms-animation: gear-rotate 3s linear infinite;
-  animation: gear-rotate 3s linear infinite;
-}
-#rightside #rightside-config:hover i.anzhiyu-icon-gear {
-  -webkit-animation: none;
-  -moz-animation: none;
-  -o-animation: none;
-  -ms-animation: none;
-  animation: none;
-}
 #rightside #mobile-toc-button {
   display: none;
 }
@@ -15522,6 +15507,30 @@ blockquote {
   #rightside #hide-aside-btn {
     display: none;
   }
+}
+#rightside-config i.anzhiyufont.anzhiyu-icon-gear {
+  -webkit-animation: gear-rotate 3s linear infinite !important;
+  -moz-animation: gear-rotate 3s linear infinite !important;
+  -o-animation: gear-rotate 3s linear infinite !important;
+  -ms-animation: gear-rotate 3s linear infinite !important;
+  animation: gear-rotate 3s linear infinite !important;
+  -webkit-animation-play-state: running !important;
+  -moz-animation-play-state: running !important;
+  -o-animation-play-state: running !important;
+  -ms-animation-play-state: running !important;
+  animation-play-state: running !important;
+}
+#rightside-config:hover i.anzhiyufont.anzhiyu-icon-gear {
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  -ms-animation: none !important;
+  animation: none !important;
+  -webkit-animation-play-state: paused !important;
+  -moz-animation-play-state: paused !important;
+  -o-animation-play-state: paused !important;
+  -ms-animation-play-state: paused !important;
+  animation-play-state: paused !important;
 }
 @-moz-keyframes gear-rotate {
   from {
