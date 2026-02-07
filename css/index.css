@@ -15436,6 +15436,7 @@ blockquote {
   -o-transition: all 0.5s;
   -ms-transition: all 0.5s;
   transition: all 0.5s;
+/* 为齿轮图标添加悬停旋转效果 */
 }
 @media screen and (max-width: 768px) {
   #rightside #switch-commentBarrage {
@@ -15495,6 +15496,13 @@ blockquote {
 #rightside > div > a:hover {
   background-color: var(--btn-hover-color);
 }
+#rightside #rightside-config:hover i.anzhiyu-icon-gear {
+  -webkit-animation: gear-rotate 1s linear infinite;
+  -moz-animation: gear-rotate 1s linear infinite;
+  -o-animation: gear-rotate 1s linear infinite;
+  -ms-animation: gear-rotate 1s linear infinite;
+  animation: gear-rotate 1s linear infinite;
+}
 #rightside #mobile-toc-button {
   display: none;
 }
@@ -15506,6 +15514,70 @@ blockquote {
 @media screen and (max-width: 900px) {
   #rightside #hide-aside-btn {
     display: none;
+  }
+}
+@-moz-keyframes gear-rotate {
+  from {
+    -webkit-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    -ms-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    -ms-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+@-webkit-keyframes gear-rotate {
+  from {
+    -webkit-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    -ms-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    -ms-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+@-o-keyframes gear-rotate {
+  from {
+    -webkit-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    -ms-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    -ms-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+@keyframes gear-rotate {
+  from {
+    -webkit-transform: rotate(0deg);
+    -moz-transform: rotate(0deg);
+    -o-transform: rotate(0deg);
+    -ms-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+    -moz-transform: rotate(360deg);
+    -o-transform: rotate(360deg);
+    -ms-transform: rotate(360deg);
+    transform: rotate(360deg);
   }
 }
 #keyboard-tips {
