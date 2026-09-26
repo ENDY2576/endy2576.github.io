@@ -1,0 +1,245 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		
+
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<!--<meta name="description" content="We help you to find the perfect matching color scheme for your next project! Just enter a color and generate a lot of color palettes, color schemes and much more! ">-->
+		<meta name="description" content="Here you can find the perfect matching color scheme for your next project! Generate nice color palettes, color gradients and much more! Your space for everything that has to do with color!">
+		<link rel="icon" type="image/png" href="/favicon5.png">
+
+		<title>ColorSpace - Color Palettes Generator and Color Gradient Tool</title>
+		
+		<!-- above the fold content -->
+		
+		<style>
+			.fade{opacity:0;transition: all 0.5s;}
+			body{font-family:'Montserrat', sans-serif;font-weight:400;color:#fff;font-size:0.875em;letter-spacing:0.063em;}
+			::-moz-selection{background:#00c9b7;padding:10px;}
+			::selection{background:#00c9b7;padding:10px;}
+			::-moz-selection{background:#00c9b7;padding:10px;}
+			a{color:inherit;text-decoration:none;}
+			h1{font-weight:900;font-size:3.25em;margin-bottom:30px;text-shadow:2px 3px 0px #898999;line-height:1.2;}
+			h2{font-size:1.4em;letter-spacing:0.2px;color:#1e1e1e;margin-bottom:30px;font-weight:900;}
+			h3{text-shadow:2px 3px 0px rgba(150, 150, 150, 1);line-height:1.1;font-weight:900;font-size:3.25em;}
+			.bg{width:100vw;height:100vh;position:fixed;max-height:100vh;}
+			.wrap, .wrap-outer{width:calc(100vw-20px);height:100vh;position:relative;max-height:100vh;-webkit-transition:all 1s;-o-transition:all 1s;transition:all 1s;}
+			.rotate{-webkit-transform:rotate(45deg);-ms-transform:rotate(45deg);transform:rotate(45deg);}
+			.gradient .rotate{-webkit-transform:rotate(95deg);-ms-transform:rotate(95deg);transform:rotate(95deg);}
+			.bgnew{position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;background-image:-webkit-gradient(linear, left bottom, right top, from(#6d327c), color-stop(#485DA6), color-stop(#00a1ba), color-stop(#00BF98), to(#36C486));background-image:-webkit-linear-gradient(left bottom, #6d327c, #485DA6, #00a1ba, #00BF98, #36C486);background-image:-o-linear-gradient(left bottom, #6d327c, #485DA6, #00a1ba, #00BF98, #36C486);background-image:linear-gradient(to right top, #6d327c, #485DA6, #00a1ba, #00BF98, #36C486);}
+			.bgnew2{position:fixed;top:0;left:0;right:0;bottom:0;z-index:-2;background-image:-webkit-gradient(linear, left bottom, right top, from(#38438b), color-stop(#944b94), color-stop(#d75a88), color-stop(#ff7e71), color-stop(#ffb25f), to(#ffeb68));background-image:-webkit-linear-gradient(left bottom, #38438b, #944b94, #d75a88, #ff7e71, #ffb25f, #ffeb68);background-image:-o-linear-gradient(left bottom, #38438b, #944b94, #d75a88, #ff7e71, #ffb25f, #ffeb68);background-image:linear-gradient(to right top, #38438b, #944b94, #d75a88, #ff7e71, #ffb25f, #ffeb68);}
+			.bg-bottom{}
+			.wrap{width:100%;height:100%;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;-webkit-box-pack:start;-ms-flex-pack:start;justify-content:flex-start;}
+			.header{display:-webkit-box;display:-ms-flexbox;display:flex;padding:30px 8.33%;-webkit-box-pack:justify;-ms-flex-pack:justify;justify-content:space-between;-webkit-box-align:center;-ms-flex-align:center;align-items:center;margin-bottom:5%;margin-bottom:50px;height:130px;}
+			.logo{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center;}
+			.left-foot .logo{padding:0px 10px 0px 0px;}
+			.logo img{width:100%;max-width:70px;display:inline-block;margin-right:20px;}
+			.logo-text{display:inline-block;font-size:1em;font-weight:900;position:relative;}
+			.logo-text:after{content:"Beta";position:absolute;top:-20px;right:-20px;padding:3px 5px;border-radius:3px;background-color:#FF7BDA;font-size:0.8em;}
+			li.gc3{display:block; position:relative;}
+			.gc3::after{content:"New";position:absolute;top:-20px;right:0px;padding:3px 5px;border-radius:3px;background-color:#FF08E2;font-size:0.8em;font-weight:bold;}
+			nav{text-transform:uppercase;letter-spacing:0.063em;font-size:0.75em;}
+			.header nav ul li{display:inline-block;margin-left:20px;}
+			nav ul li a{letter-spacing:2px;color:#fff;-webkit-transition:color .2s ease;-o-transition:color .2s ease;transition:color .2s ease;padding:3px 0;margin-bottom:10px;position:relative;display:inline-block;}
+			.effect ul li a:hover{color:#FBFAFC;}
+			.effect ul li a:hover::after, .effect ul li a:hover::before{width:100%;left:0;}
+			.effect ul li a::after, .effect ul li a::before{content:'';position:absolute;top:calc(100% + 5px);width:0;right:0;height:3px;}
+			.effect ul li a::before{-webkit-transition:width .25s cubic-bezier(0.51, 0.18, 0, 0.88) .1s;-o-transition:width .25s cubic-bezier(0.51, 0.18, 0, 0.88) .1s;transition:width .25s cubic-bezier(0.51, 0.18, 0, 0.88) .1s;background:#845EC2;}
+			.effect ul li a::after{-webkit-transition:width .2s cubic-bezier(0.29, 0.18, 0.26, 0.83);-o-transition:width .2s cubic-bezier(0.29, 0.18, 0.26, 0.83);transition:width .2s cubic-bezier(0.29, 0.18, 0.26, 0.83);background:#2FFFAD;}
+			.effect ul li a.active:after{background:#2FFFAD;width:100%;left:0;}
+			.effect ul li a.active:before{z-index:2;}
+			.box{display:inline-block;width:33%;}
+			.sign{visibility:hidden;font-weight:900;font-size:3em;text-align:center;width:50%;margin:0 auto 50px;text-shadow:2px 3px 0px rgba(150, 150, 150, 1);line-height:1.2;}
+			.main{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;width:100%;-ms-flex-wrap:nowrap;flex-wrap:nowrap;}
+			.main .color-input h2{color:#fff;font-weight:900;font-size:2.925em;margin-bottom:3%;letter-spacing:0.093em;text-shadow:2px 3px 0px #898999;text-transform:uppercase;}
+			.astro.left{position:absolute;bottom:0;left:0;}
+			.astro.right{position:absolute;bottom:0;right:0;right:3%;}
+			.astro img{width:100%;}
+			.astro.left img{width:90%;}
+			.color-input{-ms-flex-item-align:start;align-self:flex-start;text-align:center;position:relative;z-index:2;}
+			.color-input p{margin-bottom:50px;font-size:1.3em;}
+			.color-input input{border-color:none;background-color:#845EC2;height:50px;text-align:center;width:180px;margin-bottom:10%;border-radius:50px;-webkit-box-shadow:10px 10px 14px 1px rgba(00,00,00,0.2);box-shadow:10px 10px 14px 1px rgba(00,00,00,0.2);letter-spacing:0.094em;}
+			.color-input form{width:285px;margin:0 auto;position:relative;-webkit-transition:all 1s;-o-transition:all 1s;transition:all 1s;}
+			.color-input form label{margin-right:-50px;z-index:90;position:relative;padding-left:30px;color:#fff;}		
+			.color-input button, a.back-btn, a.help-btn{display:inline-block;position:relative;border-radius:50px;background:#00c9b7;width:180px;height:50px;position:relative;color:#fff;font-size:0.97em;letter-spacing:0.094em;cursor:pointer;-webkit-box-shadow:10px 10px 14px 1px rgba(00,00,00,0.2);box-shadow:10px 10px 14px 1px rgba(00,00,00,0.2);/*display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;*/text-align:center;margin:0 auto;-webkit-transition:all 0.5s;-o-transition:all 0.5s;transition:all 0.5s;text-transform:uppercase;}
+			.color-input button i{margin-right:5%;font-size:1.2em;}
+			.color-input button:hover{-webkit-box-shadow:none;box-shadow:none;}	
+			.cp-color-picker{position:relative;}
+			.cp-color-picker:before{bottom:-9px;border-color:transparent transparent #999;}
+			.cp-color-picker:after{content:"";display:block;position:absolute;bottom:-8px;left:8px;border:8px solid #323E3E;border-width:8px 8px 0px;border-color:#323E3E transparent transparent;z-index:999;width:12px;}
+			.cp-color-picker.cp2:after{top:16px;right:-12px;left:auto;width:16px;-webkit-transform:rotate(-90deg);-ms-transform:rotate(-90deg);transform:rotate(-90deg);bottom:auto;}
+		</style>
+		<noscript>
+            <style>.fade{opacity:1;}</style>
+        </noscript>
+	
+		<script async src="https://www.googletagmanager.com/gtag/js?id=G-D1W8NW5BQL"></script>
+		<script>
+			window.dataLayer = window.dataLayer || [];
+			function gtag(){dataLayer.push(arguments);}
+			gtag('js', new Date());
+
+			gtag('config', 'G-D1W8NW5BQL');
+		</script>
+	</head>
+	
+	<body >
+	
+			<div class="bgnew2"></div>
+		<div class="bgnew"></div>
+		<div class="feature-box" style="position:fixed;max-width:100%;overflow:hidden;"><span class="nf"><i class="fa fa-exclamation"></i> New Feature:</span> You can now create a <a href="/gradient3.php"> gradient out of 3 colors!</a></div>
+		<div class="bg">
+
+		</div> <!-- bg end -->
+		
+		<div class="wrap-outer">
+		
+		<div class="wrap">
+		
+				<div class="header">
+				
+					<a href="/">
+					<div class="logo">
+						<img src="img/color-space-logo.png" alt="color space logo" title="Color Space - Palettes Generator">
+						<div class="logo-text">ColorSpace</div>
+						
+					</div>
+					</a>
+					
+					<nav class="effect">
+						<ul>
+						
+							<li><a class="active" href="/">Palettes</a></li>
+							<li><a href="/gradient.php">Gradient</a></li>
+							<li class="gc3"><a href="/gradient3.php">3-Color-Gradient</a></li>
+							<li><a href="/contact.php">Contact</a></li>
+							<li><a href="/info.php">Info</a></li>
+							<li><a style="font-size:18px;" target="_blank" href="https://twitter.com/MyColorSpaces" title="color space twitter"><i class="fa fa-twitter" aria-hidden="true"></i></a></li>
+						</ul>
+					</nav>
+					
+				</div>
+			
+				
+				<h1 class="sign js-scroll-bottom-slow-del">
+					Never waste Hours on finding the perfect Color Palette again!
+				</h1>
+				
+				<div class="main">
+				
+					<div class="fade box color-input">
+						<h2>Just Enter a Color!</h2>
+						<p >And Generate nice Color Palettes </p>
+						
+						<form method="get">
+							<!--<label for="hex">
+								<i class="fa fa-paint-brush" aria-hidden="true"></i>
+							</label>-->
+							<input onchange="validateInput()" class="color-picker js-color-input selectable" type="text" name='hex' id='hex' value="#845EC2">
+							<br>
+							<button type="submit" name="sub" value="1" >
+								<i class="fa fa-rocket" aria-hidden="true"></i>Generate
+							</button>
+						</form>
+						<p id='return'>
+						</p>
+					</div>
+					
+				</div>
+				
+			</div> <!-- wrap end -->
+			<div class="fade box astro left">
+				<img src="img/color-scheme-left.svg" alt="color scheme left">
+			</div>
+					
+			<div class="fade box astro right">
+				<img src="img/color-scheme-right.svg" alt="color palettes right">
+			</div>
+			</div> <!-- wrap outer end -->
+		<div class="mobile-box">
+			<div class="mobile-menu">
+				<nav class="mobile-nav">
+					<ul>	
+						<li><a href="/" >Palettes</a></li>
+						<li><a href="/gradient.php" >Gradient</a></li>
+						<li><a href="/gradient3.php">3-Gradient</a></li>
+						<li><a href="/contact.php" >Contact</a></li>
+						<li><a href="/info.php" >Info</a></li>
+					</ul>
+				</nav>
+			</div>
+					
+			<div class="mobile-button">
+				<i class="fa fa-bars" aria-hidden="true"></i>
+			</div>	
+		</div>
+				
+		<div class="toggle-box-right">
+		
+			<div class="close-box">
+				<i  id="js-rotate" class="fa fa-times" aria-hidden="true"></i>
+			</div>
+			
+			<div class="color-input-right color-input">
+			
+				<p>Enter a new color!</p>
+				
+				<form method="get">
+					<!--<label for="hex"><i class="fa fa-paint-brush" aria-hidden="true"></i></label>-->
+					<input class="color-picker js-color-input input2 selectable" type="text" name='hex' id='color2' value="#845EC2">
+					<br>
+					<button type="submit" name="sub" value="1" >
+						<i class="fa fa-rocket" aria-hidden="true"></i>Generate
+					</button>
+				</form>
+				
+			</div>
+		</div>
+		
+			<!-- CSS & JS -->
+			
+		<!-- JS -->
+		<!--<link rel="stylesheet" href="css/font-awesome/css/font-awesome.min.css">-->
+		<script src="js/jquery.min.js"></script>
+		<!--<script src="https://code.jquery.com/jquery-migrate-3.0.0.js"></script>-->
+		<!--<script type="text/javascript" src="js/colors.js"></script>
+		<script type="text/javascript" src="js/jqColorPicker.js"></script>-->
+		<script type="text/javascript" src="js/jqColorPicker.min.js"></script>
+		<script type="text/javascript" src="js/scrollreveal.min.js"></script>
+		<script type="text/javascript" src="js/main.js"></script>
+		
+		<!-- <script>
+		  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+		  ga('create', 'UA-103590764-2', 'auto');
+		  ga('set', 'anonymizeIp', true);
+		  ga('send', 'pageview');
+
+		</script> -->
+		<script type="text/javascript">
+			function validateInput(){
+				
+				var hexInput = document.getElementById("hex");
+				hexInput.value = hexInput.value.replace(/^#/, '');
+				
+				var regExpHex = new RegExp(/^[0-9A-F]{1,6}$/i);	
+								
+					if (!regExpHex.test(hexInput.value)) {
+
+						hexInput.value = '000000';
+					}
+			}
+
+		</script>
+	<!-- FONT -->
+	<link href="https://fonts.googleapis.com/css?family=Montserrat:400,900" rel="stylesheet"> 	
+	<!-- CSS -->
+	<link rel="stylesheet" href="css/font-awesome/css/font-awesome.min.css">
+	<link rel="stylesheet" type="text/css" href="css/stylesheet.css">
+	</body>
+</html>
