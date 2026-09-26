@@ -1827,6 +1827,7 @@ function setWelcome(html) {
   el.dataset.welcomeReady = "1";
 }
 setWelcomeFallback("欢迎来访！距离信息加载中，若未显示请配置自己的腾讯位置服务 Key。");
+var ipLoacation; // 定位结果，供 showWelcome 读取
 
 // DOM加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -1834,31 +1835,37 @@ document.addEventListener('DOMContentLoaded', function() {
   const WELCOME_KEY = welcomeCfg.key || 'JAUBZ-QUO65-GGNIX-IKRYS-UQGQJ-CABLN';
   const MASTER_LNG = welcomeCfg.lng || 117.959681;
   const MASTER_LAT = welcomeCfg.lat || 27.656446;
-  
-  //get请求
-  $.ajax({
-      type: 'get',
-      url: 'https://apis.map.qq.com/ws/location/v1/ip',
-      data: {
-          key: WELCOME_KEY,
-          output: 'jsonp',
-      },
-      dataType: 'jsonp',
-      success: function (res) {
-          console.log("API返回数据：", res); // 添加调试日志
-          if (res.status === 0) {
-              ipLoacation = res;
-              showWelcome(); // 更新欢迎信息
-          } else {
-              console.error("定位失败：", res.message);
-              setWelcomeFallback("欢迎来访！距离信息加载失败（" + res.message + "）。");
-          }
-      },
-      error: function(err) {
-          console.error("请求失败：", err);
-          setWelcomeFallback("欢迎来访！距离信息暂时无法加载（请检查 API Key 授权）。");
-      }
-  });
+
+  // 原生 JSONP 请求腾讯位置服务，避免 jQuery 未加载导致欢迎语失效
+  const cbName = '__welcomeLocCb_' + Date.now();
+  const welcomeScript = document.createElement('script');
+  welcomeScript.src = 'https://apis.map.qq.com/ws/location/v1/ip?key=' +
+    encodeURIComponent(WELCOME_KEY) + '&output=jsonp&callback=' + encodeURIComponent(cbName);
+
+  function removeWelcomeScript() {
+    delete window[cbName];
+    if (welcomeScript.parentNode) welcomeScript.parentNode.removeChild(welcomeScript);
+  }
+
+  window[cbName] = function (res) {
+    console.log("API返回数据：", res);
+    if (res && res.status === 0) {
+      ipLoacation = res;
+      showWelcome(); // 更新欢迎信息
+    } else {
+      console.error("定位失败：", res && res.message);
+      setWelcomeFallback("欢迎来访！距离信息加载失败（" + (res && res.message || '未知错误') + "）。");
+    }
+    removeWelcomeScript();
+  };
+
+  welcomeScript.onerror = function () {
+    console.error("请求失败：腾讯位置服务脚本加载失败");
+    setWelcomeFallback("欢迎来访！距离信息暂时无法加载（请检查 API Key 授权）。");
+    removeWelcomeScript();
+  };
+
+  document.body.appendChild(welcomeScript);
 });
 function getDistance(e1, n1, e2, n2) {
     const R = 6371
