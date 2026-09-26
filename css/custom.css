@@ -266,3 +266,29 @@
 #article-container code {
   color: #ffffff;
 }
+
+/* ==================================================================
+   公告卡片（欢迎信息）使用主题渐变背景，文字强制白色以保证可读性
+   主题色变量：--anzhiyu-main / --anzhiyu-main-op-deep
+   ================================================================== */
+.card-announcement {
+  background: linear-gradient(-25deg, var(--anzhiyu-main), var(--anzhiyu-main-op-deep), var(--anzhiyu-main), var(--anzhiyu-main-op-deep)) !important;
+  background-size: 400% !important;
+  color: #ffffff !important;
+}
+
+.card-announcement .item-headline,
+.card-announcement .item-headline i,
+.card-announcement .item-headline span,
+.card-announcement .announcement_content,
+.card-announcement #welcome-info,
+.card-announcement #welcome-info b,
+.card-announcement #welcome-info span {
+  color: #ffffff !important;
+}
+
+/* 深色模式下保持相同渐变（主题变量已自动切换） */
+[data-theme="dark"] .card-announcement {
+  background: linear-gradient(-25deg, var(--anzhiyu-main), var(--anzhiyu-main-op-deep), var(--anzhiyu-main), var(--anzhiyu-main-op-deep)) !important;
+  background-size: 400% !important;
+}
