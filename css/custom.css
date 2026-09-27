@@ -1,7 +1,7 @@
 /* 彖渊子站点自定义样式：全局背景图 + 头像已同步更新 */
 
 /* ============ 背景图集中管理：改这里就行，下面不用动 ============
-   桌面版：白天 = /img/seasons/bg-winter.png（四季默认回退图）
+   桌面版：白天 = /img/seasons/bg-winter.jpg（四季默认回退图）
            夜间 = pE0yMWt.jpg （平均亮度 55.5，真夜景）
    手机版：白天 = pE0y3y8.jpg （1440×2560 竖屏，亮度 128.6）
            夜间 = pE0OoGt.jpg （1407×3045 竖屏，亮度 40.2）
@@ -9,7 +9,7 @@
    --endy-dark-dim：夜间在图上方额外压暗的强度 0~1。
            0 = 完全不压暗（直接看原图），嫌背景太亮就调到 0.2~0.35。 */
 :root {
-  --endy-bg-light-desktop: url("/img/seasons/bg-winter.png");
+  --endy-bg-light-desktop: url("/img/seasons/bg-winter.jpg");
   --endy-bg-dark-desktop: url("/img/selfhosted/pE0yMWt.jpg");
 
   --endy-bg-light-mobile: url("/img/selfhosted/pE0y3y8.jpg");
@@ -18,11 +18,11 @@
   --endy-bg-light: var(--endy-bg-light-desktop);
   --endy-bg-dark: var(--endy-bg-dark-desktop);
 
-  /* 四季日间背景图（桌面版）：春/夏/秋/冬 */
-  --endy-bg-spring: url("/img/seasons/bg-spring.png");
-  --endy-bg-summer: url("/img/seasons/bg-summer.png");
-  --endy-bg-autumn: url("/img/seasons/bg-autumn.png");
-  --endy-bg-winter: url("/img/seasons/bg-winter.png");
+  /* 四季图已统一为 2560x1431 JPEG（原 PNG 4.4MB/张 → 约 0.4MB/张），画幅一致切换才不会跳缩放 */
+  --endy-bg-spring: url("/img/seasons/bg-spring.jpg");
+  --endy-bg-summer: url("/img/seasons/bg-summer.jpg");
+  --endy-bg-autumn: url("/img/seasons/bg-autumn.jpg");
+  --endy-bg-winter: url("/img/seasons/bg-winter.jpg");
 
   /* 四季日间背景图（手机版，竖屏 cover 用） */
   --endy-bg-spring-mobile: url("/img/selfhosted/pE0y3y8.jpg");

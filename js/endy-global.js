@@ -155,13 +155,19 @@
         'background-repeat: no-repeat',
         'pointer-events: none',
         'opacity: 0',
-        'transition: opacity 1.0s ease'  // 柔和淡入，留足时间让眼睛适应大图切换
+        // 新图从轻微放大缓收束到 1：把四张图构图/画幅差异变成一次缓慢运镜，
+        // 而不是"主体突然变大变小"。缩放始终 >=1，边缘不会露底。
+        'transform: scale(1.04)',
+        'transform-origin: center center',
+        'will-change: opacity, transform',
+        'transition: opacity 1.6s cubic-bezier(0.4, 0, 0.2, 1), transform 1.6s cubic-bezier(0.4, 0, 0.2, 1)'
       ].join(';');
       document.body.insertBefore(next, document.body.firstChild);
 
-      // 强制重排，确保 opacity 过渡真正触发
+      // 强制重排，确保 opacity / transform 过渡真正触发
       void next.offsetWidth;
       next.style.opacity = '1';
+      next.style.transform = 'scale(1)';
 
       let finished = false;
       const done = function () {
@@ -171,10 +177,18 @@
         // 正式背景换为新图（与临时层一致），再移除临时层，无缝衔接、无闪白
         root.setAttribute('data-season', season);
         localStorage.setItem(SEASON_STORAGE_KEY, season);
-        next.remove();
+        // 关键：等 #web_bg 的新背景真正上屏（两帧）再撤临时层，
+        // 否则中间有一帧两层都不是新图 → 露出底色，就是用户看到的"闪白"
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            setTimeout(function () {
+              if (myToken === seasonToken) next.remove();
+            }, 120);
+          });
+        });
       };
       next.addEventListener('transitionend', done, { once: true });
-      setTimeout(done, 1300); // 兜底：过渡事件偶发未触发时也能收尾（略长于 1.0s 过渡）
+      setTimeout(done, 1900); // 兜底：过渡事件偶发未触发时也能收尾（略长于 1.6s 过渡）
     });
   }
 
@@ -281,6 +295,18 @@
       });
     });
   }
+
+  // PJAX 离开首页时销毁旧 Swiper：否则 autoplay 定时器仍指向已移除的 DOM，切回易白屏
+  document.addEventListener('pjax:send', function () {
+    if (window.blogSwiper && !window.blogSwiper.destroyed) {
+      try {
+        window.blogSwiper.destroy(true, true);
+      } catch (e) {
+        /* 忽略 */
+      }
+      window.blogSwiper = null;
+    }
+  });
 
   // PJAX 导航完成后重新挂载（#go-up 所在容器内容会被主题替换）
   document.addEventListener('pjax:complete', function () {
