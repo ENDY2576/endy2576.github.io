@@ -894,6 +894,21 @@ document.addEventListener("DOMContentLoaded", function () {
       // switch between traditional and simplified chinese
       window.translateFn.translatePage();
     },
+    "share-btn": () => {
+      // 分享当前文章：优先调用系统原生分享，否则复制链接
+      const url = window.location.href;
+      const title = document.title;
+      if (navigator.share) {
+        navigator.share({ title: title, url: url }).catch(() => {});
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(
+          () => anzhiyu.snackbarShow("文章链接已复制到剪贴板"),
+          () => anzhiyu.snackbarShow("复制失败，请手动复制地址栏链接")
+        );
+      } else {
+        anzhiyu.snackbarShow("复制失败，请手动复制地址栏链接");
+      }
+    },
   };
 
   document.getElementById("rightside").addEventListener("click", function (e) {
@@ -902,6 +917,43 @@ document.addEventListener("DOMContentLoaded", function () {
       rightSideFn[$target.id](this);
     }
   });
+
+  // 快捷键面板（#keyboard-tips）里的每一项也可点击触发对应功能
+  window.keyboardItemClick = function (key) {
+    switch (key) {
+      case "K":
+        typeof anzhiyu.keyboardToggle === "function" && anzhiyu.keyboardToggle();
+        break;
+      case "A":
+        typeof anzhiyu.switchConsole === "function" && anzhiyu.switchConsole();
+        break;
+      case "D":
+        rightSideFn.darkmode();
+        break;
+      case "S": {
+        const b = document.querySelector("#search-button > .search") || document.querySelector("#menu-search");
+        b && b.click();
+        break;
+      }
+      case "R":
+        typeof toRandomPost === "function" && toRandomPost();
+        break;
+      case "H":
+        typeof pjax !== "undefined" && pjax.loadUrl("/");
+        break;
+      case "L":
+        typeof pjax !== "undefined" && pjax.loadUrl("/link/");
+        break;
+      case "P":
+        typeof pjax !== "undefined" && pjax.loadUrl("/about/");
+        break;
+      case "I":
+        typeof anzhiyu.rightMenuToggle === "function" && anzhiyu.rightMenuToggle();
+        break;
+    }
+    const kt = document.getElementById("keyboard-tips");
+    kt && kt.classList.remove("show");
+  };
 
   //监听蒙版关闭
   document.addEventListener(
@@ -1810,6 +1862,11 @@ document.addEventListener("DOMContentLoaded", function () {
     anzhiyu.addEventListenerConsoleMusicList(false);
     anzhiyu.initPaginationObserver();
 
+    // 首页轮播图：PJAX 切回首页后 DOM 已换新，需重新初始化 Swiper，否则白屏
+    if (document.querySelector(".blog-slider")) {
+      typeof initBlogSlider === "function" && initBlogSlider();
+    }
+
     setTimeout(() => {
       setInputFocusListener();
       if (typeof addFriendLinksInFooter === "function") {
@@ -1904,54 +1961,6 @@ function getDistance(e1, n1, e2, n2) {
     let c = hypot(a.x - b.x, a.y - b.y, a.z - b.z)
     let r = asin(c / 2) * 2 * R
     return Math.round(r);
-}
-
-// 把 IPv4 / IPv6 转成十进制字符串
-function ipToDecimal(ip) {
-  if (!ip) return '未知';
-  // IPv4
-  if (ip.indexOf('.') !== -1) {
-    const parts = ip.split('.');
-    if (parts.length !== 4) return ip;
-    let dec = 0;
-    for (let i = 0; i < 4; i++) {
-      const n = parseInt(parts[i], 10);
-      if (isNaN(n) || n < 0 || n > 255) return ip;
-      dec = (dec << 8) + n;
-    }
-    return (dec >>> 0).toString();
-  }
-  // IPv6
-  let groups = ip.split(':');
-  const emptyIdx = groups.indexOf('');
-  if (emptyIdx !== -1) {
-    const missing = 8 - groups.length + 1;
-    groups = groups.slice(0, emptyIdx).concat(Array(missing).fill('0'), groups.slice(emptyIdx + 1));
-  }
-  let dec = BigInt(0);
-  for (let i = 0; i < groups.length; i++) {
-    dec = (dec << BigInt(16)) + BigInt(parseInt(groups[i] || '0', 16));
-  }
-  return dec.toString(10);
-}
-
-// 把 IPv4 / IPv6 转成「点分 8 位二进制」字符串（普通电脑 IP 二进制展示）
-// IPv4：每个字节 8 位补零，点分；IPv6 或其它情况退回十进制
-function ipToBinary(ip) {
-  if (!ip) return '未知';
-  if (ip.indexOf('.') !== -1) {
-    const parts = ip.split('.');
-    if (parts.length !== 4) return ip;
-    const bins = parts.map(p => {
-      const n = parseInt(p, 10);
-      if (isNaN(n) || n < 0 || n > 255) return null;
-      return n.toString(2).padStart(8, '0');
-    });
-    if (bins.indexOf(null) !== -1) return ip;
-    return bins.join('.');
-  }
-  // IPv6 等：退回十进制展示
-  return ipToDecimal(ip);
 }
 
 function showWelcome() {
@@ -2143,8 +2152,7 @@ function showWelcome() {
     else timeChange = "夜深了，早点休息，少熬夜。";
 
     try {
-        // 新版式：每行一个信息块，IP 默认二进制（点分 8 位）且默认半透明模糊，悬浮清晰
-        const ipBinary = ipToBinary(ip);
+        // 新版式：每行一个信息块，IP 直接展示，默认半透明模糊，悬浮清晰
         setWelcome(`
           <div class="endy-welcome">
             <div class="endy-welcome-row">
@@ -2160,7 +2168,7 @@ function showWelcome() {
             </div>
             <div class="endy-welcome-row endy-welcome-ip-row">
               <span class="endy-welcome-label">当前IP地址为：</span>
-              <span class="endy-welcome-ip" title="原始地址：${ip}" data-ip="${ip}">${ipBinary}</span>
+              <span class="endy-welcome-ip" title="${ip}">${ip}</span>
             </div>
             <div class="endy-welcome-row endy-welcome-poem">${posdesc}</div>
           </div>

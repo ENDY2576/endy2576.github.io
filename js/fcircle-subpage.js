@@ -1,15 +1,21 @@
 /* 彖渊子 · 朋友圈子页（订阅 / 活跃 / 文章 / 失败）
  * 共享脚本：通过 #fc-subpage-root 的 data-view 决定渲染哪种视图。
- * 数据源：Friend-Circle-Lite page 分支 all.json（与首页朋友圈同源）。
- * 注意：all.json 仅公开 statistical_data + article_data，未暴露逐站错误明细，
- *       故「失败」页只展示聚合数字并说明，不做伪造明细。
+ * 数据源：Friend-Circle-Lite page 分支
+ *   - all.json    ：与首页朋友圈同源的聚合统计 + 文章数据
+ *   - errors.json ：后端每次抓取失败（lost_friends）的友链源清单 [名称, 网址, 头像]
+ *     已随 page 分支公开，故「失败」页可展示真实失败站点；后端未附带逐站失败原因，
+ *     仅能列出身份，不做伪造明细。
  */
 (function () {
   'use strict';
 
   const API_URL = 'https://cdn.jsdelivr.net/gh/ENDY2576/Friend-Circle-Lite@page/all.json';
+  const ERRORS_URL = 'https://cdn.jsdelivr.net/gh/ENDY2576/Friend-Circle-Lite@page/errors.json';
   const ERROR_IMG = 'https://i.p-i.vip/30/20240815-66bced9226a36.webp';
   const CHART_JS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+
+  // 缓存本次 fetch 的数据，供博主面板按作者筛选文章用
+  let pageData = null;
 
   const VIEWS = ['subscribe', 'active', 'articles', 'error'];
   const VIEW_LABEL = { subscribe: '订阅', active: '活跃', articles: '文章', error: '失败' };
@@ -125,6 +131,87 @@
     return Array.from(map.values());
   }
 
+  // 作者最近文章面板（与首页 fcircle-lite-custom.js 同源逻辑，针对子页数据做适配）
+  function getAuthorArticles(author, sampleLink) {
+    const articles = (pageData && pageData.article_data) || [];
+    let domain = '';
+    try { if (sampleLink) domain = new URL(sampleLink).hostname; } catch (e) { domain = ''; }
+    return articles
+      .filter(a => a.author === author)
+      .filter(a => {
+        if (!domain || !a.link) return true;
+        try { return new URL(a.link).hostname === domain; } catch (e) { return true; }
+      })
+      .sort((a, b) => {
+        const ta = a.created ? new Date(a.created.replace(/-/g, '/')).getTime() : 0;
+        const tb = b.created ? new Date(b.created.replace(/-/g, '/')).getTime() : 0;
+        return tb - ta;
+      })
+      .slice(0, 5);
+  }
+
+  function renderAuthorPanel(author, avatar, articles) {
+    const listHtml = articles.length
+      ? articles.map(a => `
+        <a class="fc-lite-author-panel-item" href="${escapeHtml(a.link)}" target="_blank" rel="noopener">
+          <span class="fc-lite-author-panel-item-title">${escapeHtml(a.title)}</span>
+          <span class="fc-lite-author-panel-item-date">${formatDate(a.created)}</span>
+        </a>
+      `).join('')
+      : `<div class="fc-lite-author-panel-empty">暂无更多文章</div>`;
+    return `
+      <div class="fc-lite-author-panel-backdrop" id="fc-lite-author-panel-backdrop">
+        <div class="fc-lite-author-panel" role="dialog" aria-modal="true" aria-labelledby="fc-lite-author-panel-name">
+          <div class="fc-lite-author-panel-header">
+            <div class="fc-lite-author-panel-info">
+              <div class="fc-lite-avatar-wrap small">
+                <img class="fc-lite-card-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(author)}" loading="lazy" onerror="this.src='${ERROR_IMG}'">
+              </div>
+              <span class="fc-lite-author-panel-name" id="fc-lite-author-panel-name">${escapeHtml(author)}</span>
+            </div>
+            <button class="fc-lite-author-panel-close" type="button" aria-label="关闭">×</button>
+          </div>
+          <div class="fc-lite-author-panel-list">
+            ${listHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function showAuthorPanel(author, avatar, link) {
+    const existing = document.getElementById('fc-lite-author-panel-backdrop');
+    if (existing) existing.remove();
+
+    const articles = getAuthorArticles(author, link);
+    const html = renderAuthorPanel(author, avatar, articles);
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    const backdrop = document.getElementById('fc-lite-author-panel-backdrop');
+    if (!backdrop) return;
+    const panel = backdrop.querySelector('.fc-lite-author-panel');
+
+    function close() {
+      backdrop.classList.add('fc-lite-author-panel-hiding');
+      setTimeout(() => backdrop.remove(), 250);
+      document.removeEventListener('keydown', onKey);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') close();
+    }
+
+    backdrop.addEventListener('click', function (e) {
+      if (e.target === backdrop || e.target.closest('.fc-lite-author-panel-close')) close();
+    });
+
+    document.addEventListener('keydown', onKey);
+
+    requestAnimationFrame(() => {
+      backdrop.classList.add('fc-lite-author-panel-show');
+    });
+  }
+
   function renderArticleCard(article, index) {
     const cat = getCategory(article.category);
     return `
@@ -142,7 +229,7 @@
             <div class="fc-lite-avatar-wrap small">
               <img class="fc-lite-card-avatar" src="${escapeHtml(article.avatar || ERROR_IMG)}" alt="${escapeHtml(article.author)}" loading="lazy" onerror="this.src='${ERROR_IMG}'">
             </div>
-            <span class="fc-lite-card-author">${escapeHtml(article.author)}</span>
+            <button class="fc-lite-author-btn" type="button" data-author="${escapeHtml(article.author)}" data-avatar="${escapeHtml(article.avatar || ERROR_IMG)}" data-link="${escapeHtml(article.link)}">${escapeHtml(article.author)}</button>
           </div>
         </div>
       </article>
@@ -239,15 +326,15 @@
       <div class="fc-sub-charts">
         <div class="fc-sub-chart-box">
           <h3 class="fc-sub-chart-title">分类分布</h3>
-          <canvas id="fc-chart-cat" height="220"></canvas>
+          <div class="fc-sub-chart-canvas-wrap"><canvas id="fc-chart-cat"></canvas></div>
         </div>
         <div class="fc-sub-chart-box">
           <h3 class="fc-sub-chart-title">发文最多博主 Top 10</h3>
-          <canvas id="fc-chart-author" height="220"></canvas>
+          <div class="fc-sub-chart-canvas-wrap"><canvas id="fc-chart-author"></canvas></div>
         </div>
         <div class="fc-sub-chart-box fc-sub-chart-wide">
           <h3 class="fc-sub-chart-title">每月文章数</h3>
-          <canvas id="fc-chart-month" height="200"></canvas>
+          <div class="fc-sub-chart-canvas-wrap"><canvas id="fc-chart-month"></canvas></div>
         </div>
       </div>
       <div class="fc-sub-section">
@@ -260,17 +347,64 @@
     drawCharts(articles);
   }
 
-  function renderError(root, data) {
+  // 解析失败源条目：后端 errors.json 当前为 [名称, 网址, 头像] 数组，
+  // 但也兼容可能的对象格式，避免某条结构异常导致整页崩溃。
+  function parseLostFriend(e) {
+    if (Array.isArray(e)) {
+      return { name: e[0] || '未知', url: e[1] || '', avatar: e[2] || ERROR_IMG };
+    }
+    if (e && typeof e === 'object') {
+      return {
+        name: e.name || e.author || e.title || '未知',
+        url: e.link || e.url || e.blog_url || '',
+        avatar: e.avatar || e.face || ERROR_IMG
+      };
+    }
+    return { name: '未知', url: '', avatar: ERROR_IMG };
+  }
+
+  function renderError(root, data, errors) {
     const stats = data.statistical_data || {};
-    const authors = groupByAuthor(data.article_data || []);
+    const lost = Array.isArray(errors) ? errors.map(parseLostFriend) : [];
+    const normalAuthors = groupByAuthor(data.article_data || []);
+    const lostCount = lost.length;
+    const errorNum = stats.error_num || 0;
+
+    const lostGrid = lost.length
+      ? `<div class="fc-sub-author-grid">
+          ${lost.map(s => `
+            <a class="fc-sub-author failed" href="${escapeHtml(s.url)}" target="_blank" rel="noopener" title="${escapeHtml(s.url) || '无链接'}">
+              <img class="fc-sub-author-avatar" src="${escapeHtml(s.avatar)}" alt="${escapeHtml(s.name)}" loading="lazy" onerror="this.src='${ERROR_IMG}'">
+              <div class="fc-sub-author-info">
+                <div class="fc-sub-author-name">${escapeHtml(s.name)}</div>
+                <div class="fc-sub-author-meta">${s.url ? '抓取失败 · 点击访问' : '抓取失败'}</div>
+              </div>
+            </a>
+          `).join('')}
+        </div>`
+      : `<p class="fc-sub-desc">本次未能获取逐站失败明细（<code>errors.json</code> 暂不可达），仅展示聚合数字。</p>`;
+
+    const diffNote = (lostCount && errorNum && lostCount !== errorNum)
+      ? `聚合统计报 <strong>${errorNum}</strong> 个失败，明细列出 <strong>${lostCount}</strong> 个（差值为合并源 / 自引用等未公开项）。`
+      : '';
+
     root.innerHTML = `
       ${renderNav('error')}
       ${statBanner(stats)}
       <div class="fc-sub-section">
-        <h2 class="fc-sub-h2">抓取失败的订阅源（${stats.error_num || 0} 个）</h2>
-        <p class="fc-sub-desc">当前公开数据源 <code>all.json</code> 仅提供聚合统计，未逐站暴露失败明细。失效通常为对方站点改版、RSS 失效或超时。<strong>${stats.error_num || 0}</strong> 个源本次抓取失败，已并入订阅总数 ${stats.friends_num || 0} 中。下方列出仍正常收录的 ${authors.length} 个来源作为对照。</p>
+        <h2 class="fc-sub-h2">抓取失败的订阅源（${lostCount || errorNum} 个）</h2>
+        <p class="fc-sub-desc">
+          这些友链源在最近一次 GitHub Actions 抓取中未能成功获取文章——后端 <code>errors.json</code> 已公开这些源的身份。
+          常见原因：对方站点 RSS 改版 / 失效、服务器超时、反爬拦截或 404。${diffNote}
+          后端当前未附带逐站失败原因，故仅能列出站点；如需具体原因需在 <code>run.py</code> 的 <code>errors.json</code> 中写入 reason 字段。
+        </p>
+        ${lostGrid}
+      </div>
+      <div class="fc-sub-section">
+        <h2 class="fc-sub-h2">正常收录的来源（${normalAuthors.length} 个有文章）</h2>
+        <p class="fc-sub-desc">以下为本次成功抓取并产出文章的来源，作为对照。</p>
         <div class="fc-sub-author-grid">
-          ${authors.map(a => `
+          ${normalAuthors.map(a => `
             <div class="fc-sub-author ok">
               <img class="fc-sub-author-avatar" src="${escapeHtml(a.avatar)}" alt="${escapeHtml(a.author)}" loading="lazy" onerror="this.src='${ERROR_IMG}'">
               <div class="fc-sub-author-info">
@@ -324,7 +458,14 @@
             borderWidth: 1
           }]
         },
-        options: { plugins: { legend: { position: 'right' } }, maintainAspectRatio: false }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: 6 },
+          plugins: {
+            legend: { position: 'right', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } }
+          }
+        }
       });
 
       // Top 10 作者
@@ -341,9 +482,14 @@
         },
         options: {
           indexAxis: 'y',
-          plugins: { legend: { display: false } },
+          responsive: true,
           maintainAspectRatio: false,
-          scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+          layout: { padding: { bottom: 6 } },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { beginAtZero: true, ticks: { precision: 0, padding: 4 } },
+            y: { ticks: { font: { size: 11 } } }
+          }
         }
       });
 
@@ -370,9 +516,25 @@
           }]
         },
         options: {
-          plugins: { legend: { display: false } },
+          responsive: true,
           maintainAspectRatio: false,
-          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+          layout: { padding: { bottom: 8, right: 14 } },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: {
+                maxRotation: 45,
+                minRotation: 45,
+                autoSkip: true,
+                maxTicksLimit: 8,
+                callback: function (value) {
+                  const label = this.getLabelForValue(value);
+                  return label ? label.slice(2) : label;
+                }
+              }
+            },
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
         }
       });
     };
@@ -396,10 +558,30 @@
     fetch(API_URL)
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(data => {
+        pageData = data; // 缓存数据，供博主面板筛选文章
         if (view === 'subscribe') renderSubscribe(root, data);
         else if (view === 'active') renderActive(root, data);
-        else if (view === 'articles') renderArticles(root, data);
-        else if (view === 'error') renderError(root, data);
+        else if (view === 'articles') {
+          renderArticles(root, data);
+          // 只绑定一次作者按钮点击事件（事件委托）
+          if (!root._fcAuthorBound) {
+            root._fcAuthorBound = true;
+            root.addEventListener('click', function (e) {
+              const btn = e.target.closest('.fc-lite-author-btn');
+              if (!btn) return;
+              e.preventDefault();
+              e.stopPropagation();
+              showAuthorPanel(btn.dataset.author, btn.dataset.avatar, btn.dataset.link);
+            });
+          }
+        }
+        else if (view === 'error') {
+          // 失败页额外拉取 errors.json；拿不到明细时退化为仅聚合视图，不阻断页面。
+          fetch(ERRORS_URL)
+            .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+            .then(errors => renderError(root, data, errors))
+            .catch(() => renderError(root, data, null));
+        }
       })
       .catch(err => {
         root.innerHTML = '<div class="fc-lite-error">朋友圈数据加载失败，请稍后刷新重试。</div>';

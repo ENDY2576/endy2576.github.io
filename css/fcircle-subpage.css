@@ -3,19 +3,20 @@
  *     此处仅补充根变量作用域与子页专属布局。 */
 
 #fc-subpage-root {
-  --fc-card-bg: rgba(255, 255, 255, 0.82);
+  --fc-card-bg: #ffffff;
   --fc-card-border: rgba(0, 0, 0, 0.06);
   --fc-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   --fc-text-main: #2c3e50;
   --fc-text-sub: #5f6f81;
   --fc-radius: 16px;
+  --fc-radius-hover: 18px;
   --fc-primary: #3b82f6;
   font-size: 15px;
   color: var(--fc-text-main);
 }
 
 [data-theme="dark"] #fc-subpage-root {
-  --fc-card-bg: rgba(30, 35, 48, 0.78);
+  --fc-card-bg: #1e2330;
   --fc-card-border: rgba(255, 255, 255, 0.08);
   --fc-card-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   --fc-text-main: #e8ecf1;
@@ -129,7 +130,6 @@
   text-decoration: none;
   color: inherit;
   transition: transform 0.2s ease, border-color 0.2s ease;
-  backdrop-filter: blur(8px);
 }
 
 .fc-sub-author:hover {
@@ -141,13 +141,23 @@
   border-left: 3px solid #10b981;
 }
 
+.fc-sub-author.failed {
+  border-left: 3px solid #ef4444;
+}
+
+.fc-sub-author.failed:hover {
+  border-color: #ef4444;
+}
+
 .fc-sub-author-avatar {
   width: 44px;
   height: 44px;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--fc-card-border);
   flex-shrink: 0;
+  background: var(--fc-card-bg);
 }
 
 .fc-sub-author-info {
@@ -183,7 +193,27 @@
   box-shadow: var(--fc-card-shadow);
   border-radius: var(--fc-radius);
   padding: 16px;
-  backdrop-filter: blur(8px);
+  height: 280px;        /* 定高，防止 Chart.js resize 反馈循环把容器无限撑大 */
+  max-height: 280px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.fc-sub-chart-box canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 图表画布包裹层：flex 占满标题下方的剩余空间，交给 Chart.js 自适应填充。
+   之前 canvas 直接 height:100% 会吃掉盒子的 padding 导致圆环/折线溢出边界。 */
+.fc-sub-chart-canvas-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 }
 
 .fc-sub-chart-wide {

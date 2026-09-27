@@ -1,19 +1,20 @@
 /* 彖渊子 · 朋友圈（Friend-Circle-Lite 自定义分类版）样式 */
 
 #friend-circle-lite-root {
-  --fc-card-bg: rgba(255, 255, 255, 0.82);
+  --fc-card-bg: #ffffff;
   --fc-card-border: rgba(0, 0, 0, 0.06);
   --fc-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   --fc-text-main: #2c3e50;
   --fc-text-sub: #5f6f81;
   --fc-radius: 16px;
+  --fc-radius-hover: 18px;
   --fc-primary: #3b82f6;
   font-size: 15px;
   color: var(--fc-text-main);
 }
 
 [data-theme="dark"] #friend-circle-lite-root {
-  --fc-card-bg: rgba(30, 35, 48, 0.78);
+  --fc-card-bg: #1e2330;
   --fc-card-border: rgba(255, 255, 255, 0.08);
   --fc-card-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   --fc-text-main: #e8ecf1;
@@ -35,8 +36,7 @@
   border-radius: var(--fc-radius);
   padding: 18px 8px;
   text-align: center;
-  backdrop-filter: blur(8px);
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, border-radius 0.2s ease;
 }
 
 .fc-lite-stat-card {
@@ -46,12 +46,70 @@
 
 .fc-lite-stat-card:hover {
   transform: translateY(-2px);
-  border-color: var(--fc-primary);
-  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.15);
+  /* 保留原版白字蓝底风格，只去掉硬金边，改用中性柔阴影；悬浮态圆角更柔避免锋利 */
+  background: color-mix(in srgb, var(--fc-primary) 18%, transparent);
+  color: #fff;
+  border-color: var(--fc-card-border);
+  border-radius: var(--fc-radius-hover);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.10);
 }
 
 .fc-lite-stat-card:active {
   transform: translateY(0);
+}
+
+.fc-lite-stat-card:hover .fc-lite-stat-num,
+.fc-lite-stat-card:hover .fc-lite-stat-label {
+  color: #fff;
+}
+
+/* 高亮当前所在子页的统计卡片：白字 + 更明显的主题色底，无硬金边 */
+.fc-lite-stat-card.active {
+  background: color-mix(in srgb, var(--fc-primary) 28%, transparent);
+  color: #fff;
+  border-color: var(--fc-card-border);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.10);
+}
+
+.fc-lite-stat-card.active .fc-lite-stat-num,
+.fc-lite-stat-card.active .fc-lite-stat-label {
+  color: #fff;
+}
+
+.fc-lite-stat-card.active:hover {
+  background: color-mix(in srgb, var(--fc-primary) 34%, transparent);
+  border-color: var(--fc-card-border);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* 夜间模式：同样白字蓝底 + 中性边框 + 柔阴影 */
+[data-theme="dark"] .fc-lite-stat-card:hover {
+  background: color-mix(in srgb, var(--fc-primary) 28%, transparent);
+  color: #fff;
+  border-color: var(--fc-card-border);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .fc-lite-stat-card:hover .fc-lite-stat-num,
+[data-theme="dark"] .fc-lite-stat-card:hover .fc-lite-stat-label {
+  color: #fff;
+}
+
+[data-theme="dark"] .fc-lite-stat-card.active {
+  background: color-mix(in srgb, var(--fc-primary) 38%, transparent);
+  color: #fff;
+  border-color: var(--fc-card-border);
+}
+
+[data-theme="dark"] .fc-lite-stat-card.active .fc-lite-stat-num,
+[data-theme="dark"] .fc-lite-stat-card.active .fc-lite-stat-label {
+  color: #fff;
+}
+
+[data-theme="dark"] .fc-lite-stat-card.active:hover {
+  background: color-mix(in srgb, var(--fc-primary) 44%, transparent);
+  border-color: var(--fc-card-border);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
 }
 
 .fc-lite-stat-detail {
@@ -63,7 +121,7 @@
   color: var(--fc-text-main);
   font-size: 14px;
   line-height: 1.6;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(2px);
   animation: fcLiteFadeInUp 0.3s ease forwards;
 }
 
@@ -88,7 +146,7 @@
   border-radius: var(--fc-radius);
   padding: 18px 20px;
   margin-bottom: 22px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(2px);
 }
 
 .fc-lite-random-head {
@@ -134,13 +192,24 @@
 }
 
 .fc-lite-btn-primary {
-  background: var(--fc-primary);
+  background: color-mix(in srgb, var(--fc-primary) 16%, transparent);
   color: #fff;
-  border-color: transparent;
+  border: 1px solid #f59e0b;
+  border-radius: var(--fc-radius);
 }
 
 .fc-lite-btn-primary:hover {
-  background: #2563eb;
+  background: color-mix(in srgb, var(--fc-primary) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .fc-lite-btn-primary {
+  background: color-mix(in srgb, var(--fc-primary) 26%, transparent);
+  border-color: #fbbf24;
+}
+
+[data-theme="dark"] .fc-lite-btn-primary:hover {
+  background: color-mix(in srgb, var(--fc-primary) 36%, transparent);
 }
 
 .fc-lite-random-body {
@@ -149,44 +218,63 @@
   align-items: center;
 }
 
-/* 头像背景光环/渐变圆底：恢复原版卡片设计感 */
+/* 头像：正圆裁切（object-fit: cover），保持 1:1，避免非正方图被拉成椭圆 */
 .fc-lite-avatar-wrap {
   position: relative;
   width: 64px;
   height: 64px;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   flex-shrink: 0;
-  padding: 4px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
   overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--fc-primary) 35%, transparent);
+  background: var(--fc-card-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .fc-lite-avatar-wrap.small {
   width: 32px;
   height: 32px;
-  padding: 2px;
-  box-shadow: 0 2px 5px rgba(102, 126, 234, 0.25);
-  overflow: hidden;
+  border-width: 1px;
 }
 
 .fc-lite-avatar-wrap img {
   display: block;
   width: 100%;
   height: 100%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   object-fit: cover;
   border: none;
   box-sizing: border-box;
-  background: var(--fc-card-bg);
 }
 
 .fc-lite-random-avatar {
   width: 100%;
   height: 100%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   object-fit: cover;
   display: block;
+}
+
+/* 右下角模糊背景头像也用正圆裁切 */
+.fc-lite-card-bg {
+  width: 140px;
+  height: 140px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* 文章卡片底部小头像同样强制 1:1 正圆 */
+.fc-lite-card-avatar {
+  width: 24px;
+  height: 24px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--fc-card-border);
 }
 
 .fc-lite-random-info {
@@ -259,7 +347,7 @@
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s ease;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(2px);
 }
 
 .fc-lite-tab:hover {
@@ -335,15 +423,27 @@
   padding: 16px;
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, border-radius 0.25s ease;
   overflow: hidden;
-  backdrop-filter: blur(8px);
 }
 
 .fc-lite-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-  border-color: var(--fc-primary);
+  /* 悬浮态保持原边框色不变，只做柔和上浮 + 中性柔阴影，不出现任何硬描边/彩色描边，避免"锋利"感 */
+  border-radius: var(--fc-radius-hover);
+  border-color: var(--fc-card-border);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.10);
+}
+
+/* 高优先级确保文章卡片圆角（含悬浮态）不被主题 #post 等规则覆盖，首页/子页同时生效 */
+#friend-circle-lite-root .fc-lite-card,
+#fc-subpage-root .fc-lite-card {
+  border-radius: var(--fc-radius);
+}
+
+#friend-circle-lite-root .fc-lite-card:hover,
+#fc-subpage-root .fc-lite-card:hover {
+  border-radius: var(--fc-radius-hover);
 }
 
 /* 卡片入场动画 */
@@ -364,7 +464,7 @@
   animation-delay: var(--card-enter-delay, 0ms);
 }
 
-/* 右下角模糊头像背景（恢复原版 Friend-Circle-Lite 设计感） */
+/* 右下角头像背景：极淡、无模糊，仅作轻微点缀 */
 .fc-lite-card-bg {
   position: absolute;
   z-index: 0;
@@ -374,8 +474,9 @@
   height: 140px;
   border-radius: 50% !important;
   object-fit: cover;
-  opacity: 0.35;
-  filter: blur(5px);
+  opacity: 0.08;
+  filter: blur(0);
+  -webkit-filter: blur(0);
   pointer-events: none;
   transition: transform 0.6s ease, bottom 0.3s ease, right 0.3s ease, opacity 0.3s ease;
 }
@@ -384,15 +485,15 @@
   transform: scale(1.1);
   bottom: -10px;
   right: -8px;
-  opacity: 0.5;
+  opacity: 0.12;
 }
 
 [data-theme="dark"] .fc-lite-card-bg {
-  opacity: 0.25;
+  opacity: 0.06;
 }
 
 [data-theme="dark"] .fc-lite-card:hover .fc-lite-card-bg {
-  opacity: 0.4;
+  opacity: 0.10;
 }
 
 /* 卡片主体层在背景之上 */
@@ -429,9 +530,19 @@
   cursor: pointer;
 }
 
-.fc-lite-card-title a {
+/* 用 #friend-circle-lite-root / #fc-subpage-root 前缀提高优先级，压住主题 #post a:hover 的下划线 */
+#friend-circle-lite-root .fc-lite-card-title,
+#friend-circle-lite-root .fc-lite-card-title a,
+#friend-circle-lite-root .fc-lite-card-title a:hover,
+#friend-circle-lite-root .fc-lite-card-title a:focus,
+#fc-subpage-root .fc-lite-card-title,
+#fc-subpage-root .fc-lite-card-title a,
+#fc-subpage-root .fc-lite-card-title a:hover,
+#fc-subpage-root .fc-lite-card-title a:focus {
   color: inherit;
-  text-decoration: none;
+  text-decoration: none !important;
+  /* 主题 #post a 用 border-bottom 模拟下划线，必须同时清掉 */
+  border-bottom: none !important;
   transition: color 0.2s ease;
 }
 
@@ -449,20 +560,190 @@
   border-top: 1px dashed var(--fc-card-border);
 }
 
-.fc-lite-card-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid var(--fc-card-border);
+/* 博主名称：可点击按钮，无下划线，悬停变主题色 */
+.fc-lite-author-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fc-primary);
+  cursor: pointer;
+  text-decoration: none !important;
+  transition: color 0.2s ease, transform 0.1s ease;
 }
 
+.fc-lite-author-btn:hover {
+  color: #f59e0b;
+  text-decoration: none !important;
+}
+
+.fc-lite-author-btn:active {
+  transform: scale(0.97);
+}
+
+/* 子页文章卡片作者名：视觉与首页 .fc-lite-author-btn 统一，保持主色 */
 .fc-lite-card-author {
   font-size: 13px;
-  color: var(--fc-text-sub);
+  color: var(--fc-primary);
+}
+
+/* —— 博主最近文章弹出面板 —— */
+.fc-lite-author-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.fc-lite-author-panel-backdrop.fc-lite-author-panel-show {
+  opacity: 1;
+}
+
+.fc-lite-author-panel-backdrop.fc-lite-author-panel-hiding {
+  opacity: 0;
+}
+
+.fc-lite-author-panel {
+  width: min(420px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+  border-radius: var(--fc-radius);
+  padding: 16px;
+  transform: translateY(16px) scale(0.96);
+  transition: transform 0.25s ease;
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .fc-lite-author-panel {
+  background: #1e2330;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.fc-lite-author-panel-backdrop.fc-lite-author-panel-show .fc-lite-author-panel {
+  transform: translateY(0) scale(1);
+}
+
+.fc-lite-author-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--fc-card-border);
+}
+
+.fc-lite-author-panel-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fc-lite-author-panel-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fc-text-main);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.fc-lite-author-panel-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--fc-card-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fc-text-sub);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.fc-lite-author-panel-close:hover {
+  background: color-mix(in srgb, var(--fc-primary) 16%, transparent);
+  color: var(--fc-primary);
+}
+
+.fc-lite-author-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.fc-lite-author-panel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--fc-radius);
+  background: color-mix(in srgb, var(--fc-primary) 6%, transparent);
+  border: 1px solid var(--fc-card-border);
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.fc-lite-author-panel-item:hover {
+  background: color-mix(in srgb, var(--fc-primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--fc-primary) 40%, transparent);
+}
+
+.fc-lite-author-panel-item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fc-text-main);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fc-lite-author-panel-item-date {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--fc-text-sub);
+  white-space: nowrap;
+}
+
+.fc-lite-author-panel-empty {
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--fc-text-sub);
+  font-size: 14px;
+}
+
+/* 夜间模式适配 */
+[data-theme="dark"] .fc-lite-author-panel-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .fc-lite-author-panel-close:hover {
+  background: color-mix(in srgb, var(--fc-primary) 26%, transparent);
 }
 
 /* 加载 / 空状态 */

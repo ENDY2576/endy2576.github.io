@@ -67,21 +67,176 @@
     update();
   }
 
+  const SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+  const SEASON_NAMES = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' };
+  const SEASON_ICONS = {
+    spring: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c0-4-3-7-7-7 0 4 3 7 7 7z"/><path d="M12 12c0-4 3-7 7-7 0 4-3 7-7 7z"/></svg>',
+    summer: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>',
+    autumn: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2 5h5l-4 3 2 5-5-3-5 3 2-5-4-3h5z"/><path d="M12 15v7"/></svg>',
+    winter: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20M5.64 5.64l12.72 12.72M5.64 18.36 18.36 5.64"/></svg>'
+  };
+  const SEASON_STORAGE_KEY = 'endy-season-override';
+
   /* 四季日间背景：按当前月份（北半球）写入 <html data-season>，
-     由 custom.css 的 :root[data-season] 规则切换 --endy-bg-light。 */
-  function applySeason() {
+     由 custom.css 的 :root[data-season] 规则切换 --endy-bg-light。
+     如果用户在右下角手动切换过季节，优先读取 localStorage 保存的偏好。 */
+  function getSeasonByMonth() {
     const m = new Date().getMonth() + 1; // 1-12
-    let season;
-    if (m >= 3 && m <= 5) season = 'spring';
-    else if (m >= 6 && m <= 8) season = 'summer';
-    else if (m >= 9 && m <= 11) season = 'autumn';
-    else season = 'winter';
+    if (m >= 3 && m <= 5) return 'spring';
+    if (m >= 6 && m <= 8) return 'summer';
+    if (m >= 9 && m <= 11) return 'autumn';
+    return 'winter';
+  }
+
+  function applySeason() {
+    let season = localStorage.getItem(SEASON_STORAGE_KEY);
+    if (!season || SEASONS.indexOf(season) === -1) {
+      season = getSeasonByMonth();
+    }
     document.documentElement.setAttribute('data-season', season);
+  }
+
+  // 预加载图片：返回 Promise，onload/onerror/已缓存都立即 resolve，避免切换瞬间图未就绪而闪白
+  function preloadImage(url) {
+    return new Promise(function (resolve) {
+      if (!url) return resolve();
+      const img = new Image();
+      img.onload = function () { resolve(); };
+      img.onerror = function () { resolve(); };
+      img.src = url;
+      if (img.complete) resolve();
+    });
+  }
+
+  // 切换令牌：快速连点时只让最后一次切换真正生效，避免多个临时层叠加导致闪烁/卡顿
+  let seasonToken = 0;
+
+  function setSeason(season) {
+    if (SEASONS.indexOf(season) === -1) return;
+    const root = document.documentElement;
+    const bg = document.getElementById('web_bg');
+    const current = root.getAttribute('data-season') || getSeasonByMonth();
+
+    // 无背景层、已是目标季节、或夜间模式（夜间仅一张图）直接切换，无需过渡
+    if (current === season || !bg || root.getAttribute('data-theme') === 'dark') {
+      root.setAttribute('data-season', season);
+      localStorage.setItem(SEASON_STORAGE_KEY, season);
+      return;
+    }
+
+    // 复位 #web_bg 可能残留的内联样式（防止旧过渡打断后背景卡在透明）
+    bg.style.transition = 'none';
+    bg.style.opacity = '1';
+
+    // 按视口选桌面/移动背景变量，用于预加载与临时层
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const bgVar = isMobile ? '--endy-bg-' + season + '-mobile' : '--endy-bg-' + season;
+    const bgUrl = (getComputedStyle(root).getPropertyValue(bgVar) || '').trim();
+
+    const myToken = ++seasonToken;
+
+    // 清掉可能残留的临时层
+    const stale = document.getElementById('web_bg_next');
+    if (stale) stale.remove();
+
+    // 先预加载新季背景图，就绪后再开始淡入，杜绝闪白
+    preloadImage(bgUrl).then(function () {
+      if (myToken !== seasonToken) return; // 已被更新的切换取代，放弃本次
+
+      const next = document.createElement('div');
+      next.id = 'web_bg_next';
+      next.style.cssText = [
+        'position: fixed',
+        'top: 0', 'left: 0', 'width: 100%', 'height: 100%',
+        'z-index: -998',                 // 高于 #web_bg(-999)，盖在旧背景之上、内容之下
+        'background-image: var(' + bgVar + ')',
+        'background-size: cover',
+        'background-position: center center',
+        'background-repeat: no-repeat',
+        'pointer-events: none',
+        'opacity: 0',
+        'transition: opacity 1.0s ease'  // 柔和淡入，留足时间让眼睛适应大图切换
+      ].join(';');
+      document.body.insertBefore(next, document.body.firstChild);
+
+      // 强制重排，确保 opacity 过渡真正触发
+      void next.offsetWidth;
+      next.style.opacity = '1';
+
+      let finished = false;
+      const done = function () {
+        if (finished || myToken !== seasonToken) return;
+        finished = true;
+        next.removeEventListener('transitionend', done);
+        // 正式背景换为新图（与临时层一致），再移除临时层，无缝衔接、无闪白
+        root.setAttribute('data-season', season);
+        localStorage.setItem(SEASON_STORAGE_KEY, season);
+        next.remove();
+      };
+      next.addEventListener('transitionend', done, { once: true });
+      setTimeout(done, 1300); // 兜底：过渡事件偶发未触发时也能收尾（略长于 1.0s 过渡）
+    });
+  }
+
+  function initSeasonToggle() {
+    // 中控台按钮 (#season-toggle) + 右侧设置展开按钮 (#rightside-season-toggle)
+    const btns = [
+      document.getElementById('season-toggle'),
+      document.getElementById('rightside-season-toggle')
+    ].filter(Boolean);
+    if (!btns.length) return;
+
+    function getIconHost(btn) {
+      // 中控台按钮把 SVG 放在内部 <a class="season-switch"> 里；右侧按钮自身就是容器
+      return btn.querySelector('a.season-switch') || btn;
+    }
+
+    function updateAll(season) {
+      const s = season || document.documentElement.getAttribute('data-season') || getSeasonByMonth();
+      btns.forEach(function (btn) {
+        getIconHost(btn).innerHTML = SEASON_ICONS[s] || SEASON_ICONS.winter;
+        btn.title = '切换四季背景（当前：' + (SEASON_NAMES[s] || '冬') + '）';
+      });
+    }
+
+    btns.forEach(function (btn) {
+      // PJAX 导航会重复触发 boot()，避免重复绑定导致点击一次跳两季
+      if (btn.dataset.seasonBound === '1') return;
+      btn.dataset.seasonBound = '1';
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const current = document.documentElement.getAttribute('data-season') || getSeasonByMonth();
+        const idx = SEASONS.indexOf(current);
+        const next = SEASONS[(idx + 1) % SEASONS.length];
+        setSeason(next);
+        updateAll(next);
+      });
+    });
+
+    updateAll();
+  }
+
+  // 点击主页链接时复用站点加载动画（#loading-box），提升跳转主页的过渡感
+  function initHomePreloader() {
+    function showLoading() {
+      const box = document.getElementById('loading-box');
+      if (box) box.classList.remove('loaded');
+    }
+
+    document.addEventListener('click', function (e) {
+      const a = e.target.closest('#site-name a, a[href="/"], a[href="' + location.origin + '/"]');
+      if (!a) return;
+      showLoading();
+    });
   }
 
   function boot() {
     initScrollPercent();
     applySeason();
+    initSeasonToggle();
+    initHomePreloader();
   }
 
   // 立即设置季节（脚本注入较早，先落定 data-season 避免日间背景闪一下默认冬季图）
@@ -93,10 +248,33 @@
     boot();
   }
 
+  // 刷新懒加载：PJAX 切页后主题会替换 DOM，轮播图等 data-lazy-src 图片可能没被懒加载库重新扫描到，导致白屏
+  function refreshLazyLoad() {
+    if (window.lazyLoadInstance && typeof window.lazyLoadInstance.update === 'function') {
+      window.lazyLoadInstance.update();
+    }
+    // 兜底：直接强制把 banner / 页面内 data-lazy-src 写回 src，避免懒加载库失效时一直显示占位图
+    requestAnimationFrame(function () {
+      document.querySelectorAll('img[data-lazy-src]').forEach(function (img) {
+        const realSrc = img.getAttribute('data-lazy-src');
+        if (realSrc && img.src !== realSrc) {
+          // 只有当前 src 是占位图或为空时才替换，避免覆盖已加载的真实图
+          const isPlaceholder = img.src.indexOf('data:image/gif;base64') === 0 || !img.src || img.src === window.location.href;
+          if (isPlaceholder) img.src = realSrc;
+        }
+      });
+    });
+  }
+
   // PJAX 导航完成后重新挂载（#go-up 所在容器内容会被主题替换）
-  document.addEventListener('pjax:complete', boot);
+  document.addEventListener('pjax:complete', function () {
+    boot();
+    // 延迟刷新懒加载，让主题自己的 update() 先跑完
+    setTimeout(refreshLazyLoad, 100);
+  });
   // 兜底：主题布局异步渲染时，稍后再次挂载
   document.addEventListener('DOMContentLoaded', function () {
     setTimeout(boot, 400);
+    setTimeout(refreshLazyLoad, 600);
   });
 })();

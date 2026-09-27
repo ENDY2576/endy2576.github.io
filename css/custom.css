@@ -34,6 +34,18 @@
 
   /* 首页顶部头图在夜间额外压暗的强度（头图上有白色站名，要比背景压得更狠一点才看得清） */
   --endy-header-dim: 0.28;
+
+  /* 日间背景柔化：降低饱和度 + 亮度，让高饱和 AI 风景图退后，不跟白色内容卡片抢戏 */
+  --endy-bg-saturate: 0.88;
+  --endy-bg-brightness: 0.97;
+  /* 顶部略透、底部更实的白色雾罩，柔和地过渡到底部白色卡片区域 */
+  --endy-bg-overlay: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.18) 40%,
+    rgba(255, 255, 255, 0.32) 75%,
+    rgba(255, 255, 255, 0.42) 100%
+  );
 }
 
 /* ============ 四季日间背景：按 <html data-season> 自动切换 ============
@@ -79,6 +91,23 @@
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
+}
+
+/* 日间模式下给背景图加柔化：降饱和 + 亮度 + 白色雾罩，缓解高饱和风景图与白色卡片的割裂感。
+   同时作用于 #web_bg（正式层）和 #web_bg_next（四季切换临时层），确保过渡时亮度一致、不会闪一下更亮的原图。 */
+html:not([data-theme="dark"]) #web_bg,
+html:not([data-theme="dark"]) #web_bg_next {
+  filter: saturate(var(--endy-bg-saturate)) brightness(var(--endy-bg-brightness));
+}
+
+html:not([data-theme="dark"]) #web_bg::before,
+html:not([data-theme="dark"]) #web_bg_next::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--endy-bg-overlay);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* 夜间模式背景：换成夜间图 + 一层可调的半透明黑压暗。
@@ -404,4 +433,81 @@
 #go-up.endy-show-percent .anzhiyu-icon-arrow-up,
 #go-up.endy-show-percent .anzhiyufont.anzhiyu-icon-arrow-up {
   display: none !important;
+}
+
+/* ==================================================================
+   右下角四季切换按钮：主题原按钮按字体图标居中，SVG 需单独对齐
+   ================================================================== */
+#season-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#season-toggle svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+/* 文章页侧边「分享」按钮：与四季按钮同款 SVG 对齐 */
+#share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#share-btn svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+/* 右侧设置展开区四季按钮：图标居中
+   主题选择器 #rightside > div > button specificity 为 (1,0,2)，
+   必须用 id+class 组合才能覆盖其 display: block */
+#rightside-season-toggle.season-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#rightside-season-toggle.season-switch svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  margin: auto;
+}
+
+/* ==================================================================
+   友人帐（/link/）页面：内容区加一层半透明白色面板，夜间自动适配
+   仅作用于 link 类型页面（page.pug 给 #page 加了 page-type-link）
+   ================================================================== */
+.page-type-link #article-container {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--anzhiyu-card-border, rgba(0, 0, 0, 0.06));
+  border-radius: 18px;
+  padding: 28px 32px;
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  margin-top: 12px;
+}
+
+/* 页面标题（top_img=false 时出现的 H1）也纳入面板节奏 */
+.page-type-link h1.page-title {
+  margin-top: 12px;
+  padding: 12px 32px 0;
+}
+
+[data-theme="dark"] .page-type-link #article-container {
+  background: rgba(30, 35, 48, 0.62);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }

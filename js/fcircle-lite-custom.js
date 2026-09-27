@@ -107,6 +107,7 @@
   }
 
   function renderStats(stats) {
+    const path = (typeof window !== 'undefined' && window.location && window.location.pathname) || '';
     const items = [
       { num: stats.friends_num || 0, label: '订阅', href: '/fcircle/subscribe/' },
       { num: stats.active_num || 0, label: '活跃', href: '/fcircle/active/' },
@@ -115,12 +116,15 @@
     ];
     return `
       <div class="fc-lite-stats">
-        ${items.map(it => `
-          <a class="fc-lite-stat-card" href="${it.href}" tabindex="0" role="button" aria-label="${it.label}：${it.num}，点击查看详情">
+        ${items.map(it => {
+          const activeClass = path.indexOf(it.href) === 0 ? ' active' : '';
+          return `
+          <a class="fc-lite-stat-card${activeClass}" href="${it.href}" tabindex="0" role="button" aria-label="${it.label}：${it.num}，点击查看详情">
             <div class="fc-lite-stat-num">${it.num}</div>
             <div class="fc-lite-stat-label">${it.label}</div>
           </a>
-        `).join('')}
+        `;
+        }).join('')}
       </div>
     `;
   }
@@ -135,11 +139,92 @@
         <a class="fc-lite-random-link" href="${escapeHtml(article.link)}" target="_blank" rel="noopener">${escapeHtml(article.title)}</a>
         <div class="fc-lite-random-meta">
           <span class="fc-lite-cat-pill" style="--cat-color:${cat.color}">${cat.label}</span>
-          <span class="fc-lite-author">${escapeHtml(article.author)}</span>
+          <button class="fc-lite-author-btn" type="button" data-author="${escapeHtml(article.author)}" data-avatar="${escapeHtml(article.avatar || ERROR_IMG)}" data-link="${escapeHtml(article.link)}">${escapeHtml(article.author)}</button>
           <span class="fc-lite-date">${formatDate(article.created)}</span>
         </div>
       </div>
     `;
+  }
+
+  function getAuthorArticles(author, sampleLink) {
+    let domain = '';
+    try { if (sampleLink) domain = new URL(sampleLink).hostname; } catch (e) { domain = ''; }
+    return state.articles
+      .filter(a => a.author === author)
+      .filter(a => {
+        if (!domain || !a.link) return true;
+        try { return new URL(a.link).hostname === domain; } catch (e) { return true; }
+      })
+      .sort((a, b) => {
+        const ta = a.created ? new Date(a.created.replace(/-/g, '/')).getTime() : 0;
+        const tb = b.created ? new Date(b.created.replace(/-/g, '/')).getTime() : 0;
+        return tb - ta;
+      })
+      .slice(0, 5);
+  }
+
+  function renderAuthorPanel(author, avatar, articles) {
+    const listHtml = articles.length
+      ? articles.map(a => `
+        <a class="fc-lite-author-panel-item" href="${escapeHtml(a.link)}" target="_blank" rel="noopener">
+          <span class="fc-lite-author-panel-item-title">${escapeHtml(a.title)}</span>
+          <span class="fc-lite-author-panel-item-date">${formatDate(a.created)}</span>
+        </a>
+      `).join('')
+      : `<div class="fc-lite-author-panel-empty">暂无更多文章</div>`;
+    return `
+      <div class="fc-lite-author-panel-backdrop" id="fc-lite-author-panel-backdrop">
+        <div class="fc-lite-author-panel" role="dialog" aria-modal="true" aria-labelledby="fc-lite-author-panel-name">
+          <div class="fc-lite-author-panel-header">
+            <div class="fc-lite-author-panel-info">
+              <div class="fc-lite-avatar-wrap small">
+                <img class="fc-lite-card-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(author)}" loading="lazy" onerror="this.src='${ERROR_IMG}'">
+              </div>
+              <span class="fc-lite-author-panel-name" id="fc-lite-author-panel-name">${escapeHtml(author)}</span>
+            </div>
+            <button class="fc-lite-author-panel-close" type="button" aria-label="关闭">×</button>
+          </div>
+          <div class="fc-lite-author-panel-list">
+            ${listHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function showAuthorPanel(author, avatar, link) {
+    const existing = document.getElementById('fc-lite-author-panel-backdrop');
+    if (existing) existing.remove();
+
+    const articles = getAuthorArticles(author, link);
+    const html = renderAuthorPanel(author, avatar, articles);
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    const backdrop = document.getElementById('fc-lite-author-panel-backdrop');
+    const panel = backdrop.querySelector('.fc-lite-author-panel');
+
+    function close() {
+      if (!backdrop) return;
+      backdrop.classList.add('fc-lite-author-panel-hiding');
+      setTimeout(() => backdrop.remove(), 250);
+      document.removeEventListener('keydown', onKey);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') close();
+    }
+
+    // 点击遮罩或关闭按钮关闭；点击面板内容不关闭
+    backdrop.addEventListener('click', function (e) {
+      if (e.target === backdrop || e.target.closest('.fc-lite-author-panel-close')) close();
+    });
+
+    document.addEventListener('keydown', onKey);
+
+    // 简单入场动画：先让 DOM 渲染再添加显示类
+    requestAnimationFrame(() => {
+      if (backdrop) backdrop.classList.add('fc-lite-author-panel-show');
+    });
   }
 
   function renderRandomArticle(article) {
@@ -194,10 +279,10 @@
             <a href="${escapeHtml(article.link)}" target="_blank" rel="noopener">${escapeHtml(article.title)}</a>
           </h3>
           <div class="fc-lite-card-footer">
-            <div class="fc-lite-avatar-wrap small">
-              <img class="fc-lite-card-avatar" src="${escapeHtml(article.avatar || ERROR_IMG)}" alt="${escapeHtml(article.author)}" loading="lazy" onerror="this.src='${ERROR_IMG}'">
-            </div>
-            <span class="fc-lite-card-author">${escapeHtml(article.author)}</span>
+          <div class="fc-lite-avatar-wrap small">
+            <img class="fc-lite-card-avatar" src="${escapeHtml(article.avatar || ERROR_IMG)}" alt="${escapeHtml(article.author)}" loading="lazy" onerror="this.src='${ERROR_IMG}'">
+          </div>
+          <button class="fc-lite-author-btn" type="button" data-author="${escapeHtml(article.author)}" data-avatar="${escapeHtml(article.avatar || ERROR_IMG)}" data-link="${escapeHtml(article.link)}">${escapeHtml(article.author)}</button>
           </div>
         </div>
       </article>
@@ -314,6 +399,15 @@
       });
     }
     // 统计卡片已是 <a href> 原生跳转，无需额外 click 处理
+
+    // 博主名称点击 → 弹出其最近文章面板
+    // 用事件委托挂在 root 上，「换一篇」重渲染后的随机区按钮也能命中
+    root.addEventListener('click', function (e) {
+      const authorBtn = e.target.closest('.fc-lite-author-btn');
+      if (!authorBtn) return;
+      e.preventDefault();
+      showAuthorPanel(authorBtn.dataset.author, authorBtn.dataset.avatar, authorBtn.dataset.link);
+    });
   }
 
   function init() {
