@@ -1,0 +1,531 @@
+/* 彖渊子 · 朋友圈（Friend-Circle-Lite 自定义分类版）样式 */
+
+#friend-circle-lite-root {
+  --fc-card-bg: rgba(255, 255, 255, 0.82);
+  --fc-card-border: rgba(0, 0, 0, 0.06);
+  --fc-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --fc-text-main: #2c3e50;
+  --fc-text-sub: #5f6f81;
+  --fc-radius: 16px;
+  --fc-primary: #3b82f6;
+  font-size: 15px;
+  color: var(--fc-text-main);
+}
+
+[data-theme="dark"] #friend-circle-lite-root {
+  --fc-card-bg: rgba(30, 35, 48, 0.78);
+  --fc-card-border: rgba(255, 255, 255, 0.08);
+  --fc-card-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --fc-text-main: #e8ecf1;
+  --fc-text-sub: #9aa7b5;
+}
+
+/* 统计卡片 */
+.fc-lite-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.fc-lite-stat-card {
+  background: var(--fc-card-bg);
+  border: 1px solid var(--fc-card-border);
+  box-shadow: var(--fc-card-shadow);
+  border-radius: var(--fc-radius);
+  padding: 18px 8px;
+  text-align: center;
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s ease;
+}
+
+.fc-lite-stat-card {
+  cursor: pointer;
+  user-select: none;
+}
+
+.fc-lite-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--fc-primary);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.15);
+}
+
+.fc-lite-stat-card:active {
+  transform: translateY(0);
+}
+
+.fc-lite-stat-detail {
+  margin: -12px 0 18px 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--fc-card-bg);
+  border: 1px solid var(--fc-primary);
+  color: var(--fc-text-main);
+  font-size: 14px;
+  line-height: 1.6;
+  backdrop-filter: blur(8px);
+  animation: fcLiteFadeInUp 0.3s ease forwards;
+}
+
+.fc-lite-stat-num {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--fc-primary);
+  line-height: 1.1;
+}
+
+.fc-lite-stat-label {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--fc-text-sub);
+}
+
+/* 钓鱼随机文章 */
+.fc-lite-random {
+  background: var(--fc-card-bg);
+  border: 1px solid var(--fc-card-border);
+  box-shadow: var(--fc-card-shadow);
+  border-radius: var(--fc-radius);
+  padding: 18px 20px;
+  margin-bottom: 22px;
+  backdrop-filter: blur(8px);
+}
+
+.fc-lite-random-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fc-lite-random-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.fc-lite-random-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.fc-lite-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--fc-card-border);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--fc-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.fc-lite-btn:hover {
+  background: rgba(59, 130, 246, 0.16);
+}
+
+.fc-lite-btn:active {
+  transform: scale(0.97);
+}
+
+.fc-lite-btn-primary {
+  background: var(--fc-primary);
+  color: #fff;
+  border-color: transparent;
+}
+
+.fc-lite-btn-primary:hover {
+  background: #2563eb;
+}
+
+.fc-lite-random-body {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+/* 头像背景光环/渐变圆底：恢复原版卡片设计感 */
+.fc-lite-avatar-wrap {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  padding: 4px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+  overflow: hidden;
+}
+
+.fc-lite-avatar-wrap.small {
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  box-shadow: 0 2px 5px rgba(102, 126, 234, 0.25);
+  overflow: hidden;
+}
+
+.fc-lite-avatar-wrap img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: none;
+  box-sizing: border-box;
+  background: var(--fc-card-bg);
+}
+
+.fc-lite-random-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.fc-lite-random-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.fc-lite-random-link {
+  display: block;
+  color: var(--fc-text-main);
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc-lite-random-link:hover {
+  color: var(--fc-primary);
+}
+
+.fc-lite-random-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--fc-text-sub);
+}
+
+/* 分类标签小药丸 */
+.fc-lite-cat-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cat-color);
+  background: color-mix(in srgb, var(--cat-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cat-color) 25%, transparent);
+}
+
+/* 筛选栏 */
+.fc-lite-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.fc-lite-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fc-lite-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 18px;
+  border: 1px solid var(--fc-card-border);
+  background: var(--fc-card-bg);
+  color: var(--fc-text-sub);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(6px);
+}
+
+.fc-lite-tab:hover {
+  color: var(--cat-color);
+  border-color: color-mix(in srgb, var(--cat-color) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.fc-lite-tab.active {
+  color: #fff;
+  background: var(--cat-color);
+  border-color: var(--cat-color);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--cat-color) 30%, transparent);
+}
+
+.fc-lite-tab.active .fc-lite-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.fc-lite-tab-count {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.06);
+  margin-left: 2px;
+}
+
+.fc-lite-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--fc-card-bg);
+  border: 1px solid var(--fc-card-border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  min-width: 180px;
+  color: var(--fc-text-sub);
+}
+
+.fc-lite-search svg {
+  flex-shrink: 0;
+}
+
+.fc-lite-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--fc-text-main);
+  font-size: 13px;
+  width: 100%;
+}
+
+.fc-lite-search input::placeholder {
+  color: var(--fc-text-sub);
+  opacity: 0.7;
+}
+
+/* 文章网格 */
+.fc-lite-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.fc-lite-card {
+  position: relative;
+  background: var(--fc-card-bg);
+  border: 1px solid var(--fc-card-border);
+  box-shadow: var(--fc-card-shadow);
+  border-radius: var(--fc-radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+
+.fc-lite-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  border-color: var(--fc-primary);
+}
+
+/* 卡片入场动画 */
+@keyframes fcLiteFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fc-lite-card {
+  opacity: 0;
+  animation: fcLiteFadeInUp 0.5s ease forwards;
+  animation-delay: var(--card-enter-delay, 0ms);
+}
+
+/* 右下角模糊头像背景（恢复原版 Friend-Circle-Lite 设计感） */
+.fc-lite-card-bg {
+  position: absolute;
+  z-index: 0;
+  right: -16px;
+  bottom: -20px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50% !important;
+  object-fit: cover;
+  opacity: 0.35;
+  filter: blur(5px);
+  pointer-events: none;
+  transition: transform 0.6s ease, bottom 0.3s ease, right 0.3s ease, opacity 0.3s ease;
+}
+
+.fc-lite-card:hover .fc-lite-card-bg {
+  transform: scale(1.1);
+  bottom: -10px;
+  right: -8px;
+  opacity: 0.5;
+}
+
+[data-theme="dark"] .fc-lite-card-bg {
+  opacity: 0.25;
+}
+
+[data-theme="dark"] .fc-lite-card:hover .fc-lite-card-bg {
+  opacity: 0.4;
+}
+
+/* 卡片主体层在背景之上 */
+.fc-lite-card-main {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fc-lite-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.fc-lite-card-date {
+  font-size: 12px;
+  color: var(--fc-text-sub);
+}
+
+.fc-lite-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 0 0 auto 0;
+  color: var(--fc-text-main);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.fc-lite-card-title a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.fc-lite-card-title:hover,
+.fc-lite-card-title:hover a {
+  color: var(--fc-primary);
+}
+
+.fc-lite-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--fc-card-border);
+}
+
+.fc-lite-card-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--fc-card-border);
+}
+
+.fc-lite-card-author {
+  font-size: 13px;
+  color: var(--fc-text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 加载 / 空状态 */
+.fc-lite-loading,
+.fc-lite-error,
+.fc-lite-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--fc-text-sub);
+  border-radius: var(--fc-radius);
+  background: var(--fc-card-bg);
+  border: 1px solid var(--fc-card-border);
+}
+
+.fc-lite-error {
+  color: #ef4444;
+}
+
+/* 响应式 */
+@media screen and (max-width: 768px) {
+  .fc-lite-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .fc-lite-stat-card {
+    padding: 14px 6px;
+  }
+
+  .fc-lite-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fc-lite-search {
+    width: 100%;
+    min-width: auto;
+  }
+
+  .fc-lite-random-body {
+    align-items: flex-start;
+  }
+
+  .fc-lite-random-link {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .fc-lite-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .fc-lite-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fc-lite-random-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
