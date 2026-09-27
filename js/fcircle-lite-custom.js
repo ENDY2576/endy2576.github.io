@@ -415,7 +415,7 @@
     if (!root) return;
     root.innerHTML = '<div class="fc-lite-loading">正在加载朋友圈...</div>';
 
-    fetch(API_URL)
+    fetch(API_URL, { cache: "no-cache" })
       .then(r => {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();

@@ -555,7 +555,7 @@
       return;
     }
     root.innerHTML = '<div class="fc-lite-loading">正在加载朋友圈数据...</div>';
-    fetch(API_URL)
+    fetch(API_URL, { cache: "no-cache" })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(data => {
         pageData = data; // 缓存数据，供博主面板筛选文章
