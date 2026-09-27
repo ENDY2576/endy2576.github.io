@@ -232,11 +232,27 @@
     });
   }
 
+  // 首页轮播守护：PJAX 切回首页后，若 Swiper 未初始化或图片仍是占位，强制修复
+  function sliderGuard() {
+    const slider = document.querySelector('.blog-slider');
+    if (!slider) return;
+    // a) Swiper 实例缺失/已销毁 → 重新初始化（initBlogSlider 由主题 top.pug 提供）
+    if (typeof initBlogSlider === 'function' && (!window.blogSwiper || window.blogSwiper.destroyed)) {
+      try { initBlogSlider(); } catch (e) { /* 忽略，避免中断 */ }
+    }
+    // b) 轮播内 data-lazy-src 图片仍为占位 → 直接写回真实地址
+    slider.querySelectorAll('img[data-lazy-src]').forEach(function (img) {
+      const real = img.getAttribute('data-lazy-src');
+      if (real && (!img.src || img.src.indexOf('data:image') === 0)) img.src = real;
+    });
+  }
+
   function boot() {
     initScrollPercent();
     applySeason();
     initSeasonToggle();
     initHomePreloader();
+    sliderGuard();
   }
 
   // 立即设置季节（脚本注入较早，先落定 data-season 避免日间背景闪一下默认冬季图）
@@ -271,6 +287,7 @@
     boot();
     // 延迟刷新懒加载，让主题自己的 update() 先跑完
     setTimeout(refreshLazyLoad, 100);
+    setTimeout(sliderGuard, 400);
   });
   // 兜底：主题布局异步渲染时，稍后再次挂载
   document.addEventListener('DOMContentLoaded', function () {
