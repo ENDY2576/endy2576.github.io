@@ -744,35 +744,58 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   justify-content: center;
 }
 
-/* 封面容器：默认只显示封面，悬浮时覆盖播放控制层 */
+/* 封面容器：方角封面（对齐 zhheo 观感） */
 #endy-music .em-cover-wrap {
   position: relative;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: 10px;
 }
 #endy-music.collapsed .em-cover-wrap {
   width: 40px;
   height: 40px;
+  border-radius: 12px;
 }
 #endy-music .em-cover {
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  border-radius: 10px;
   object-fit: cover;
-  border: 2px solid var(--anzhiyu-white, #fff);
-  transition: transform 0.4s linear;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  transition: transform 0.4s linear, box-shadow 0.3s ease;
 }
 #endy-music.playing .em-cover {
   animation: em-spin 8s linear infinite;
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.6);
+  transform: scale(1.05);
 }
 @keyframes em-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* 胶囊内联控制按钮：悬浮时显示在唱片右侧 */
+/* 播放态：整条胶囊变主题色 + 白字 + 外发光（对齐 zhheo） */
+#endy-music.playing {
+  background: var(--anzhiyu-main, #3b82f6);
+  border-color: var(--anzhiyu-main, #3b82f6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 6px 18px rgba(0, 0, 0, 0.1),
+    0 0 24px color-mix(in srgb, var(--anzhiyu-main, #3b82f6) 42%, transparent);
+}
+#endy-music.playing .em-title { color: #fff; }
+#endy-music.playing .em-artist { color: rgba(255, 255, 255, 0.75); }
+#endy-music.playing .em-inline-controls .em-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+#endy-music.playing .em-inline-controls .em-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+#endy-music.playing .em-inline-controls .em-play {
+  background: #fff;
+  color: var(--anzhiyu-main, #3b82f6);
+}
 #endy-music .em-inline-controls {
   display: flex;
   align-items: center;
