@@ -340,105 +340,175 @@
     setTimeout(forceSliderVisible, 350);
   }
 
-  /* 左下角音乐胶囊：收缩成球 / 展开成胶囊 + 电台模式
-   * anzhiyu 的 aplayer 自带 .aplayer-narrow（66px 只留封面=球态）；
-   * meting-js 元素上挂着 aplayer 实例（main.js 也这么取：meting-js.aplayer）。
-   * aplayer 由 Meting2.min.js 异步渲染，需轮询等待实例出现再注入按钮。 */
-  function initMusicToggle() {
-    const nav = document.getElementById('nav-music');
-    if (!nav) return;
-    const meta = nav.querySelector('meting-js');
-    const ap = meta && meta.aplayer;            // 真正的 aplayer 实例
-    const apEl = nav.querySelector('.aplayer');  // 用于切换 .aplayer-narrow 外观
-    if (!ap || !apEl) {
-      // aplayer 尚未渲染：稍后重试（最多 ~10s）
-      initMusicToggle.__t = (initMusicToggle.__t || 0) + 1;
-      if (initMusicToggle.__t <= 50) setTimeout(initMusicToggle, 200);
-      return;
-    }
-    if (nav.querySelector('#endy-music-toggle')) return; // 已注入，避免重复
+  /* 左下角自研音乐胶囊（替换 anzhiyu aplayer）
+   * 基于 /json/music.json 歌单，HTML5 Audio 原生播放。
+   * 支持：播放/暂停、上一首/下一首、进度条、电台模式（随机连播）、
+   *       胶囊↔圆球切换、Alt+M 快捷键。
+   * 原 #nav-music aplayer 由 CSS 隐藏，保留 DOM 以免 main.js 引用报错。 */
+  function initEndyMusic() {
+    const PLAYLIST_URL = '/json/music.json';
+    const KEY_COLLAPSE = 'endy-music-collapsed';
+    const KEY_RADIO = 'endy-music-radio';
+    const KEY_VOLUME = 'endy-music-volume';
 
-    /* ---- 收缩 / 展开按钮（右上角角标） ---- */
-    const btn = document.createElement('button');
-    btn.id = 'endy-music-toggle';
-    btn.type = 'button';
-    btn.className = 'endy-music-btn';
-    btn.setAttribute('aria-label', '收缩 / 展开音乐播放器');
-    nav.appendChild(btn);
+    const nav = document.createElement('div');
+    nav.id = 'endy-music';
+    nav.setAttribute('role', 'region');
+    nav.setAttribute('aria-label', '悬浮音乐播放器');
+    nav.innerHTML = '<img class="em-cover" src="" alt="封面" />' +
+      '<div class="em-info"><div class="em-title">加载中…</div><div class="em-artist">—</div></div>' +
+      '<div class="em-controls">' +
+      '<button class="em-btn em-prev" type="button" aria-label="上一首">⏮</button>' +
+      '<button class="em-btn em-play" type="button" aria-label="播放/暂停">▶</button>' +
+      '<button class="em-btn em-next" type="button" aria-label="下一首">⏭</button>' +
+      '<button class="em-btn em-radio" type="button" aria-label="电台模式">📻</button>' +
+      '<button class="em-btn em-toggle" type="button" aria-label="收起/展开">－</button>' +
+      '</div>' +
+      '<div class="em-progress"><div class="em-bar"></div></div>';
+    document.body.appendChild(nav);
 
-    const KEY_C = 'endy-music-collapsed';
-    function setCollapsed(c) {
-      if (c) {
-        apEl.classList.add('aplayer-narrow');
-        nav.classList.add('endy-collapsed');
-      } else {
-        apEl.classList.remove('aplayer-narrow');
-        nav.classList.remove('endy-collapsed');
-      }
-      try { localStorage.setItem(KEY_C, c ? '1' : '0'); } catch (e) { /* 忽略 */ }
-      btn.textContent = c ? '＋' : '－'; // 球态显示＋(展开)，胶囊态显示－(收缩)
-      btn.title = c ? '展开音乐胶囊' : '收起为音乐球';
-    }
-    // 初始状态：读 localStorage（默认展开=胶囊）
-    let initC = '0';
-    try { initC = localStorage.getItem(KEY_C) || '0'; } catch (e) { /* 忽略 */ }
-    setCollapsed(initC === '1');
+    const coverEl = nav.querySelector('.em-cover');
+    const titleEl = nav.querySelector('.em-title');
+    const artistEl = nav.querySelector('.em-artist');
+    const playBtn = nav.querySelector('.em-play');
+    const prevBtn = nav.querySelector('.em-prev');
+    const nextBtn = nav.querySelector('.em-next');
+    const radioBtn = nav.querySelector('.em-radio');
+    const toggleBtn = nav.querySelector('.em-toggle');
+    const barEl = nav.querySelector('.em-bar');
 
-    // 按钮点击：切换（阻止冒泡，避免触发胶囊内播放/暂停）
-    btn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      setCollapsed(!nav.classList.contains('endy-collapsed'));
-    });
-    // 收起(球)态：点击球本身也展开
-    nav.addEventListener('click', function () {
-      if (nav.classList.contains('endy-collapsed')) setCollapsed(false);
-    });
-
-    /* ---- 电台模式按钮（随机不重复连播，对标 zhheo 的电台模式） ---- */
-    const radioBtn = document.createElement('button');
-    radioBtn.id = 'endy-music-radio';
-    radioBtn.type = 'button';
-    radioBtn.className = 'endy-music-btn';
-    radioBtn.setAttribute('aria-label', '电台模式：随机连播');
-    radioBtn.textContent = '📻';
-    nav.appendChild(radioBtn);
-
-    const KEY_R = 'endy-music-radio';
+    let songs = [];
+    let index = 0;
+    let playing = false;
     let radioMode = false;
-    function applyRadio(on) {
-      radioMode = on;
-      // 同步给 aplayer（影响列表内“下一首”行为）
-      try { ap.order = on ? 'random' : 'list'; } catch (e) { /* 忽略 */ }
-      if (on) {
-        radioBtn.classList.add('endy-radio-on');
-        radioBtn.title = '电台模式：开（随机连播）';
-      } else {
-        radioBtn.classList.remove('endy-radio-on');
-        radioBtn.title = '电台模式：关（顺序播放）';
-      }
-      try { localStorage.setItem(KEY_R, on ? '1' : '0'); } catch (e) { /* 忽略 */ }
+    let collapsed = false;
+    let audio = null;
+
+    function loadState() {
+      try {
+        collapsed = localStorage.getItem(KEY_COLLAPSE) === '1';
+        radioMode = localStorage.getItem(KEY_RADIO) === '1';
+      } catch (e) { /* 忽略 */ }
     }
-    let initR = '0';
-    try { initR = localStorage.getItem(KEY_R) || '0'; } catch (e) { /* 忽略 */ }
-    applyRadio(initR === '1');
-    radioBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      applyRadio(!radioMode);
+
+    function applyCollapsed(c) {
+      collapsed = !!c;
+      nav.classList.toggle('collapsed', collapsed);
+      toggleBtn.textContent = collapsed ? '＋' : '－';
+      toggleBtn.setAttribute('aria-label', collapsed ? '展开音乐胶囊' : '收起音乐胶囊');
+      toggleBtn.title = collapsed ? '展开音乐胶囊' : '收起音乐胶囊';
+      try { localStorage.setItem(KEY_COLLAPSE, collapsed ? '1' : '0'); } catch (e) {}
+    }
+
+    function applyRadio(on) {
+      radioMode = !!on;
+      radioBtn.classList.toggle('endy-radio-on', radioMode);
+      radioBtn.title = radioMode ? '电台模式：开（随机连播）' : '电台模式：关（顺序播放）';
+      try { localStorage.setItem(KEY_RADIO, radioMode ? '1' : '0'); } catch (e) {}
+    }
+
+    function renderSong() {
+      const s = songs[index];
+      if (!s) return;
+      titleEl.textContent = s.name || '未知歌曲';
+      artistEl.textContent = s.artist || '未知歌手';
+      coverEl.src = s.cover || '';
+      coverEl.alt = (s.name || '封面') + ' 封面';
+    }
+
+    function loadAudio(i) {
+      if (!songs.length) return;
+      index = ((i % songs.length) + songs.length) % songs.length;
+      renderSong();
+      if (!audio) {
+        audio = new Audio();
+        audio.preload = 'metadata';
+        audio.addEventListener('play', function () {
+          playing = true;
+          nav.classList.add('playing');
+          playBtn.textContent = '⏸';
+          playBtn.setAttribute('aria-label', '暂停');
+        });
+        audio.addEventListener('pause', function () {
+          playing = false;
+          nav.classList.remove('playing');
+          playBtn.textContent = '▶';
+          playBtn.setAttribute('aria-label', '播放');
+        });
+        audio.addEventListener('ended', function () {
+          if (radioMode) playRandom();
+          else { loadAudio(index + 1); audio.play().catch(function () {}); }
+        });
+        audio.addEventListener('timeupdate', function () {
+          if (!audio.duration) return;
+          barEl.style.width = (audio.currentTime / audio.duration * 100) + '%';
+        });
+        audio.addEventListener('error', function () {
+          if (songs.length > 1) { loadAudio(index + 1); audio.play().catch(function () {}); }
+        });
+        audio.addEventListener('loadedmetadata', function () {
+          try {
+            const vol = localStorage.getItem(KEY_VOLUME);
+            if (vol !== null) audio.volume = parseFloat(vol);
+          } catch (e) {}
+        });
+        audio.addEventListener('volumechange', function () {
+          try { localStorage.setItem(KEY_VOLUME, String(audio.volume)); } catch (e) {}
+        });
+      }
+      audio.src = songs[index].url;
+      audio.load();
+    }
+
+    function togglePlay() {
+      if (!audio) return;
+      if (audio.paused) audio.play().catch(function () {});
+      else audio.pause();
+    }
+
+    function playRandom() {
+      if (songs.length <= 1) { loadAudio(0); if (audio) audio.play().catch(function () {}); return; }
+      let next = index;
+      let guard = 0;
+      do { next = Math.floor(Math.random() * songs.length); guard++; }
+      while (next === index && guard < 20);
+      loadAudio(next);
+      audio.play().catch(function () {});
+    }
+
+    function toggleCollapse() { applyCollapsed(!collapsed); }
+
+    playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+    prevBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index - 1); if (audio) audio.play().catch(function () {}); });
+    nextBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index + 1); if (audio) audio.play().catch(function () {}); });
+    radioBtn.addEventListener('click', function (e) { e.stopPropagation(); applyRadio(!radioMode); });
+    toggleBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleCollapse(); });
+    nav.addEventListener('click', function (e) {
+      if (e.target.closest('.em-btn')) return;
+      if (collapsed) toggleCollapse();
     });
 
-    /* 电台模式：一曲放完自动跳随机下一首，做到“连续电台”不中断 */
-    ap.on('ended', function () {
-      if (!radioMode) return;
-      const total = (ap.list && ap.list.audios && ap.list.audios.length) || 0;
-      if (total <= 1) return;
-      const cur = (ap.list && ap.list.index) || 0;
-      let next = cur;
-      let guard = 0;
-      do { next = Math.floor(Math.random() * total); guard++; }
-      while (next === cur && guard < 20);
-      ap.list.switch(next);
-      ap.play();
+    document.addEventListener('keydown', function (e) {
+      if (e.altKey && (e.key === 'm' || e.keyCode === 77)) {
+        e.preventDefault();
+        togglePlay();
+      }
     });
+
+    fetch(PLAYLIST_URL)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        songs = Array.isArray(data) ? data : [];
+        if (!songs.length) { titleEl.textContent = '暂无歌曲'; return; }
+        loadState();
+        applyCollapsed(collapsed);
+        applyRadio(radioMode);
+        loadAudio(0);
+      })
+      .catch(function (err) {
+        console.error('[endy-music] 加载歌单失败', err);
+        titleEl.textContent = '歌单加载失败';
+      });
   }
 
   function boot() {
@@ -447,7 +517,7 @@
     initSeasonToggle();
     initHomePreloader();
     sliderGuard();
-    initMusicToggle(); // 左下角音乐胶囊：收缩/展开按钮
+    initEndyMusic(); // 左下角自研音乐胶囊（HTML5 Audio + music.json + 电台模式）
     preloadAllSeasons(); // 提前缓存四季背景图，消除手动切换时的预加载延迟
   }
 

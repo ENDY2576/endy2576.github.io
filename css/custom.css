@@ -549,72 +549,202 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 }
 
 /* ==================================================================
-   左下角音乐胶囊：收缩成球 / 展开成胶囊 + 电台模式
-   anzhiyu 自带 .aplayer-narrow（66px 只留封面=球态）；JS 注入两个小按钮：
-     #endy-music-toggle → 收缩 / 展开
-     #endy-music-radio  → 电台模式（随机不重复连播）
-   视觉对齐 blog.zhheo.com 的悬浮发光音乐球。
+   左下角自研音乐胶囊：替换 anzhiyu 的 aplayer 胶囊
+   基于 source/json/music.json 歌单，HTML5 Audio 播放。
+   默认展开成胶囊；可收为 56px 发光圆球；支持电台（随机连播）。
+   原 #nav-music aplayer 隐藏保留，避免 main.js 引用报错。
    ================================================================== */
-/* 两个小按钮：右上角角标式，悬浮放大 */
-.endy-music-btn {
-  position: absolute;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 2px solid var(--anzhiyu-white, #fff);
-  background: var(--anzhiyu-main, #3b82f6);
-  color: #fff;
+#nav-music { display: none !important; }
+
+#endy-music {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  width: 280px;
+  height: 64px;
+  max-width: calc(100vw - 40px);
+  background: var(--card-bg, rgba(255, 255, 255, 0.9));
+  border: var(--style-border, 1px solid rgba(0, 0, 0, 0.1));
+  border-radius: 40px;
+  box-shadow: var(--anzhiyu-shadow-border, 0 4px 12px rgba(0, 0, 0, 0.08));
+  backdrop-filter: saturate(180%) blur(20px);
   cursor: pointer;
-  z-index: 30;
+  transition: width 0.35s ease, padding 0.35s ease, border-radius 0.35s ease, box-shadow 0.35s ease;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* 球态发光环（伪元素居中，仅球态显示） */
+#endy-music::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  transform: translate(-50%, -50%) scale(0);
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.35);
+  filter: blur(12px);
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+#endy-music.collapsed {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+#endy-music.collapsed::before {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* 封面 */
+#endy-music .em-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid var(--anzhiyu-white, #fff);
+  transition: transform 0.4s linear;
+}
+#endy-music.collapsed .em-cover {
+  width: 48px;
+  height: 48px;
+}
+#endy-music.playing .em-cover {
+  animation: em-spin 8s linear infinite;
+}
+@keyframes em-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 歌曲信息 */
+#endy-music .em-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  transition: opacity 0.25s ease;
+}
+#endy-music.collapsed .em-info {
+  display: none;
+}
+
+#endy-music .em-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--anzhiyu-fontcolor, #333);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+#endy-music .em-artist {
+  font-size: 11px;
+  color: var(--anzhiyu-secondtext, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+/* 进度条 */
+#endy-music .em-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+#endy-music:hover .em-progress,
+#endy-music.playing .em-progress {
+  opacity: 1;
+}
+#endy-music.collapsed .em-progress {
+  display: none;
+}
+#endy-music .em-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--anzhiyu-main, #3b82f6);
+  transition: width 0.1s linear;
+}
+
+/* 控制按钮区 */
+#endy-music .em-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  transition: opacity 0.25s ease;
+}
+#endy-music.collapsed .em-controls {
+  display: none;
+}
+
+#endy-music .em-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--anzhiyu-fontcolor, #333);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
   line-height: 1;
   padding: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
 }
-.endy-music-btn:hover { transform: scale(1.12); }
-.endy-music-btn:active { transform: scale(0.94); }
+#endy-music .em-btn:hover {
+  transform: scale(1.15);
+  background: rgba(0, 0, 0, 0.06);
+}
+#endy-music .em-btn:active { transform: scale(0.92); }
 
-/* 展开(胶囊)态：两个按钮叠在右上角外侧，避免遮挡歌名 */
-#nav-music:not(.endy-collapsed) #endy-music-toggle {
-  top: -10px;
-  right: -10px;
+#endy-music .em-play {
+  background: var(--anzhiyu-main, #3b82f6);
+  color: #fff;
 }
-#nav-music:not(.endy-collapsed) #endy-music-radio {
-  top: 18px;
-  right: -10px;
-}
-/* 收起(球)态：按钮贴在球的右下角（角标） */
-#nav-music.endy-collapsed #endy-music-toggle {
-  top: 44px;
-  right: -4px;
-}
-#nav-music.endy-collapsed #endy-music-radio {
-  top: 44px;
-  right: 18px;
+#endy-music .em-play:hover {
+  background: var(--anzhiyu-main);
+  color: #fff;
 }
 
-/* 电台模式激活：变成橙色强调 */
-#endy-music-radio.endy-radio-on {
+#endy-music .em-radio.endy-radio-on {
   background: #f59e0b;
+  color: #fff;
 }
 
-/* 球态：66px 封面收成完美圆形 + 发光环 + 隐藏悬停提示 */
-#nav-music.endy-collapsed {
-  border-radius: 50%;
-  overflow: visible;
+/* 暗色模式适配 */
+[data-theme="dark"] #endy-music {
+  background: rgba(30, 30, 40, 0.85);
+  border-color: rgba(255, 255, 255, 0.12);
 }
-#nav-music.endy-collapsed .aplayer .aplayer-pic {
-  border-radius: 50% !important;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25),
-              0 0 14px 2px rgba(59, 130, 246, 0.45);
-}
-#nav-music.endy-collapsed #nav-music-hoverTips {
-  display: none;
-}
+[data-theme="dark"] #endy-music .em-title { color: var(--endy-fix-text, #e3e3e8); }
+[data-theme="dark"] #endy-music .em-artist { color: rgba(227, 227, 232, 0.7); }
+[data-theme="dark"] #endy-music .em-btn { color: var(--endy-fix-text, #e3e3e8); }
+[data-theme="dark"] #endy-music .em-btn:hover { background: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] #endy-music .em-progress { background: rgba(255, 255, 255, 0.1); }
 
 /* ==================================================================
    夜间模式文字适配补全（2026-09-28）
