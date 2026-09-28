@@ -686,6 +686,34 @@
       document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: true, mode: 'default' } }));
     }
 
+    // Meting 接口对 tencent 歌单偶发返回空 body（代理 QQ 音乐瞬时失败），
+    // 触发彩蛋时若拿到空/解析失败，自动重试几次，避免误报"接口暂时不可用"。
+    function fetchPlaylistWithRetry(url, attempts) {
+      attempts = attempts || 3;
+      function attempt(n) {
+        return fetch(url)
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            const raw = extractArray(data);
+            if (!raw.length && n < attempts) {
+              return new Promise(function (res) {
+                setTimeout(function () { res(attempt(n + 1)); }, 800);
+              });
+            }
+            return data;
+          })
+          .catch(function () {
+            if (n < attempts) {
+              return new Promise(function (res) {
+                setTimeout(function () { res(attempt(n + 1)); }, 800);
+              });
+            }
+            throw new Error('meting empty/error after retries');
+          });
+      }
+      return attempt(1);
+    }
+
     function toggleSecretPlaylist() {
       if (usingSecret) {
         exitSecretPlaylist();
@@ -693,8 +721,7 @@
       }
       const serverMatch = SECRET_PLAYLIST_URL.match(/server=([^&]+)/);
       const server = serverMatch ? serverMatch[1] : 'tencent';
-      fetch(SECRET_PLAYLIST_URL)
-        .then(function (r) { return r.json(); })
+      fetchPlaylistWithRetry(SECRET_PLAYLIST_URL)
         .then(function (data) {
           const raw = extractArray(data);
           const list = normalizeSongs(raw);

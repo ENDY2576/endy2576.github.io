@@ -75,7 +75,12 @@
     document.addEventListener('endy:egg2', function (e) {
       const d = e.detail || {};
       if (d.mode === 'default') { showToast('🎧 已切回默认歌单', { duration: 2600 }); return; }
-      if (d.found) showToast('🎧 你找到了隐藏歌单', { duration: 4200 });
+      if (d.found) {
+        // 如实反馈可播放数量：仅 1 首时提示，解释为何上一首/下一首切不动
+        const cnt = d.count && d.count > 1 ? ('（共 ' + d.count + ' 首）')
+          : (d.count === 1 ? '（仅 1 首可播放）' : '');
+        showToast('🎧 你找到了隐藏歌单' + cnt, { duration: 4200 });
+      }
       else showToast('🤫 隐藏歌单接口暂时不可用', { duration: 3200 });
     });
   }
