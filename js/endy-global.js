@@ -344,6 +344,8 @@
    * 基于 /json/music.json 歌单，HTML5 Audio 原生播放。
    * 支持：播放/暂停、上一首/下一首、进度条、电台模式（随机连播）、
    *       胶囊↔圆球切换、Alt+M 快捷键。
+   * 布局：#endy-music-wrapper 固定左下角，内部 column-reverse：
+   *       音乐胶囊/球在下，独立电台球在上。
    * 原 #nav-music aplayer 由 CSS 隐藏，保留 DOM 以免 main.js 引用报错。 */
   function initEndyMusic() {
     const PLAYLIST_URL = '/json/music.json';
@@ -351,21 +353,33 @@
     const KEY_RADIO = 'endy-music-radio';
     const KEY_VOLUME = 'endy-music-volume';
 
+    const wrapper = document.createElement('div');
+    wrapper.id = 'endy-music-wrapper';
+    wrapper.setAttribute('role', 'region');
+    wrapper.setAttribute('aria-label', '悬浮音乐播放器');
+
+    const radioBall = document.createElement('button');
+    radioBall.id = 'endy-radio-ball';
+    radioBall.type = 'button';
+    radioBall.setAttribute('aria-label', '电台模式');
+    radioBall.textContent = '📻';
+    radioBall.title = '电台模式：关（顺序播放）';
+
     const nav = document.createElement('div');
     nav.id = 'endy-music';
-    nav.setAttribute('role', 'region');
-    nav.setAttribute('aria-label', '悬浮音乐播放器');
     nav.innerHTML = '<img class="em-cover" src="" alt="封面" />' +
       '<div class="em-info"><div class="em-title">加载中…</div><div class="em-artist">—</div></div>' +
       '<div class="em-controls">' +
       '<button class="em-btn em-prev" type="button" aria-label="上一首">⏮</button>' +
       '<button class="em-btn em-play" type="button" aria-label="播放/暂停">▶</button>' +
       '<button class="em-btn em-next" type="button" aria-label="下一首">⏭</button>' +
-      '<button class="em-btn em-radio" type="button" aria-label="电台模式">📻</button>' +
       '<button class="em-btn em-toggle" type="button" aria-label="收起/展开">－</button>' +
       '</div>' +
       '<div class="em-progress"><div class="em-bar"></div></div>';
-    document.body.appendChild(nav);
+
+    wrapper.appendChild(nav);
+    wrapper.appendChild(radioBall);
+    document.body.appendChild(wrapper);
 
     const coverEl = nav.querySelector('.em-cover');
     const titleEl = nav.querySelector('.em-title');
@@ -373,7 +387,6 @@
     const playBtn = nav.querySelector('.em-play');
     const prevBtn = nav.querySelector('.em-prev');
     const nextBtn = nav.querySelector('.em-next');
-    const radioBtn = nav.querySelector('.em-radio');
     const toggleBtn = nav.querySelector('.em-toggle');
     const barEl = nav.querySelector('.em-bar');
 
@@ -402,8 +415,8 @@
 
     function applyRadio(on) {
       radioMode = !!on;
-      radioBtn.classList.toggle('endy-radio-on', radioMode);
-      radioBtn.title = radioMode ? '电台模式：开（随机连播）' : '电台模式：关（顺序播放）';
+      radioBall.classList.toggle('endy-radio-on', radioMode);
+      radioBall.title = radioMode ? '电台模式：开（随机连播）' : '电台模式：关（顺序播放）';
       try { localStorage.setItem(KEY_RADIO, radioMode ? '1' : '0'); } catch (e) {}
     }
 
@@ -481,8 +494,8 @@
     playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
     prevBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index - 1); if (audio) audio.play().catch(function () {}); });
     nextBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index + 1); if (audio) audio.play().catch(function () {}); });
-    radioBtn.addEventListener('click', function (e) { e.stopPropagation(); applyRadio(!radioMode); });
     toggleBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleCollapse(); });
+    radioBall.addEventListener('click', function (e) { e.stopPropagation(); applyRadio(!radioMode); });
     nav.addEventListener('click', function (e) {
       if (e.target.closest('.em-btn')) return;
       if (collapsed) toggleCollapse();
