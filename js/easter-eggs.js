@@ -82,7 +82,8 @@
 
   /* ---------- 彩蛋3：搜索暗号 → 彩蛋卡 ---------- */
   function initSearchEgg() {
-    const KEYWORD = '彖渊子';
+    // 兼容「彖渊子」与「象渊子」（有的用户/输入法打不出「彖」）
+    const KEYWORDS = ['彖渊子', '象渊子'];
 
     function hideEggCard() {
       const card = document.getElementById('endy-secret-card');
@@ -116,8 +117,8 @@
       if (!input || input._endySearchBound) return;
       input._endySearchBound = true;
       input.addEventListener('input', function () {
-        const v = (input.value || '').trim();
-        if (v === KEYWORD) showEggCard();
+        const v = (input.value || '').trim().replace(/\s+/g, '');
+        if (KEYWORDS.indexOf(v) !== -1) showEggCard();
         else hideEggCard();
       });
     }

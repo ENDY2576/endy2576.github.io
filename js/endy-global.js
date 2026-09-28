@@ -634,6 +634,15 @@
 
     // 部分 Meting 实例在歌单里只给 id 不给直链（url 为空），需按 id 再请求一次 type=song 补回直链；
     // 否则虽然能列出多首，但没有可播放的 url，导致切不了歌。
+    function extractArray(d) {
+      if (Array.isArray(d)) return d;
+      if (!d || typeof d !== 'object') return [];
+      return Array.isArray(d.data) ? d.data :
+             Array.isArray(d.songs) ? d.songs :
+             Array.isArray(d.list) ? d.list :
+             Array.isArray(d.music) ? d.music :
+             Array.isArray(d.result) ? d.result : [];
+    }
     function resolveSongUrls(list, server) {
       const need = list.filter(function (s) { return !s.url && s.id; });
       if (!need.length) return Promise.resolve(list);
@@ -643,7 +652,7 @@
         return fetch(url)
           .then(function (r) { return r.json(); })
           .then(function (d) {
-            const arr = Array.isArray(d) ? d : (d && d.data) || [];
+            const arr = extractArray(d);
             const one = arr[0];
             if (one && one.url) {
               s.url = one.url;
@@ -687,7 +696,7 @@
       fetch(SECRET_PLAYLIST_URL)
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          const raw = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+          const raw = extractArray(data);
           const list = normalizeSongs(raw);
           if (!list.length) {
             document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false, reason: 'empty' } }));
