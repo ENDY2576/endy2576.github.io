@@ -382,7 +382,7 @@
       '<button class="em-btn em-play" type="button" aria-label="播放/暂停">▶</button>' +
       '<button class="em-btn em-next" type="button" aria-label="下一首">⏭</button>' +
       '</div>' +
-      '<div class="em-info"><div class="em-title">加载中…</div><div class="em-artist">—</div></div>' +
+      '<div class="em-info"><div class="em-title">加载中…</div><div class="em-sub"><span class="em-artist">—</span><span class="em-lrc"></span></div></div>' +
       '<div class="em-progress"><div class="em-bar"></div></div>';
 
     wrapper.appendChild(nav);
@@ -393,6 +393,7 @@
     const coverEl = nav.querySelector('.em-cover');
     const titleEl = nav.querySelector('.em-title');
     const artistEl = nav.querySelector('.em-artist');
+    const lrcEl = nav.querySelector('.em-lrc');
     const playBtn = nav.querySelector('.em-play');
     const prevBtn = nav.querySelector('.em-prev');
     const nextBtn = nav.querySelector('.em-next');
@@ -404,11 +405,12 @@
     let radioMode = false;
     let collapsed = false;
     let audio = null;
+    let lrcData = [];
 
     function loadState() {
       try {
-        // 默认收缩；只有显式展开过（'0'）才保持胶囊态
-        collapsed = localStorage.getItem(KEY_COLLAPSE) !== '0';
+        // 默认展开（对齐 zhheo）；只有显式收起过（'1'）才保持球态
+        collapsed = localStorage.getItem(KEY_COLLAPSE) === '1';
         radioMode = localStorage.getItem(KEY_RADIO) === '1';
       } catch (e) { /* 忽略 */ }
     }
@@ -473,6 +475,44 @@
       artistEl.textContent = s.artist || '未知歌手';
       coverEl.src = s.cover || '';
       coverEl.alt = (s.name || '封面') + ' 封面';
+      loadLRC(s.lrc);
+    }
+
+    /* LRC 歌词：解析 [mm:ss.xx] 时间轴，播放时随播显示当前行 */
+    function parseLRC(text) {
+      const out = [];
+      const lines = (text || '').split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const content = lines[i].replace(/\[\d{2}:\d{2}(?:\.\d{1,3})?\]/g, '').trim();
+        const marks = lines[i].match(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/g);
+        if (!marks) continue;
+        for (let j = 0; j < marks.length; j++) {
+          const m = marks[j].match(/\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/);
+          const t = parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + (m[3] ? parseInt(m[3], 10) / 1000 : 0);
+          out.push({ time: t, content: content });
+        }
+      }
+      out.sort(function (a, b) { return a.time - b.time; });
+      return out;
+    }
+
+    function loadLRC(url) {
+      lrcData = [];
+      if (lrcEl) lrcEl.textContent = '';
+      if (!url) return;
+      fetch(url).then(function (r) { return r.text(); }).then(function (txt) {
+        lrcData = parseLRC(txt);
+      }).catch(function () {});
+    }
+
+    function updateLRC(cur) {
+      if (!lrcData.length || !lrcEl) return;
+      let idx = 0;
+      for (let i = 0; i < lrcData.length; i++) {
+        if (lrcData[i].time <= cur) idx = i; else break;
+      }
+      const line = lrcData[idx].content;
+      if (lrcEl.textContent !== line) lrcEl.textContent = line;
     }
 
     function loadAudio(i) {
@@ -501,6 +541,7 @@
         audio.addEventListener('timeupdate', function () {
           if (!audio.duration) return;
           barEl.style.width = (audio.currentTime / audio.duration * 100) + '%';
+          updateLRC(audio.currentTime);
         });
         audio.addEventListener('error', function () {
           if (songs.length > 1) { loadAudio(index + 1); audio.play().catch(function () {}); }
