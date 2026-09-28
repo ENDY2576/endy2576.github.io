@@ -1318,15 +1318,15 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 [data-theme="dark"] .endy-egg-card.locked .endy-egg-badge { color: #999; background: rgba(255, 255, 255, 0.08); }
 [data-theme="dark"] .endy-eggs-btn { background: rgba(40, 40, 45, 0.9); color: #e6e6e6; border-color: rgba(255, 255, 255, 0.12); }
 
-/* 彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏，
-   连击头像 5 次后平滑展开；再次 5 连击可收起。
-   注意：主题 index.css 给 .map / .selfInfo 设了 height:60% / 40% + 固定 min-height，
-   必须用 !important 才能稳稳压住，否则默认状态仍会露出。 */
+/* 彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏。
+   隐藏态：整组 mapAndInfo 横向+纵向收起淡出，统计卡补位占满整行（不留空洞）；
+   连击头像 5 次揭示：统计卡让位回 39%，整组恢复，地图/信息卡按主题 60%/40% 比例贴满。
+   注意：主题给 .map/.selfInfo 设了 height:60%/40% + min-height，必须 !important 压制。 */
 .endy-private-info .author-content-item.map.single,
 .endy-private-info .author-content-item.selfInfo.single {
+  height: 0 !important;
   max-height: 0 !important;
   min-height: 0 !important;
-  height: 0 !important;
   margin: 0 !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
@@ -1337,20 +1337,49 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   transition: max-height 0.5s ease, min-height 0.5s ease, height 0.5s ease,
               opacity 0.4s ease, margin 0.4s ease, padding 0.4s ease;
 }
-#about-page.endy-private-revealed .endy-private-info .author-content-item.map.single,
-#about-page.endy-private-revealed .endy-private-info .author-content-item.selfInfo.single {
-  max-height: 400px !important;
-  height: auto !important;
+/* 组容器一并收起（宽→0、高→0、淡出），消除右列空洞 */
+.author-content-item-group.column.mapAndInfo.endy-private-info {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  border-width: 0 !important;
+  transition: width 0.5s ease, max-height 0.5s ease, min-height 0.5s ease,
+              opacity 0.4s ease, margin 0.4s ease;
+}
+/* 统计卡补位：隐藏时 39%→100%；本行桌面端不换行，两卡宽度动画全程同排不跳行 */
+#about-page .author-content-item.about-statistic { transition: width 0.5s ease; }
+@media screen and (min-width: 769px) {
+  #about-page .author-content.endy-statistic-row { flex-wrap: nowrap; }
+  #about-page:not(.endy-private-revealed) .author-content-item.about-statistic { width: 100% !important; }
+}
+/* --- 揭示态：恢复主题比例 --- */
+#about-page.endy-private-revealed .author-content-item-group.column.mapAndInfo.endy-private-info {
+  width: 59% !important;
+  max-height: 900px !important;
   opacity: 1 !important;
 }
 #about-page.endy-private-revealed .endy-private-info .author-content-item.map.single {
+  height: 60% !important;
+  max-height: 400px !important;
   min-height: 160px !important;
   margin-bottom: 0.5rem !important;
   padding-top: 1rem !important;
   padding-bottom: 1rem !important;
+  opacity: 1 !important;
 }
 #about-page.endy-private-revealed .endy-private-info .author-content-item.selfInfo.single {
+  height: 40% !important;
+  max-height: 400px !important;
   min-height: 100px !important;
   padding-top: 1rem !important;
   padding-bottom: 1rem !important;
+  opacity: 1 !important;
+}
+@media screen and (max-width: 768px) {
+  #about-page.endy-private-revealed .author-content-item-group.column.mapAndInfo.endy-private-info {
+    width: 100% !important;
+  }
 }
