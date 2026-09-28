@@ -662,6 +662,12 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   pointer-events: none;
   transition: width 0.25s ease, height 0.25s ease;
 }
+/* 白色图标（夜间/悬浮/开启）加白色辉光，提升对比度 */
+[data-theme="dark"] #endy-radio-ball .em-radio-icon,
+#endy-radio-ball:hover .em-radio-icon,
+#endy-radio-ball.endy-radio-on .em-radio-icon {
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.9));
+}
 #endy-radio-ball .em-radio-text {
   position: relative;
   z-index: 3;
@@ -676,11 +682,12 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   transition: opacity 0.25s ease, max-width 0.35s ease, margin-left 0.35s ease;
   pointer-events: none;
 }
-/* 悬浮展开：与音乐胶囊等宽 240px、主题色高亮 */
+/* 悬浮展开：与音乐胶囊一致紧凑（fit-content），主题色高亮 */
 #endy-radio-ball:hover {
-  width: 240px;
-  height: 52px;
-  border-radius: 26px;
+  width: fit-content;
+  min-width: 48px;
+  height: 48px;
+  border-radius: 24px;
   background: var(--anzhiyu-main, #3b82f6);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.25);
@@ -696,6 +703,41 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   max-width: 150px;
   margin-left: 8px;
 }
+/* 悬浮展开时的内联控制（对齐音乐胶囊：播放/下一首），默认收起 */
+#endy-radio-ball .em-radio-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity 0.25s ease, max-width 0.35s ease;
+  pointer-events: none;
+}
+#endy-radio-ball:hover .em-radio-controls {
+  opacity: 1;
+  max-width: 72px;
+  pointer-events: auto;
+}
+#endy-radio-ball .em-radio-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+#endy-radio-ball .em-radio-btn:hover { background: rgba(255, 255, 255, 0.42); transform: scale(1.12); }
+#endy-radio-ball .em-radio-btn:active { transform: scale(0.92); }
 /* 电台开启：主题色小球（不悬浮也保持高亮） */
 #endy-radio-ball.endy-radio-on {
   background: var(--anzhiyu-main, #3b82f6);
@@ -736,33 +778,33 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 
 /* 球态：音乐球 42px，封面水平居中（更小巧） */
 #endy-music.collapsed {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   border-radius: 50%;
   cursor: pointer;
   justify-content: center;
 }
 
-/* 封面容器：方角封面（对齐 zhheo 观感） */
+/* 封面容器：唱片头像改回圆形 */
 #endy-music .em-cover-wrap {
   position: relative;
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: 9px;
+  border-radius: 50%;
 }
 #endy-music.collapsed .em-cover-wrap {
   width: 36px;
   height: 36px;
-  border-radius: 11px;
+  border-radius: 50%;
 }
 #endy-music .em-cover {
   width: 100%;
   height: 100%;
-  border-radius: 10px;
+  border-radius: 50%;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 2px solid var(--anzhiyu-white, #fff);
   transition: transform 0.4s linear, box-shadow 0.3s ease;
 }
 #endy-music.playing .em-cover {
