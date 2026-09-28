@@ -551,6 +551,12 @@
       if (lrcEl.textContent !== line) lrcEl.textContent = line;
     }
 
+    // 将相对/绝对 URL 统一为可用于比较的绝对地址，避免因书写形式不同误判“换歌”
+    function normalizeUrl(u) {
+      if (!u) return '';
+      try { return new URL(u, location.href).href; } catch (e) { return u; }
+    }
+
     function loadAudio(i) {
       if (!songs.length) return;
       index = ((i % songs.length) + songs.length) % songs.length;
@@ -592,7 +598,14 @@
           try { localStorage.setItem(KEY_VOLUME, String(audio.volume)); } catch (e) {}
         });
       }
-      audio.src = songs[index].url;
+      // 守卫：同一首歌且已经加载过，就别重设 src / 别 audio.load()，
+      // 否则 currentTime 会被清零（表现为“暂停后继续播放从头开始”）。
+      // 排除 audio.ended：播放结束后再点同一首需要重新载入才能重播（单曲列表会回绕到自身）。
+      const wantUrl = songs[index].url || '';
+      if (wantUrl && audio.src && !audio.ended && normalizeUrl(wantUrl) === normalizeUrl(audio.src)) {
+        return;
+      }
+      audio.src = wantUrl;
       audio.load();
     }
 
