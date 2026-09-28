@@ -82,8 +82,7 @@
 
   /* ---------- 彩蛋3：搜索暗号 → 彩蛋卡 ---------- */
   function initSearchEgg() {
-    // 兼容「彖渊子」与「象渊子」（有的用户/输入法打不出「彖」）
-    const KEYWORDS = ['彖渊子', '象渊子'];
+    const KEYWORD = '彖渊子';
 
     function hideEggCard() {
       const card = document.getElementById('endy-secret-card');
@@ -118,7 +117,7 @@
       input._endySearchBound = true;
       input.addEventListener('input', function () {
         const v = (input.value || '').trim().replace(/\s+/g, '');
-        if (KEYWORDS.indexOf(v) !== -1) showEggCard();
+        if (v === KEYWORD) showEggCard();
         else hideEggCard();
       });
     }
@@ -152,7 +151,7 @@
       }
     });
 
-    // 额外彩蛋：首页 Hero 大站名连点 5 下
+    // 额外彩蛋：首页 Hero 大站名连点 5 下 → toast + 切换阿尼亚主题鼠标指针
     whenReady('#site-info #site-title', function (siteName) {
       let clicks = [];
       siteName.addEventListener('click', function () {
@@ -162,7 +161,38 @@
         if (clicks.length >= 5) {
           clicks = [];
           showToast('🐾 你连点了站名，彖渊子对你眨了眨眼', { duration: 3200 });
+          toggleAniaCursor();
         }
+      });
+    });
+  }
+
+  /* ---------- 鼠标指针切换（站名 5 连击彩蛋） ---------- */
+  function toggleAniaCursor() {
+    const KEY = 'endy-ania-cursor';
+    const on = document.body.classList.toggle('endy-ania-cursor');
+    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
+    showToast(on ? '🖱️ 光标已切换为阿尼亚主题' : '🖱️ 光标已恢复默认', { duration: 2600 });
+  }
+
+  // 页面加载时恢复已保存的光标状态
+  try { if (localStorage.getItem('endy-ania-cursor') === '1') document.body.classList.add('endy-ania-cursor'); } catch (e) {}
+
+  /* ---------- 彩蛋6：中控台点击四季按钮 → 右侧栏出现四季切换 ---------- */
+  function initSeasonEgg() {
+    const KEY = 'endy-season-unlocked';
+    whenReady('#season-toggle', function (centerBtn) {
+      whenReady('#rightside-season-toggle', function (rightBtn) {
+        // 默认隐藏右侧栏的四季切换按钮，直到在中控台发现它
+        if (localStorage.getItem(KEY) !== '1') rightBtn.style.display = 'none';
+        if (centerBtn.dataset.seasonEggBound) return;
+        centerBtn.dataset.seasonEggBound = '1';
+        centerBtn.addEventListener('click', function () {
+          if (localStorage.getItem(KEY) === '1') return;
+          try { localStorage.setItem(KEY, '1'); } catch (e) {}
+          rightBtn.style.display = ''; // 恢复主题默认显示
+          showToast('🍂 你发现了四季背景切换开关', { duration: 3600 });
+        });
       });
     });
   }
@@ -219,6 +249,7 @@
     initMusicPageEgg();
     initSearchEgg();
     initWhisperEgg();
+    initSeasonEgg(); // 彩蛋6：中控台四季按钮 → 解锁右侧栏四季按钮
   }
 
   function fullBoot() {
