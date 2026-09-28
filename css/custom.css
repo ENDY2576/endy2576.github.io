@@ -566,6 +566,16 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   align-items: flex-start; /* 左侧齐平 */
   gap: 8px;
   user-select: none;
+  /* 顶部自动隐藏：默认下移出屏 + 透明，下滑后加 .endy-player-visible 显示 */
+  transform: translateY(140px);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  pointer-events: none;
+}
+#endy-music-wrapper.endy-player-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* 电台球：默认 48px 白球（与音乐球一致），悬浮展开成紧凑主题色胶囊，
@@ -1024,11 +1034,12 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 
 /* ==================================================================
    修复首页轮播图标题/描述文字重叠（2026-09-28）
-   根因：.blog-slider__title 使用 -webkit-line-clamp:1 + display:-webkit-box，
-   在 1.5x 缩放或特定字体下会出现合成重影。标题单行无需 line-clamp，
-   改用 white-space:nowrap 截断；描述保留 line-clamp 但 translateZ(0) 独立图层。
+   根因：.blog-slider__content > * 默认 transform:translateY(25px) + opacity:0，
+   在 1.5x 缩放或特定字体下会出现合成重影（看起来像文字叠影）。
+   用更高优先级选择器覆盖 transform，让标题/描述只做淡入，不再有上下位移；
+   标题单行改 white-space:nowrap 截断，彻底避开 -webkit-line-clamp 渲染坑。
    ================================================================== */
-.blog-slider__title {
+.blog-slider__content > .blog-slider__title {
   display: block;
   white-space: nowrap;
   overflow: hidden;
@@ -1036,7 +1047,11 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   -webkit-line-clamp: unset;
   -webkit-box-orient: unset;
   transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
 }
-.blog-slider__text {
+.blog-slider__content > .blog-slider__text {
   transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
 }

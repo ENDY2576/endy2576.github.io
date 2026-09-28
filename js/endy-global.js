@@ -397,6 +397,21 @@
     wrapper.appendChild(radioBall);
     document.body.appendChild(wrapper);
 
+    /* 滚动自动显隐：页面在顶部时隐藏胶囊球，向下滚动超过阈值后滑出显示 */
+    (function initAutoHide(el) {
+      const THRESHOLD = 80;
+      let rafId = null;
+      function update() {
+        rafId = null;
+        el.classList.toggle('endy-player-visible', window.scrollY > THRESHOLD);
+      }
+      window.addEventListener('scroll', function () {
+        if (rafId) return;
+        rafId = requestAnimationFrame(update);
+      }, { passive: true });
+      update();
+    })(wrapper);
+
     const coverWrap = nav.querySelector('.em-cover-wrap');
     const coverEl = nav.querySelector('.em-cover');
     const titleEl = nav.querySelector('.em-title');
