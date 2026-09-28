@@ -568,27 +568,123 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   user-select: none;
 }
 
-/* 电台球：独立悬浮在音乐上方 */
+/* 电台球：默认白色小球，悬浮展开成 240px 主题色胶囊，含 3D 重力压变 + 边缘流光 */
 #endy-radio-ball {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 2px solid var(--anzhiyu-white, #fff);
-  background: var(--anzhiyu-main, #3b82f6);
-  color: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  color: #32394e;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  line-height: 1;
-  padding: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  transition: transform 0.2s ease, background 0.2s ease;
+  justify-content: flex-start;
+  padding: 0 5px; /* 22px 图标居中于 32px 小球 */
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transform: perspective(800px)
+    rotateX(var(--rx, 0deg))
+    rotateY(var(--ry, 0deg))
+    scale(var(--s, 1));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: width 0.35s cubic-bezier(0.34, 1.4, 0.64, 1),
+    height 0.35s ease,
+    border-radius 0.35s ease,
+    background 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.12s ease-out;
+  z-index: 1;
 }
-#endy-radio-ball:hover { transform: scale(1.12); }
-#endy-radio-ball:active { transform: scale(0.94); }
-#endy-radio-ball.endy-radio-on { background: #f59e0b; }
+/* 边缘流光：conic-gradient 沿描边旋转，hover 时显现 */
+#endy-radio-ball::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50px;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--angle, 0deg),
+    transparent 0%,
+    rgba(255, 255, 255, 0.95) 38%,
+    transparent 82%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+#endy-radio-ball:hover::before {
+  opacity: 1;
+  animation: em-radio-flow 2.4s linear infinite;
+}
+#endy-radio-ball .em-radio-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: block;
+  pointer-events: none;
+}
+#endy-radio-ball .em-radio-text {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  transition: opacity 0.25s ease, max-width 0.35s ease, margin-left 0.35s ease;
+  pointer-events: none;
+}
+/* 悬浮展开：与音乐胶囊等宽 240px、主题色高亮 */
+#endy-radio-ball:hover {
+  width: 240px;
+  height: 48px;
+  border-radius: 26px;
+  background: var(--anzhiyu-main, #3b82f6);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 22px rgba(59, 130, 246, 0.4);
+  padding: 0 14px;
+}
+#endy-radio-ball:hover .em-radio-text {
+  opacity: 1;
+  max-width: 150px;
+  margin-left: 8px;
+}
+/* 电台开启：主题色小球（不悬浮也保持高亮） */
+#endy-radio-ball.endy-radio-on {
+  background: var(--anzhiyu-main, #3b82f6);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+/* 流光角度驱动 */
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes em-radio-flow {
+  to { --angle: 360deg; }
+}
+/* 暗色模式：默认深色小球，悬浮/highlight 仍主题色 + 白图标 */
+[data-theme="dark"] #endy-radio-ball {
+  background: rgba(30, 30, 40, 0.92);
+  color: var(--endy-fix-text, #e3e3e8);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] #endy-radio-ball:hover {
+  background: var(--anzhiyu-main, #3b82f6);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
 
 /* 音乐胶囊 */
 #endy-music {
@@ -620,19 +716,25 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   justify-content: center;
 }
 
-/* 封面 */
-#endy-music .em-cover {
+/* 封面容器：默认只显示封面，悬浮时覆盖播放控制层 */
+#endy-music .em-cover-wrap {
+  position: relative;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
   flex-shrink: 0;
-  border: 2px solid var(--anzhiyu-white, #fff);
-  transition: transform 0.4s linear;
+  border-radius: 50%;
 }
-#endy-music.collapsed .em-cover {
+#endy-music.collapsed .em-cover-wrap {
   width: 40px;
   height: 40px;
+}
+#endy-music .em-cover {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--anzhiyu-white, #fff);
+  transition: transform 0.4s linear;
 }
 #endy-music.playing .em-cover {
   animation: em-spin 8s linear infinite;
@@ -642,18 +744,76 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   to { transform: rotate(360deg); }
 }
 
-/* 歌曲信息 */
+/* 封面悬浮控制层：播放/上一首/下一首 */
+#endy-music .em-cover-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(30, 30, 30, 0.55);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: auto;
+}
+#endy-music:hover .em-cover-overlay {
+  opacity: 1;
+}
+#endy-music.collapsed .em-cover-overlay {
+  display: none;
+}
+#endy-music .em-cover-overlay .em-btn {
+  pointer-events: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+#endy-music .em-cover-overlay .em-btn:hover {
+  transform: scale(1.15);
+  background: rgba(255, 255, 255, 0.4);
+}
+#endy-music .em-cover-overlay .em-btn:active { transform: scale(0.92); }
+#endy-music .em-cover-overlay .em-play {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #333;
+}
+#endy-music .em-cover-overlay .em-play:hover {
+  background: #fff;
+  color: #333;
+}
+
+/* 歌曲信息：胶囊默认只显示标题 */
 #endy-music .em-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   transition: opacity 0.25s ease;
+  padding-right: 4px;
 }
 #endy-music.collapsed .em-info {
   display: none;
+}
+#endy-music:hover .em-info {
+  opacity: 0.45;
 }
 
 #endy-music .em-title {
@@ -699,49 +859,6 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   transition: width 0.1s linear;
 }
 
-/* 控制按钮区 */
-#endy-music .em-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  transition: opacity 0.25s ease;
-}
-#endy-music.collapsed .em-controls {
-  display: none;
-}
-
-#endy-music .em-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--anzhiyu-fontcolor, #333);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  line-height: 1;
-  padding: 0;
-  transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
-}
-#endy-music .em-btn:hover {
-  transform: scale(1.15);
-  background: rgba(0, 0, 0, 0.06);
-}
-#endy-music .em-btn:active { transform: scale(0.92); }
-
-#endy-music .em-play {
-  background: var(--anzhiyu-main, #3b82f6);
-  color: #fff;
-}
-#endy-music .em-play:hover {
-  background: var(--anzhiyu-main);
-  color: #fff;
-}
-
 /* 暗色模式适配 */
 [data-theme="dark"] #endy-music,
 [data-theme="dark"] #endy-radio-ball {
@@ -749,11 +866,10 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   border-color: rgba(255, 255, 255, 0.12);
 }
 [data-theme="dark"] #endy-radio-ball { color: var(--endy-fix-text, #e3e3e8); }
-[data-theme="dark"] #endy-radio-ball.endy-radio-on { background: #f59e0b; color: #fff; }
 [data-theme="dark"] #endy-music .em-title { color: var(--endy-fix-text, #e3e3e8); }
 [data-theme="dark"] #endy-music .em-artist { color: rgba(227, 227, 232, 0.7); }
-[data-theme="dark"] #endy-music .em-btn { color: var(--endy-fix-text, #e3e3e8); }
-[data-theme="dark"] #endy-music .em-btn:hover { background: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] #endy-music .em-cover-overlay { background: rgba(20, 20, 25, 0.65); }
+[data-theme="dark"] #endy-music .em-cover-overlay .em-play { color: #333; }
 [data-theme="dark"] #endy-music .em-progress { background: rgba(255, 255, 255, 0.1); }
 
 /* ==================================================================

@@ -369,32 +369,32 @@
     radioBall.id = 'endy-radio-ball';
     radioBall.type = 'button';
     radioBall.setAttribute('aria-label', '电台模式');
-    radioBall.textContent = '📻';
     radioBall.title = '电台模式：关（顺序播放）';
+    radioBall.innerHTML = '<img class="em-radio-icon" src="/img/radio/radio-day.svg" alt="" /><span class="em-radio-text">电台模式</span>';
 
     const nav = document.createElement('div');
     nav.id = 'endy-music';
-    nav.innerHTML = '<img class="em-cover" src="" alt="封面" />' +
-      '<div class="em-info"><div class="em-title">加载中…</div><div class="em-artist">—</div></div>' +
-      '<div class="em-controls">' +
+    nav.innerHTML = '<div class="em-cover-wrap">' +
+      '<img class="em-cover" src="" alt="封面" />' +
+      '<div class="em-cover-overlay">' +
       '<button class="em-btn em-prev" type="button" aria-label="上一首">⏮</button>' +
       '<button class="em-btn em-play" type="button" aria-label="播放/暂停">▶</button>' +
       '<button class="em-btn em-next" type="button" aria-label="下一首">⏭</button>' +
-      '<button class="em-btn em-toggle" type="button" aria-label="收起/展开">－</button>' +
-      '</div>' +
+      '</div></div>' +
+      '<div class="em-info"><div class="em-title">加载中…</div><div class="em-artist">—</div></div>' +
       '<div class="em-progress"><div class="em-bar"></div></div>';
 
     wrapper.appendChild(nav);
     wrapper.appendChild(radioBall);
     document.body.appendChild(wrapper);
 
+    const coverWrap = nav.querySelector('.em-cover-wrap');
     const coverEl = nav.querySelector('.em-cover');
     const titleEl = nav.querySelector('.em-title');
     const artistEl = nav.querySelector('.em-artist');
     const playBtn = nav.querySelector('.em-play');
     const prevBtn = nav.querySelector('.em-prev');
     const nextBtn = nav.querySelector('.em-next');
-    const toggleBtn = nav.querySelector('.em-toggle');
     const barEl = nav.querySelector('.em-bar');
 
     let songs = [];
@@ -415,18 +415,59 @@
     function applyCollapsed(c) {
       collapsed = !!c;
       nav.classList.toggle('collapsed', collapsed);
-      toggleBtn.textContent = collapsed ? '＋' : '－';
-      toggleBtn.setAttribute('aria-label', collapsed ? '展开音乐胶囊' : '收起音乐胶囊');
-      toggleBtn.title = collapsed ? '展开音乐胶囊' : '收起音乐胶囊';
       try { localStorage.setItem(KEY_COLLAPSE, collapsed ? '1' : '0'); } catch (e) {}
+    }
+
+    const radioIcon = radioBall.querySelector('.em-radio-icon');
+    const DAY_ICON = '/img/radio/radio-day.svg';
+    const NIGHT_ICON = '/img/radio/radio-night.svg';
+
+    function isDarkTheme() {
+      return document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.getAttribute('data-theme') === 'dark';
+    }
+    function updateRadioIcon() {
+      if (!radioIcon) return;
+      const hovered = radioBall.matches(':hover');
+      const useWhite = hovered || radioMode;
+      radioIcon.src = useWhite ? NIGHT_ICON : (isDarkTheme() ? NIGHT_ICON : DAY_ICON);
     }
 
     function applyRadio(on) {
       radioMode = !!on;
       radioBall.classList.toggle('endy-radio-on', radioMode);
       radioBall.title = radioMode ? '电台模式：开（随机连播）' : '电台模式：关（顺序播放）';
+      updateRadioIcon();
       try { localStorage.setItem(KEY_RADIO, radioMode ? '1' : '0'); } catch (e) {}
     }
+
+    /* 3D 重力压变：鼠标在胶囊上移动时，按相对位置倾斜并轻微下压 */
+    function enable3DTilt(el) {
+      el.addEventListener('mousemove', function (e) {
+        const rect = el.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        const ry = (x - 0.5) * 16;   /* 左右倾斜 */
+        const rx = -(y - 0.5) * 14;  /* 上下倾斜 */
+        const press = 1 - (Math.abs(x - 0.5) + Math.abs(y - 0.5)) * 0.05;
+        el.style.setProperty('--rx', rx.toFixed(2) + 'deg');
+        el.style.setProperty('--ry', ry.toFixed(2) + 'deg');
+        el.style.setProperty('--s', Math.max(0.95, press).toFixed(3));
+      });
+      el.addEventListener('mouseleave', function () {
+        el.style.setProperty('--rx', '0deg');
+        el.style.setProperty('--ry', '0deg');
+        el.style.setProperty('--s', '1');
+        updateRadioIcon();
+      });
+      el.addEventListener('mouseenter', function () { updateRadioIcon(); });
+    }
+    enable3DTilt(radioBall);
+
+    /* 监听主题切换，动态换 SVG */
+    const themeObserver = new MutationObserver(updateRadioIcon);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    if (document.body) themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
 
     function renderSong() {
       const s = songs[index];
@@ -502,8 +543,27 @@
     playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
     prevBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index - 1); if (audio) audio.play().catch(function () {}); });
     nextBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index + 1); if (audio) audio.play().catch(function () {}); });
-    toggleBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleCollapse(); });
     radioBall.addEventListener('click', function (e) { e.stopPropagation(); applyRadio(!radioMode); });
+    /* 唱片区域：单击收起/展开，双击跳转音乐馆；按钮子元素 stopPropagation */
+    coverWrap.title = '单击收起/展开，双击跳转音乐馆';
+    coverWrap.style.cursor = 'pointer';
+    let coverClickTimer = null;
+    coverWrap.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (coverClickTimer) {
+        clearTimeout(coverClickTimer);
+        coverClickTimer = null;
+        return; /* 双击的第二次 click 不处理 */
+      }
+      coverClickTimer = setTimeout(function () {
+        coverClickTimer = null;
+        toggleCollapse();
+      }, 220);
+    });
+    coverWrap.addEventListener('dblclick', function (e) {
+      e.stopPropagation();
+      window.location.href = '/life/music/';
+    });
     nav.addEventListener('click', function (e) {
       if (e.target.closest('.em-btn')) return;
       if (collapsed) toggleCollapse();
