@@ -120,6 +120,8 @@
 
   // 页面加载即预加载全部四季背景图，让首次手动切换也能秒切、不再现拉网络
   function preloadAllSeasons() {
+    // 夜间模式用单独背景图，不依赖四季切换，没必要预加载四张大图（省流量/降卡顿）
+    if (document.documentElement.getAttribute('data-theme') === 'dark') return;
     const root = document.documentElement;
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
     SEASONS.forEach(function (s) {

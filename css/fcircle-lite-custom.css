@@ -196,12 +196,12 @@
   background: color-mix(in srgb, var(--fc-primary) 16%, transparent);
   color: #fff;
   border: 1px solid #f59e0b;
-  border-radius: 16px;
+  border-radius: 16px !important;
 }
 
 .fc-lite-btn-primary:hover {
   background: color-mix(in srgb, var(--fc-primary) 28%, transparent);
-  border-radius: 16px;
+  border-radius: 16px !important;
   transform: translateY(-1px);
 }
 
@@ -630,11 +630,21 @@
   transform: translateY(16px) scale(0.96);
   transition: transform 0.25s ease;
   box-sizing: border-box;
+  /* 关键：面板被 JS append 到 body，离开了 #friend-circle-lite-root 作用域，
+     内部的 var(--fc-*) 会失效。在面板自身重新定义这些变量，确保 light/dark 都正常。 */
+  --fc-text-main: #2c3e50;
+  --fc-text-sub: #5f6f81;
+  --fc-card-border: rgba(0, 0, 0, 0.08);
+  --fc-primary: #3b82f6;
 }
 
 [data-theme="dark"] .fc-lite-author-panel {
   background: #1e2330;
   border-color: rgba(255, 255, 255, 0.1);
+  --fc-text-main: #e8ecf1;
+  --fc-text-sub: #9aa7b5;
+  --fc-card-border: rgba(255, 255, 255, 0.1);
+  --fc-primary: #60a5fa;
 }
 
 .fc-lite-author-panel-backdrop.fc-lite-author-panel-show .fc-lite-author-panel {

@@ -511,3 +511,22 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
+
+/* ==================================================================
+   中控台归档卡片夜间文字反白
+   控制台 #console 的 .card-archive-list-link 只设了背景，
+   夜间继承到深色文字，在深色卡片上看不见。
+   ================================================================== */
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-link,
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-date,
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-count,
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-count-group span {
+  color: var(--endy-fix-text);
+}
+
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-link:hover,
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-link:hover .card-archive-list-date,
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-link:hover .card-archive-list-count,
+[data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-link:hover .card-archive-list-count-group span {
+  color: #fff;
+}
