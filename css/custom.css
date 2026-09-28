@@ -84,13 +84,16 @@
   left: 0;
   width: 100%;
   height: 100%;
-  transform: none;
+  /* 夜间卡顿修复：#web_bg 已是 position:fixed，background-attachment:fixed 冗余且会
+     让繁忙夜景图在每次滚动时整屏重绘→掉帧，移除它。translateZ(0)+will-change 把背景
+     提升为独立合成层，滚动时不再参与主线程重绘（不改变任何可见效果）。 */
+  transform: translateZ(0);
+  will-change: transform;
   -webkit-overflow-scrolling: touch;
   background-image: var(--endy-bg-light);
   background-position: center center;
   background-size: cover;
   background-repeat: no-repeat;
-  background-attachment: fixed;
 }
 
 /* 日间模式下给背景图加柔化：降饱和 + 亮度 + 白色雾罩，缓解高饱和风景图与白色卡片的割裂感。
@@ -529,4 +532,62 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 [data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-link:hover .card-archive-list-count,
 [data-theme="dark"] #console .console-card.history .card-archive-list .card-archive-list-link:hover .card-archive-list-count-group span {
   color: #fff;
+}
+
+/* ==================================================================
+   轮播兜底：anzhiyu 的 .blog-slider__img img / .blog-slider__content > *
+   默认 opacity:0，仅 .swiper-slide-active 时变 1。
+   若 Swiper 因 CDN 慢/初始化竞态/首屏 data-pjax 脚本未执行而没打上 active 类，
+   整块会全透明=空白。兜底：Swiper 尚未初始化(.swiper-initialized 未加上)时，
+   强制首张图片与文字可见，至少不再全白。
+   ================================================================== */
+.blog-slider:not(.swiper-initialized) .blog-slider__item:first-child .blog-slider__img img,
+.blog-slider:not(.swiper-initialized) .blog-slider__item:first-child .blog-slider__content > * {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+/* ==================================================================
+   左下角音乐胶囊：收缩按钮 + 球态
+   anzhiyu 的 aplayer 自带 .aplayer-narrow（66px 只留封面=球态），JS 负责切换。
+   这里只做按钮外观与球态的圆角。
+   ================================================================== */
+#endy-music-toggle {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--anzhiyu-main, #3b82f6);
+  color: #fff;
+  cursor: pointer;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+/* 展开(胶囊)态：按钮在右侧边缘 */
+#nav-music:not(.endy-collapsed) #endy-music-toggle {
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+}
+/* 收起(球)态：按钮叠在球中心，点击即展开 */
+#nav-music.endy-collapsed #endy-music-toggle {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+/* 球态：66px 封面收成完美圆形，并隐藏悬停提示 */
+#nav-music.endy-collapsed {
+  border-radius: 50%;
+  overflow: visible;
+}
+#nav-music.endy-collapsed #nav-music-hoverTips {
+  display: none;
 }

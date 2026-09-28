@@ -296,6 +296,31 @@
     });
   }
 
+  // 强制轮播可见：anzhiyu 的 .blog-slider__img img / .blog-slider__content > *
+  // 默认 opacity:0，只有所在 .blog-slider__item 带 .swiper-slide-active 才变 1。
+  // 一旦 Swiper 没给任何 slide 打 active 类（CDN 慢/初始化竞态/首屏脚本未执行），
+  // 整块会全透明=空白。此函数兜底：保证至少首张 active 且图/文字强制可见。
+  function forceSliderVisible() {
+    const slider = document.querySelector('.blog-slider');
+    if (!slider) return;
+    // 已初始化但没有任何 active slide → 手动给首张打 active，杜绝全透明
+    if (slider.classList.contains('swiper-initialized') && !slider.querySelector('.swiper-slide-active')) {
+      const first = slider.querySelector('.blog-slider__item') || slider.querySelector('.swiper-slide');
+      if (first) first.classList.add('swiper-slide-active');
+    }
+    // 兜底：active(或首张)的图与文字强制 opacity:1，覆盖 fade 模块可能残留的透明
+    const active = slider.querySelector('.swiper-slide-active') || slider.querySelector('.blog-slider__item');
+    if (active) {
+      const img = active.querySelector('.blog-slider__img img');
+      if (img) img.style.opacity = '1';
+      active.querySelectorAll('.blog-slider__content > *').forEach(function (el) {
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+        el.style.filter = 'none';
+      });
+    }
+  }
+
   // 首页轮播守护：PJAX 切回首页后，若 Swiper 未初始化或图片仍是占位，强制修复
   function sliderGuard() {
     const slider = document.querySelector('.blog-slider');
@@ -309,6 +334,61 @@
       const real = img.getAttribute('data-lazy-src');
       if (real && (!img.src || img.src.indexOf('data:image') === 0)) img.src = real;
     });
+    // c) 强制首张可见，绝不空白（Swiper 就绪前后都生效）
+    forceSliderVisible();
+    // Swiper 在自己的一帧后才打 active，稍后二次兜底
+    setTimeout(forceSliderVisible, 350);
+  }
+
+  /* 左下角音乐胶囊：收缩成球 / 展开成胶囊
+   * anzhiyu 的 aplayer 自带 .aplayer-narrow（66px 只留封面=球态），但把切换开关
+   * .aplayer-miniswitcher 用 display:none 藏了，所以这里自己注入一个按钮来切。
+   * aplayer 由 Meting2.min.js 异步渲染，需轮询等待 .aplayer 出现再注入。 */
+  function initMusicToggle() {
+    const nav = document.getElementById('nav-music');
+    if (!nav) return;
+    const ap = nav.querySelector('.aplayer');
+    if (!ap) {
+      // aplayer 尚未渲染：稍后重试（最多 ~10s）
+      initMusicToggle.__t = (initMusicToggle.__t || 0) + 1;
+      if (initMusicToggle.__t <= 50) setTimeout(initMusicToggle, 200);
+      return;
+    }
+    if (nav.querySelector('#endy-music-toggle')) return; // 已注入，避免重复
+
+    const btn = document.createElement('button');
+    btn.id = 'endy-music-toggle';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', '收缩 / 展开音乐播放器');
+    nav.appendChild(btn);
+
+    const KEY = 'endy-music-collapsed';
+    function setCollapsed(c) {
+      if (c) {
+        ap.classList.add('aplayer-narrow');
+        nav.classList.add('endy-collapsed');
+      } else {
+        ap.classList.remove('aplayer-narrow');
+        nav.classList.remove('endy-collapsed');
+      }
+      try { localStorage.setItem(KEY, c ? '1' : '0'); } catch (e) { /* 忽略 */ }
+      btn.textContent = c ? '＋' : '－'; // 球态显示＋(展开)，胶囊态显示－(收缩)
+      btn.title = c ? '展开音乐胶囊' : '收起为音乐球';
+    }
+    // 初始状态：读 localStorage（默认展开=胶囊）
+    let initial = '0';
+    try { initial = localStorage.getItem(KEY) || '0'; } catch (e) { /* 忽略 */ }
+    setCollapsed(initial === '1');
+
+    // 按钮点击：切换（阻止冒泡，避免触发胶囊内播放/暂停）
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setCollapsed(!nav.classList.contains('endy-collapsed'));
+    });
+    // 收起(球)态：点击球本身也展开
+    nav.addEventListener('click', function () {
+      if (nav.classList.contains('endy-collapsed')) setCollapsed(false);
+    });
   }
 
   function boot() {
@@ -317,6 +397,7 @@
     initSeasonToggle();
     initHomePreloader();
     sliderGuard();
+    initMusicToggle(); // 左下角音乐胶囊：收缩/展开按钮
     preloadAllSeasons(); // 提前缓存四季背景图，消除手动切换时的预加载延迟
   }
 

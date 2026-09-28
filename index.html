@@ -61,7 +61,7 @@
   isHome: true,
   isHighlightShrink: false,
   isToc: false,
-  postUpdate: '2026-09-28 09:39:04',
+  postUpdate: '2026-09-28 10:35:24',
   postMainColor: '',
 }</script><noscript><style type="text/css">
   #nav {
@@ -233,7 +233,8 @@ if (true) {
   // Swiper 库可能尚未加载完成（PJAX 场景下外链 script 异步），稍后重试
   if (typeof Swiper === "undefined") {
     initBlogSlider.__retry = (initBlogSlider.__retry || 0) + 1;
-    if (initBlogSlider.__retry <= 20) {
+    // 重试窗口从 4s(20×200) 提到 12s(60×200)：CDN 偶发慢时不至于放弃初始化导致空白
+    if (initBlogSlider.__retry <= 60) {
       setTimeout(initBlogSlider, 200);
     }
     return;
@@ -268,12 +269,14 @@ if (true) {
   });
   window.blogSwiper = swiper;
 
-  var comtainer = document.getElementById("swiper_container");
-  if (comtainer !== null) {
-    comtainer.onmouseenter = function () {
+  // 鼠标悬停暂停自动播放：容器实际是 .blog-slider（DOM 里没有 id="swiper_container"），
+  // 之前 getElementById 永远为 null，悬停暂停从未生效，这里改绑正确的选择器。
+  var hoverEl = sliderEl;
+  if (hoverEl !== null) {
+    hoverEl.onmouseenter = function () {
       swiper.autoplay.stop();
     };
-    comtainer.onmouseleave = function () {
+    hoverEl.onmouseleave = function () {
       swiper.autoplay.start();
     };
   }
