@@ -85,9 +85,21 @@
     });
   }
 
-  /* ---------- 彩蛋3：搜索暗号 → 彩蛋卡 ---------- */
+  /* ---------- 彩蛋3：搜索暗号 → 彩蛋卡 ----------
+     关键：本博客实际用的是 Algolia 搜索（_config.anzhiyu.yml 里
+     algolia_search.enable=true、local_search.enable=false），所以搜索框是
+     #algolia-search-input 内的 input，而非本地搜索的 #local-search-input input。
+     这里改用 document 级事件委托，无论 Algolia / 本地搜索 / 搜索弹窗懒加载，
+     都能命中；且 PJAX 切页后无需重新绑定，避免“一次性”失灵。 */
   function initSearchEgg() {
     const KEYWORD = '彖渊子';
+    const INPUT_SELECTOR = [
+      '#algolia-search-input input',
+      '#local-search-input input',
+      '.local-search-box--input',
+      '.aa-Input',      // docsearch / algolia autocomplete 输入框
+      '#searchbox input'
+    ].join(',');
 
     function hideEggCard() {
       const card = document.getElementById('endy-secret-card');
@@ -117,17 +129,17 @@
       backdrop.addEventListener('click', hideEggCard);
     }
 
-    function bind(input) {
-      if (!input || input._endySearchBound) return;
-      input._endySearchBound = true;
-      input.addEventListener('input', function () {
-        const v = (input.value || '').trim().replace(/\s+/g, '');
-        if (v === KEYWORD) showEggCard();
-        else hideEggCard();
-      });
-    }
-
-    bind(document.querySelector('#local-search-input input'));
+    // 只绑定一次：document 常驻，委托到具体输入框，PJAX 切页 / 弹窗懒加载都不怕
+    if (document._endySearchDelegated) return;
+    document._endySearchDelegated = true;
+    document.addEventListener('input', function (e) {
+      const t = e.target;
+      if (!t || typeof t.matches !== 'function') return;
+      if (!t.matches(INPUT_SELECTOR)) return;
+      const v = (t.value || '').trim().replace(/\s+/g, '');
+      if (v === KEYWORD) showEggCard();
+      else hideEggCard();
+    });
   }
 
   /* ---------- 彩蛋4：控制台 ASCII 艺术字 + 站名 5 连点彩蛋 ---------- */
@@ -155,9 +167,13 @@
         setTimeout(emitConsoleHint, 300);
       }
     });
+  }
 
-    // 额外彩蛋：首页 Hero 大站名连点 5 下 → toast + 切换阿尼亚主题鼠标指针
+  /* ---------- 彩蛋4 站点名 5 连击（PJAX 切页后由 bootEggs 重新绑定） ---------- */
+  function initSiteNameEgg() {
     whenReady('#site-info #site-title', function (siteName) {
+      if (siteName._endySiteNameBound) return; // 同一元素只绑一次，PJAX 重建后自动重绑
+      siteName._endySiteNameBound = true;
       let clicks = [];
       siteName.addEventListener('click', function () {
         const now = Date.now();
@@ -255,6 +271,7 @@
     initSearchEgg();
     initWhisperEgg();
     initSeasonEgg(); // 彩蛋6：中控台四季按钮 → 解锁右侧栏四季按钮
+    initSiteNameEgg();   // 彩蛋4 站点名 5 连击（PJAX 切页后重绑，避免一次性失灵）
   }
 
   function fullBoot() {

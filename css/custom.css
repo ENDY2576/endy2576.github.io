@@ -1075,7 +1075,7 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 /* 彩蛋：首页站名 5 连击 → 切换阿尼亚主题鼠标指针（.cur 由 source/img/ania-arrow.cur 部署） */
 body.endy-ania-cursor,
 body.endy-ania-cursor *:not(input):not(textarea):not(select) {
-  cursor: url(/img/ania-arrow.cur), auto !important;
+  cursor: url(/img/ania-arrow.cur?v=2), auto !important;
 }
 
 /* Toast 通用提示：固定在顶部居中，避开左下角音乐胶囊 */
