@@ -563,15 +563,15 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   z-index: 9;
   display: flex;
   flex-direction: column-reverse; /* 音乐在下，电台在上 */
-  align-items: center;
+  align-items: flex-start; /* 左侧齐平 */
   gap: 8px;
   user-select: none;
 }
 
 /* 电台球：独立悬浮在音乐上方 */
 #endy-radio-ball {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   border: 2px solid var(--anzhiyu-white, #fff);
   background: var(--anzhiyu-main, #3b82f6);
@@ -580,7 +580,7 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   padding: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
@@ -595,10 +595,10 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  width: 280px;
-  height: 64px;
+  gap: 8px;
+  padding: 6px 10px;
+  width: 240px;
+  height: 52px;
   max-width: calc(100vw - 40px);
   background: var(--card-bg, rgba(255, 255, 255, 0.9));
   border: var(--style-border, 1px solid rgba(0, 0, 0, 0.1));
@@ -610,19 +610,20 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   overflow: hidden;
 }
 
-/* 球态：音乐球 56px */
+/* 球态：音乐球 48px，封面水平居中 */
 #endy-music.collapsed {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   border-radius: 50%;
   cursor: pointer;
+  justify-content: center;
 }
 
 /* 封面 */
 #endy-music .em-cover {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
@@ -630,8 +631,8 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   transition: transform 0.4s linear;
 }
 #endy-music.collapsed .em-cover {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
 }
 #endy-music.playing .em-cover {
   animation: em-spin 8s linear infinite;

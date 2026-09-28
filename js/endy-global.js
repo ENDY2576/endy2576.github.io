@@ -353,6 +353,13 @@
     const KEY_RADIO = 'endy-music-radio';
     const KEY_VOLUME = 'endy-music-volume';
 
+    // 防止 PJAX/旧缓存脚本重复初始化：已存在则退出，并清理旧版残留按钮
+    if (document.getElementById('endy-music-wrapper')) return;
+    const oldRadio = document.getElementById('endy-music-radio');
+    if (oldRadio) oldRadio.remove();
+    const oldToggle = document.getElementById('endy-music-toggle');
+    if (oldToggle) oldToggle.remove();
+
     const wrapper = document.createElement('div');
     wrapper.id = 'endy-music-wrapper';
     wrapper.setAttribute('role', 'region');
@@ -399,7 +406,8 @@
 
     function loadState() {
       try {
-        collapsed = localStorage.getItem(KEY_COLLAPSE) === '1';
+        // 默认收缩；只有显式展开过（'0'）才保持胶囊态
+        collapsed = localStorage.getItem(KEY_COLLAPSE) !== '0';
         radioMode = localStorage.getItem(KEY_RADIO) === '1';
       } catch (e) { /* 忽略 */ }
     }
