@@ -1319,25 +1319,38 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 [data-theme="dark"] .endy-eggs-btn { background: rgba(40, 40, 45, 0.9); color: #e6e6e6; border-color: rgba(255, 255, 255, 0.12); }
 
 /* 彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏，
-   连击头像 5 次后平滑展开；再次 5 连击可收起。 */
+   连击头像 5 次后平滑展开；再次 5 连击可收起。
+   注意：主题 index.css 给 .map / .selfInfo 设了 height:60% / 40% + 固定 min-height，
+   必须用 !important 才能稳稳压住，否则默认状态仍会露出。 */
 .endy-private-info .author-content-item.map.single,
 .endy-private-info .author-content-item.selfInfo.single {
-  max-height: 0;
-  min-height: 0;
-  margin: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-height 0.5s ease, min-height 0.5s ease, opacity 0.4s ease, margin 0.4s ease;
+  max-height: 0 !important;
+  min-height: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  border-width: 0 !important;
+  box-sizing: border-box !important;
+  transition: max-height 0.5s ease, min-height 0.5s ease, height 0.5s ease,
+              opacity 0.4s ease, margin 0.4s ease, padding 0.4s ease;
 }
 #about-page.endy-private-revealed .endy-private-info .author-content-item.map.single,
 #about-page.endy-private-revealed .endy-private-info .author-content-item.selfInfo.single {
-  max-height: 400px;
-  opacity: 1;
+  max-height: 400px !important;
+  height: auto !important;
+  opacity: 1 !important;
 }
 #about-page.endy-private-revealed .endy-private-info .author-content-item.map.single {
-  min-height: 160px;
-  margin-bottom: 0.5rem;
+  min-height: 160px !important;
+  margin-bottom: 0.5rem !important;
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
 }
 #about-page.endy-private-revealed .endy-private-info .author-content-item.selfInfo.single {
-  min-height: 100px;
+  min-height: 100px !important;
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
 }
