@@ -111,13 +111,30 @@
   }
 
   /* ---------- 彩蛋4：控制台 ASCII 艺术字 + 站名 5 连点彩蛋 ---------- */
+  function emitConsoleHint() {
+    const titleStyle = 'color:#ff7eb6; font-size:40px; font-weight:bold; text-shadow: 3px 3px 0 #7c5cff; padding: 4px 0;';
+    const hint = '🎉 彖渊子彩蛋：你打开了控制台。在首页快速连点中间的大站名「彖渊子」5 下，会有惊喜。';
+    // 多通道输出：某些脚本/扩展只 hook 了 console.log，info/warn 可能仍原生
+    try { console.log('%c彖 渊 子', titleStyle); } catch (e) {}
+    try { console.info('%c彖 渊 子', titleStyle); } catch (e) {}
+    try { console.warn('%c彖 渊 子', titleStyle); } catch (e) {}
+    console.log(hint);
+    console.info(hint);
+    console.warn(hint);
+  }
+
   function initConsoleEgg() {
-    // 带样式的标题单独 try/catch，避免某些被 hook 的 console.log 抛错后连普通提示也出不来
-    try {
-      console.log('%c彖 渊 子', 'color:#ff7eb6; font-size:40px; font-weight:bold; text-shadow: 3px 3px 0 #7c5cff; padding: 4px 0;');
-    } catch (e) { /* 忽略 */ }
-    // 普通文本提示：即使 %c 被其他脚本覆盖，这句也尽量可见
-    console.log('🎉 彖渊子彩蛋：你打开了控制台。在首页快速连点中间的大站名「彖渊子」5 下，会有惊喜。');
+    emitConsoleHint();
+
+    // 监听 F12 / Ctrl+Shift+J / Ctrl+Shift+I / Cmd+Option+J / Cmd+Option+I
+    // 打开控制台时再刷一次，避免页面加载时的日志被某些扩展清掉
+    document.addEventListener('keydown', function (e) {
+      const isF12 = e.key === 'F12';
+      const isDevToolsShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'J' || e.key === 'I');
+      if (isF12 || isDevToolsShortcut) {
+        setTimeout(emitConsoleHint, 300);
+      }
+    });
 
     // 额外彩蛋：首页 Hero 大站名连点 5 下
     whenReady('#site-info #site-title', function (siteName) {
