@@ -1034,10 +1034,10 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 
 /* ==================================================================
    修复首页轮播图标题/描述文字重叠（2026-09-28）
-   根因：.blog-slider__content > * 默认 transform:translateY(25px) + opacity:0，
-   在 1.5x 缩放或特定字体下会出现合成重影（看起来像文字叠影）。
-   用更高优先级选择器覆盖 transform，让标题/描述只做淡入，不再有上下位移；
-   标题单行改 white-space:nowrap 截断，彻底避开 -webkit-line-clamp 渲染坑。
+   根因（主）：top.pug 给每个 .blog-slider__item 硬编码 inline opacity:1，
+   Swiper fade 模式下非 active slide 本该 opacity:0，却被 inline 覆盖为 1，
+   导致多个 slide 叠在一起 → "两层轮播图互相覆盖"。已在 top.pug 移除。
+   兜底：同时用更高优先级选择器覆盖 transform/line-clamp，防合成重影。
    ================================================================== */
 .blog-slider__content > .blog-slider__title {
   display: block;
