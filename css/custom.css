@@ -549,16 +549,19 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 }
 
 /* ==================================================================
-   左下角音乐胶囊：收缩按钮 + 球态
-   anzhiyu 的 aplayer 自带 .aplayer-narrow（66px 只留封面=球态），JS 负责切换。
-   这里只做按钮外观与球态的圆角。
+   左下角音乐胶囊：收缩成球 / 展开成胶囊 + 电台模式
+   anzhiyu 自带 .aplayer-narrow（66px 只留封面=球态）；JS 注入两个小按钮：
+     #endy-music-toggle → 收缩 / 展开
+     #endy-music-radio  → 电台模式（随机不重复连播）
+   视觉对齐 blog.zhheo.com 的悬浮发光音乐球。
    ================================================================== */
-#endy-music-toggle {
+/* 两个小按钮：右上角角标式，悬浮放大 */
+.endy-music-btn {
   position: absolute;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--anzhiyu-white, #fff);
   background: var(--anzhiyu-main, #3b82f6);
   color: #fff;
   cursor: pointer;
@@ -566,27 +569,48 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   padding: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, background 0.2s ease;
 }
-/* 展开(胶囊)态：按钮在右侧边缘 */
+.endy-music-btn:hover { transform: scale(1.12); }
+.endy-music-btn:active { transform: scale(0.94); }
+
+/* 展开(胶囊)态：两个按钮叠在右上角外侧，避免遮挡歌名 */
 #nav-music:not(.endy-collapsed) #endy-music-toggle {
-  top: 50%;
-  right: 4px;
-  transform: translateY(-50%);
+  top: -10px;
+  right: -10px;
 }
-/* 收起(球)态：按钮叠在球中心，点击即展开 */
+#nav-music:not(.endy-collapsed) #endy-music-radio {
+  top: 18px;
+  right: -10px;
+}
+/* 收起(球)态：按钮贴在球的右下角（角标） */
 #nav-music.endy-collapsed #endy-music-toggle {
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 44px;
+  right: -4px;
 }
-/* 球态：66px 封面收成完美圆形，并隐藏悬停提示 */
+#nav-music.endy-collapsed #endy-music-radio {
+  top: 44px;
+  right: 18px;
+}
+
+/* 电台模式激活：变成橙色强调 */
+#endy-music-radio.endy-radio-on {
+  background: #f59e0b;
+}
+
+/* 球态：66px 封面收成完美圆形 + 发光环 + 隐藏悬停提示 */
 #nav-music.endy-collapsed {
   border-radius: 50%;
   overflow: visible;
+}
+#nav-music.endy-collapsed .aplayer .aplayer-pic {
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25),
+              0 0 14px 2px rgba(59, 130, 246, 0.45);
 }
 #nav-music.endy-collapsed #nav-music-hoverTips {
   display: none;
@@ -596,6 +620,8 @@ html:not([data-theme="dark"]) #web_bg_next::before {
    夜间模式文字适配补全（2026-09-28）
    截图反馈的三处仍未反白：标签云、即刻短文条、顶部推荐卡片标题
    ================================================================== */
+[data-theme="dark"] .card-tag-cloud a,
+[data-theme="dark"] .card-tag-cloud a:hover,
 [data-theme="dark"] .tag-cloud-list a,
 [data-theme="dark"] .tag-cloud-list a:hover {
   color: var(--endy-fix-text) !important;

@@ -340,15 +340,17 @@
     setTimeout(forceSliderVisible, 350);
   }
 
-  /* 左下角音乐胶囊：收缩成球 / 展开成胶囊
-   * anzhiyu 的 aplayer 自带 .aplayer-narrow（66px 只留封面=球态），但把切换开关
-   * .aplayer-miniswitcher 用 display:none 藏了，所以这里自己注入一个按钮来切。
-   * aplayer 由 Meting2.min.js 异步渲染，需轮询等待 .aplayer 出现再注入。 */
+  /* 左下角音乐胶囊：收缩成球 / 展开成胶囊 + 电台模式
+   * anzhiyu 的 aplayer 自带 .aplayer-narrow（66px 只留封面=球态）；
+   * meting-js 元素上挂着 aplayer 实例（main.js 也这么取：meting-js.aplayer）。
+   * aplayer 由 Meting2.min.js 异步渲染，需轮询等待实例出现再注入按钮。 */
   function initMusicToggle() {
     const nav = document.getElementById('nav-music');
     if (!nav) return;
-    const ap = nav.querySelector('.aplayer');
-    if (!ap) {
+    const meta = nav.querySelector('meting-js');
+    const ap = meta && meta.aplayer;            // 真正的 aplayer 实例
+    const apEl = nav.querySelector('.aplayer');  // 用于切换 .aplayer-narrow 外观
+    if (!ap || !apEl) {
       // aplayer 尚未渲染：稍后重试（最多 ~10s）
       initMusicToggle.__t = (initMusicToggle.__t || 0) + 1;
       if (initMusicToggle.__t <= 50) setTimeout(initMusicToggle, 200);
@@ -356,29 +358,31 @@
     }
     if (nav.querySelector('#endy-music-toggle')) return; // 已注入，避免重复
 
+    /* ---- 收缩 / 展开按钮（右上角角标） ---- */
     const btn = document.createElement('button');
     btn.id = 'endy-music-toggle';
     btn.type = 'button';
+    btn.className = 'endy-music-btn';
     btn.setAttribute('aria-label', '收缩 / 展开音乐播放器');
     nav.appendChild(btn);
 
-    const KEY = 'endy-music-collapsed';
+    const KEY_C = 'endy-music-collapsed';
     function setCollapsed(c) {
       if (c) {
-        ap.classList.add('aplayer-narrow');
+        apEl.classList.add('aplayer-narrow');
         nav.classList.add('endy-collapsed');
       } else {
-        ap.classList.remove('aplayer-narrow');
+        apEl.classList.remove('aplayer-narrow');
         nav.classList.remove('endy-collapsed');
       }
-      try { localStorage.setItem(KEY, c ? '1' : '0'); } catch (e) { /* 忽略 */ }
+      try { localStorage.setItem(KEY_C, c ? '1' : '0'); } catch (e) { /* 忽略 */ }
       btn.textContent = c ? '＋' : '－'; // 球态显示＋(展开)，胶囊态显示－(收缩)
       btn.title = c ? '展开音乐胶囊' : '收起为音乐球';
     }
     // 初始状态：读 localStorage（默认展开=胶囊）
-    let initial = '0';
-    try { initial = localStorage.getItem(KEY) || '0'; } catch (e) { /* 忽略 */ }
-    setCollapsed(initial === '1');
+    let initC = '0';
+    try { initC = localStorage.getItem(KEY_C) || '0'; } catch (e) { /* 忽略 */ }
+    setCollapsed(initC === '1');
 
     // 按钮点击：切换（阻止冒泡，避免触发胶囊内播放/暂停）
     btn.addEventListener('click', function (e) {
@@ -388,6 +392,52 @@
     // 收起(球)态：点击球本身也展开
     nav.addEventListener('click', function () {
       if (nav.classList.contains('endy-collapsed')) setCollapsed(false);
+    });
+
+    /* ---- 电台模式按钮（随机不重复连播，对标 zhheo 的电台模式） ---- */
+    const radioBtn = document.createElement('button');
+    radioBtn.id = 'endy-music-radio';
+    radioBtn.type = 'button';
+    radioBtn.className = 'endy-music-btn';
+    radioBtn.setAttribute('aria-label', '电台模式：随机连播');
+    radioBtn.textContent = '📻';
+    nav.appendChild(radioBtn);
+
+    const KEY_R = 'endy-music-radio';
+    let radioMode = false;
+    function applyRadio(on) {
+      radioMode = on;
+      // 同步给 aplayer（影响列表内“下一首”行为）
+      try { ap.order = on ? 'random' : 'list'; } catch (e) { /* 忽略 */ }
+      if (on) {
+        radioBtn.classList.add('endy-radio-on');
+        radioBtn.title = '电台模式：开（随机连播）';
+      } else {
+        radioBtn.classList.remove('endy-radio-on');
+        radioBtn.title = '电台模式：关（顺序播放）';
+      }
+      try { localStorage.setItem(KEY_R, on ? '1' : '0'); } catch (e) { /* 忽略 */ }
+    }
+    let initR = '0';
+    try { initR = localStorage.getItem(KEY_R) || '0'; } catch (e) { /* 忽略 */ }
+    applyRadio(initR === '1');
+    radioBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      applyRadio(!radioMode);
+    });
+
+    /* 电台模式：一曲放完自动跳随机下一首，做到“连续电台”不中断 */
+    ap.on('ended', function () {
+      if (!radioMode) return;
+      const total = (ap.list && ap.list.audios && ap.list.audios.length) || 0;
+      if (total <= 1) return;
+      const cur = (ap.list && ap.list.index) || 0;
+      let next = cur;
+      let guard = 0;
+      do { next = Math.floor(Math.random() * total); guard++; }
+      while (next === cur && guard < 20);
+      ap.list.switch(next);
+      ap.play();
     });
   }
 
