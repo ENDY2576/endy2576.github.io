@@ -618,7 +618,7 @@
        隐藏歌单数据来自同源静态文件 /json/secret-music.json（由 scripts/resolve_secret_music.py
        预解析 QQ音乐直链并写入，绕过 api.injahow.cn 对 tencent 的 302→http 混合内容拦截问题）。
        vkey 短期有效，过期后重跑解析脚本并重新部署即可刷新。 */
-    const SECRET_JSON = '/json/secret-music.json';
+    const SECRET_JSON = '/json/secret-music.json?v=2';
 
     // Meting API 各实例字段名不统一（title/author/pic/src/mp3 等），统一标准化后再使用
     function normalizeSongs(list) {

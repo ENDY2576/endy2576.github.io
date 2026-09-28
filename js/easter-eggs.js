@@ -32,6 +32,51 @@
     }, dur);
   }
 
+  /* ---------- 彩蛋成就册：发现状态统一登记 ----------
+     用一个 JSON key 记录各彩蛋发现状态，同时兼容旧独立 key。 */
+  const EGGS_KEY = 'endy-eggs-discovered';
+  const EGGS = [
+    { id: 'music',     icon: '🎧', name: '音乐胶囊',     hint: '在音乐馆里，第一次看见左下角的胶囊。' },
+    { id: 'secret',    icon: '🎵', name: '隐藏歌单',     hint: '连点播放键 5 次，听见另一份歌单。' },
+    { id: 'search',    icon: '🔍', name: '彖渊子的暗号', hint: '在搜索框里，输入站长的名字。' },
+    { id: 'console',   icon: '🖥️', name: '控制台密语',   hint: '打开 DevTools，或连点首页大站名 5 下。' },
+    { id: 'whisper',   icon: '🐾', name: '底部悄悄话',   hint: '把一篇长文读到最底部。' },
+    { id: 'season',    icon: '🍂', name: '四季开关',     hint: '在中控台，发现四季背景切换入口。' }
+  ];
+
+  function getDiscovered() {
+    let map = {};
+    try {
+      const raw = localStorage.getItem(EGGS_KEY);
+      if (raw) map = JSON.parse(raw);
+    } catch (e) {}
+    // 兼容本轮之前的旧独立标记
+    try {
+      if (localStorage.getItem('endy-music-discovered') === '1') map.music = true;
+      if (localStorage.getItem('endy-ania-cursor') === '1') map.sitetitle = true; // 站名彩蛋视为 console 一部分
+      if (localStorage.getItem('endy-season-unlocked') === '1') map.season = true;
+    } catch (e) {}
+    return map;
+  }
+
+  function markEggFound(id) {
+    const map = getDiscovered();
+    if (map[id]) return false; // 已发现过
+    map[id] = true;
+    try { localStorage.setItem(EGGS_KEY, JSON.stringify(map)); } catch (e) {}
+    return true;
+  }
+
+  function clearEggDiscovery() {
+    try {
+      localStorage.removeItem(EGGS_KEY);
+      localStorage.removeItem('endy-music-discovered');
+      localStorage.removeItem('endy-season-unlocked');
+      localStorage.removeItem('endy-ania-cursor');
+    } catch (e) {}
+    document.body.classList.remove('endy-ania-cursor');
+  }
+
   /* ---------- 等待某元素出现（PJAX 后 DOM 可能是异步挂的） ---------- */
   function whenReady(selector, cb, tries) {
     tries = tries || 0;
@@ -56,6 +101,7 @@
         wrapper.classList.remove('endy-player-visible');
         setAuto(false);
         localStorage.setItem('endy-music-discovered', '1');
+        markEggFound('music');
         setTimeout(function () { showToast('🎧 你找到了音乐胶囊'); }, 900);
       } else if (isMusicPage && discovered) {
         // 再次进入音乐馆：本页不显示胶囊
@@ -77,6 +123,7 @@
       if (d.mode === 'default') { showToast('🎧 已切回默认歌单', { duration: 2600 }); return; }
       if (d.found) {
         // 用户要求隐藏歌单提示不显示首数
+        markEggFound('secret');
         showToast('🎧 你找到了隐藏歌单', { duration: 4200 });
       }
       else showToast('🤫 隐藏歌单接口暂时不可用', { duration: 3200 });
@@ -90,7 +137,15 @@
      这里改用 document 级事件委托，无论 Algolia / 本地搜索 / 搜索弹窗懒加载，
      都能命中；且 PJAX 切页后无需重新绑定，避免“一次性”失灵。 */
   function initSearchEgg() {
-    const KEYWORD = '彖渊子';
+    // 输入框暗号映射：彖渊子 → 彩蛋卡；彩蛋 → 彩蛋成就页
+    const KEYWORDS = {
+      '彖渊子': function () { showEggCard(); markEggFound('search'); },
+      '彩蛋': function () {
+        hideEggCard();
+        showToast('🥚 暗号「彩蛋」已触发，正在打开彩蛋成就册…', { duration: 2000 });
+        setTimeout(function () { window.location.href = '/life/eggs/'; }, 500);
+      }
+    };
     const INPUT_SELECTOR = [
       '#algolia-search-input input',
       '#local-search-input input',
@@ -135,7 +190,7 @@
       if (!t || typeof t.matches !== 'function') return;
       if (!t.matches(INPUT_SELECTOR)) return;
       const v = (t.value || '').trim().replace(/\s+/g, '');
-      if (v === KEYWORD) showEggCard();
+      if (KEYWORDS[v]) KEYWORDS[v]();
       else hideEggCard();
     });
   }
@@ -163,6 +218,7 @@
       const isDevToolsShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'J' || e.key === 'I');
       if (isF12 || isDevToolsShortcut) {
         setTimeout(emitConsoleHint, 300);
+        markEggFound('console');
       }
     });
   }
@@ -179,6 +235,7 @@
         clicks = clicks.filter(function (t) { return now - t <= 1800; });
         if (clicks.length >= 5) {
           clicks = [];
+          markEggFound('console');
           showToast('🐾 你连点了站名，彖渊子对你眨了眨眼', { duration: 3200 });
           toggleAniaCursor();
         }
@@ -209,6 +266,7 @@
         centerBtn.addEventListener('click', function () {
           if (localStorage.getItem(KEY) === '1') return;
           try { localStorage.setItem(KEY, '1'); } catch (e) {}
+          markEggFound('season');
           rightBtn.style.display = ''; // 恢复主题默认显示
           showToast('🍂 你发现了四季背景切换开关', { duration: 3600 });
         });
@@ -246,6 +304,7 @@
       }
     }
     function showWhisper(q) {
+      markEggFound('whisper');
       const footer = document.getElementById('footer-wrap');
       if (!footer) return;
       let el = document.getElementById('endy-whisper');
@@ -263,6 +322,44 @@
     check();
   }
 
+  /* ---------- 彩蛋7：彩蛋成就册页面（/life/eggs/） ---------- */
+  function initEggsPage() {
+    if (!location.pathname.startsWith('/life/eggs/')) return;
+    const container = document.getElementById('endy-eggs-achievement');
+    if (!container) return;
+    const map = getDiscovered();
+    const foundCount = EGGS.filter(function (e) { return map[e.id]; }).length;
+    let html =
+      '<div class="endy-eggs-header">' +
+        '<div class="endy-eggs-title">🥚 彩蛋成就册</div>' +
+        '<div class="endy-eggs-count">已发现 <b>' + foundCount + '</b> / ' + EGGS.length + ' 个彩蛋</div>' +
+      '</div>' +
+      '<div class="endy-eggs-grid">';
+    EGGS.forEach(function (egg) {
+      const found = !!map[egg.id];
+      html +=
+        '<div class="endy-egg-card ' + (found ? 'found' : 'locked') + '">' +
+          '<div class="endy-egg-icon">' + egg.icon + '</div>' +
+          '<div class="endy-egg-name">' + egg.name + '</div>' +
+          '<div class="endy-egg-hint">' + egg.hint + '</div>' +
+          '<div class="endy-egg-badge">' + (found ? '已发现' : '未解锁') + '</div>' +
+        '</div>';
+    });
+    html +=
+      '</div>' +
+      '<div class="endy-eggs-actions">' +
+        '<button id="endy-eggs-reset" class="endy-eggs-btn" type="button">🔄 重置所有彩蛋状态</button>' +
+      '</div>';
+    container.innerHTML = html;
+    const resetBtn = document.getElementById('endy-eggs-reset');
+    if (resetBtn) resetBtn.addEventListener('click', function () {
+      if (!confirm('确定要重置所有彩蛋发现状态吗？你将可以重新寻找它们。')) return;
+      clearEggDiscovery();
+      showToast('🗑️ 彩蛋状态已重置', { duration: 2600 });
+      initEggsPage();
+    });
+  }
+
   /* ---------- 挂载 ---------- */
   function bootEggs() {
     initMusicPageEgg();
@@ -270,6 +367,7 @@
     initWhisperEgg();
     initSeasonEgg(); // 彩蛋6：中控台四季按钮 → 解锁右侧栏四季按钮
     initSiteNameEgg();   // 彩蛋4 站点名 5 连击（PJAX 切页后重绑，避免一次性失灵）
+    initEggsPage();      // 彩蛋7：彩蛋成就册页面渲染
   }
 
   function fullBoot() {
