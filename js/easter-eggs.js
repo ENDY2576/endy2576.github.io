@@ -41,7 +41,8 @@
     { id: 'search',    icon: '🔍', name: '彖渊子的暗号', hint: '在搜索框里，输入站长的名字。' },
     { id: 'console',   icon: '🖥️', name: '控制台密语',   hint: '打开 DevTools，或连点首页大站名 5 下。' },
     { id: 'whisper',   icon: '🐾', name: '底部悄悄话',   hint: '把一篇长文读到最底部。' },
-    { id: 'season',    icon: '🍂', name: '四季开关',     hint: '在中控台，发现四季背景切换入口。' }
+    { id: 'season',    icon: '🍂', name: '四季开关',     hint: '在中控台，发现四季背景切换入口。' },
+    { id: 'about',    icon: '🧑', name: '关于我',       hint: '在个人页，连击头像 5 次。' }
   ];
 
   // 彩蛋成就页：触发方法（hint）是否全部显示。默认隐藏（未解锁卡片不剧透），
@@ -287,6 +288,32 @@
     });
   }
 
+  /* ---------- 彩蛋8：个人页头像 5 连击揭示私密信息 ----------
+     默认隐藏 .map（我现在住在…）和 .selfInfo（生于/学校/职业），
+     连击头像 5 次给 #about-page 加 endy-private-revealed，CSS 平滑展开。 */
+  function initAboutPageEgg() {
+    if (!location.pathname.startsWith('/about/')) return;
+    whenReady('#about-page .author-img', function (avatarWrap) {
+      if (avatarWrap.dataset.aboutEggBound) return;
+      avatarWrap.dataset.aboutEggBound = '1';
+      let clicks = [];
+      avatarWrap.addEventListener('click', function () {
+        const now = Date.now();
+        clicks.push(now);
+        clicks = clicks.filter(function (t) { return now - t <= 1800; });
+        if (clicks.length >= 5) {
+          clicks = [];
+          const aboutPage = document.getElementById('about-page');
+          if (!aboutPage) return;
+          const willReveal = !aboutPage.classList.contains('endy-private-revealed');
+          aboutPage.classList.toggle('endy-private-revealed', willReveal);
+          if (willReveal) markEggFound('about');
+          showToast(willReveal ? '🧑 你发现了关于我的私人信息' : '🔒 私人信息已隐藏', { duration: 3200 });
+        }
+      });
+    });
+  }
+
   /* ---------- 彩蛋5：长文底部悄悄话 ---------- */
   function initWhisperEgg() {
     if (!document.querySelector('#article-container.post-content')) return;
@@ -391,6 +418,7 @@
     initWhisperEgg();
     initSeasonEgg(); // 彩蛋6：中控台四季按钮 → 解锁右侧栏四季按钮
     initSiteNameEgg();   // 彩蛋4 站点名 5 连击（PJAX 切页后重绑，避免一次性失灵）
+    initAboutPageEgg();  // 彩蛋8：个人页头像 5 连击揭示私密信息
     initEggsPage();      // 彩蛋7：彩蛋成就册页面渲染
   }
 

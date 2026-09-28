@@ -1317,3 +1317,27 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 [data-theme="dark"] .endy-eggs-count { color: #aaa; }
 [data-theme="dark"] .endy-egg-card.locked .endy-egg-badge { color: #999; background: rgba(255, 255, 255, 0.08); }
 [data-theme="dark"] .endy-eggs-btn { background: rgba(40, 40, 45, 0.9); color: #e6e6e6; border-color: rgba(255, 255, 255, 0.12); }
+
+/* 彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏，
+   连击头像 5 次后平滑展开；再次 5 连击可收起。 */
+.endy-private-info .author-content-item.map.single,
+.endy-private-info .author-content-item.selfInfo.single {
+  max-height: 0;
+  min-height: 0;
+  margin: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.5s ease, min-height 0.5s ease, opacity 0.4s ease, margin 0.4s ease;
+}
+#about-page.endy-private-revealed .endy-private-info .author-content-item.map.single,
+#about-page.endy-private-revealed .endy-private-info .author-content-item.selfInfo.single {
+  max-height: 400px;
+  opacity: 1;
+}
+#about-page.endy-private-revealed .endy-private-info .author-content-item.map.single {
+  min-height: 160px;
+  margin-bottom: 0.5rem;
+}
+#about-page.endy-private-revealed .endy-private-info .author-content-item.selfInfo.single {
+  min-height: 100px;
+}
