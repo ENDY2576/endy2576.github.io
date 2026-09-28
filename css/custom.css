@@ -568,11 +568,12 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   user-select: none;
 }
 
-/* 电台球：默认白色小球，悬浮展开成 240px 主题色胶囊，含 3D 重力压变 + 边缘流光 */
+/* 电台球：默认 48px 白球（与音乐球一致），悬浮展开成 240px 主题色胶囊，
+   带鼠标跟随 spotlight + 上下边缘流光（无几何起伏，只提亮按压部位） */
 #endy-radio-ball {
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   border: 2px solid rgba(0, 0, 0, 0.08);
   background: #fff;
@@ -581,13 +582,8 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 5px; /* 22px 图标居中于 32px 小球 */
+  padding: 0 11px; /* 26px 图标居中于 48px 小球 */
   overflow: hidden;
-  transform-style: preserve-3d;
-  transform: perspective(800px)
-    rotateX(var(--rx, 0deg))
-    rotateY(var(--ry, 0deg))
-    scale(var(--s, 1));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   transition: width 0.35s cubic-bezier(0.34, 1.4, 0.64, 1),
     height 0.35s ease,
@@ -595,43 +591,80 @@ html:not([data-theme="dark"]) #web_bg_next::before {
     background 0.25s ease,
     color 0.25s ease,
     border-color 0.25s ease,
-    box-shadow 0.25s ease,
-    transform 0.12s ease-out;
+    box-shadow 0.25s ease;
   z-index: 1;
 }
-/* 边缘流光：conic-gradient 沿描边旋转，hover 时显现 */
+/* 上下边缘流光：随鼠标 X 坐标移动 */
 #endy-radio-ball::before {
   content: "";
   position: absolute;
-  inset: -2px;
-  border-radius: 50px;
-  padding: 2px;
-  background: conic-gradient(
-    from var(--angle, 0deg),
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.95) 38%,
-    transparent 82%
+    rgba(255, 255, 255, 0.85) var(--x, 50%),
+    transparent 100%
   );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.25s ease;
   pointer-events: none;
-  z-index: -1;
+  z-index: 2;
 }
-#endy-radio-ball:hover::before {
+#endy-radio-ball::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.85) var(--x, 50%),
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+/* 鼠标按压部位的局部高亮（spotlight） */
+#endy-radio-ball .em-radio-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--x, 50%) var(--y, 50%),
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.12) 38%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+#endy-radio-ball:hover::before,
+#endy-radio-ball:hover::after,
+#endy-radio-ball:hover .em-radio-shine {
   opacity: 1;
-  animation: em-radio-flow 2.4s linear infinite;
 }
 #endy-radio-ball .em-radio-icon {
-  width: 22px;
-  height: 22px;
+  position: relative;
+  z-index: 3;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
   display: block;
   pointer-events: none;
+  transition: width 0.25s ease, height 0.25s ease;
 }
 #endy-radio-ball .em-radio-text {
+  position: relative;
+  z-index: 3;
   flex-shrink: 0;
   font-size: 14px;
   font-weight: 600;
@@ -646,13 +679,17 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 /* 悬浮展开：与音乐胶囊等宽 240px、主题色高亮 */
 #endy-radio-ball:hover {
   width: 240px;
-  height: 48px;
+  height: 52px;
   border-radius: 26px;
   background: var(--anzhiyu-main, #3b82f6);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.25);
   box-shadow: 0 8px 22px rgba(59, 130, 246, 0.4);
   padding: 0 14px;
+}
+#endy-radio-ball:hover .em-radio-icon {
+  width: 22px;
+  height: 22px;
 }
 #endy-radio-ball:hover .em-radio-text {
   opacity: 1;
@@ -664,15 +701,6 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   background: var(--anzhiyu-main, #3b82f6);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.25);
-}
-/* 流光角度驱动 */
-@property --angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-@keyframes em-radio-flow {
-  to { --angle: 360deg; }
 }
 /* 暗色模式：默认深色小球，悬浮/highlight 仍主题色 + 白图标 */
 [data-theme="dark"] #endy-radio-ball {
@@ -744,58 +772,52 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   to { transform: rotate(360deg); }
 }
 
-/* 封面悬浮控制层：播放/上一首/下一首 */
-#endy-music .em-cover-overlay {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
+/* 胶囊内联控制按钮：悬浮时显示在唱片右侧 */
+#endy-music .em-inline-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  background: rgba(30, 30, 30, 0.55);
+  gap: 3px;
+  flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.25s ease;
-  pointer-events: auto;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity 0.25s ease, max-width 0.3s ease;
 }
-#endy-music:hover .em-cover-overlay {
+#endy-music:hover .em-inline-controls {
   opacity: 1;
+  max-width: 90px;
 }
-#endy-music.collapsed .em-cover-overlay {
+#endy-music.collapsed .em-inline-controls {
   display: none;
 }
-#endy-music .em-cover-overlay .em-btn {
-  pointer-events: auto;
-  width: 22px;
-  height: 22px;
+#endy-music .em-inline-controls .em-btn {
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--anzhiyu-fontcolor, #333);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   padding: 0;
-  transition: transform 0.15s ease, background 0.2s ease;
+  transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
 }
-#endy-music .em-cover-overlay .em-btn:hover {
-  transform: scale(1.15);
-  background: rgba(255, 255, 255, 0.4);
+#endy-music .em-inline-controls .em-btn:hover {
+  transform: scale(1.12);
+  background: rgba(0, 0, 0, 0.1);
 }
-#endy-music .em-cover-overlay .em-btn:active { transform: scale(0.92); }
-#endy-music .em-cover-overlay .em-play {
-  width: 26px;
-  height: 26px;
-  font-size: 13px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #333;
+#endy-music .em-inline-controls .em-btn:active { transform: scale(0.94); }
+#endy-music .em-inline-controls .em-play {
+  background: var(--anzhiyu-main, #3b82f6);
+  color: #fff;
 }
-#endy-music .em-cover-overlay .em-play:hover {
-  background: #fff;
-  color: #333;
+#endy-music .em-inline-controls .em-play:hover {
+  background: var(--anzhiyu-main);
+  color: #fff;
 }
 
 /* 歌曲信息：胶囊默认只显示标题 */
@@ -868,8 +890,9 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 [data-theme="dark"] #endy-radio-ball { color: var(--endy-fix-text, #e3e3e8); }
 [data-theme="dark"] #endy-music .em-title { color: var(--endy-fix-text, #e3e3e8); }
 [data-theme="dark"] #endy-music .em-artist { color: rgba(227, 227, 232, 0.7); }
-[data-theme="dark"] #endy-music .em-cover-overlay { background: rgba(20, 20, 25, 0.65); }
-[data-theme="dark"] #endy-music .em-cover-overlay .em-play { color: #333; }
+[data-theme="dark"] #endy-music .em-inline-controls .em-btn { background: rgba(255, 255, 255, 0.08); color: var(--endy-fix-text, #e3e3e8); }
+[data-theme="dark"] #endy-music .em-inline-controls .em-btn:hover { background: rgba(255, 255, 255, 0.14); }
+[data-theme="dark"] #endy-music .em-inline-controls .em-play { color: #fff; }
 [data-theme="dark"] #endy-music .em-progress { background: rgba(255, 255, 255, 0.1); }
 
 /* ==================================================================

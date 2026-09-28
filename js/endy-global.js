@@ -370,17 +370,18 @@
     radioBall.type = 'button';
     radioBall.setAttribute('aria-label', '电台模式');
     radioBall.title = '电台模式：关（顺序播放）';
-    radioBall.innerHTML = '<img class="em-radio-icon" src="/img/radio/radio-day.svg" alt="" /><span class="em-radio-text">电台模式</span>';
+    radioBall.innerHTML = '<span class="em-radio-shine"></span><img class="em-radio-icon" src="/img/radio/radio-day.svg" alt="" /><span class="em-radio-text">电台模式</span>';
 
     const nav = document.createElement('div');
     nav.id = 'endy-music';
     nav.innerHTML = '<div class="em-cover-wrap">' +
       '<img class="em-cover" src="" alt="封面" />' +
-      '<div class="em-cover-overlay">' +
+      '</div>' +
+      '<div class="em-inline-controls">' +
       '<button class="em-btn em-prev" type="button" aria-label="上一首">⏮</button>' +
       '<button class="em-btn em-play" type="button" aria-label="播放/暂停">▶</button>' +
       '<button class="em-btn em-next" type="button" aria-label="下一首">⏭</button>' +
-      '</div></div>' +
+      '</div>' +
       '<div class="em-info"><div class="em-title">加载中…</div><div class="em-artist">—</div></div>' +
       '<div class="em-progress"><div class="em-bar"></div></div>';
 
@@ -441,28 +442,24 @@
       try { localStorage.setItem(KEY_RADIO, radioMode ? '1' : '0'); } catch (e) {}
     }
 
-    /* 3D 重力压变：鼠标在胶囊上移动时，按相对位置倾斜并轻微下压 */
-    function enable3DTilt(el) {
-      el.addEventListener('mousemove', function (e) {
+    /* 鼠标跟随：无几何起伏，用 spotlight + 上下流光模拟"按压提亮" */
+    function enableRadioSpotlight(el) {
+      function setPos(e) {
         const rect = el.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / rect.width;
-        const y = (e.clientY - rect.top) / rect.height;
-        const ry = (x - 0.5) * 16;   /* 左右倾斜 */
-        const rx = -(y - 0.5) * 14;  /* 上下倾斜 */
-        const press = 1 - (Math.abs(x - 0.5) + Math.abs(y - 0.5)) * 0.05;
-        el.style.setProperty('--rx', rx.toFixed(2) + 'deg');
-        el.style.setProperty('--ry', ry.toFixed(2) + 'deg');
-        el.style.setProperty('--s', Math.max(0.95, press).toFixed(3));
-      });
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        el.style.setProperty('--x', Math.max(0, Math.min(100, x)).toFixed(1) + '%');
+        el.style.setProperty('--y', Math.max(0, Math.min(100, y)).toFixed(1) + '%');
+      }
+      el.addEventListener('mousemove', setPos);
+      el.addEventListener('mouseenter', function (e) { setPos(e); updateRadioIcon(); });
       el.addEventListener('mouseleave', function () {
-        el.style.setProperty('--rx', '0deg');
-        el.style.setProperty('--ry', '0deg');
-        el.style.setProperty('--s', '1');
+        el.style.setProperty('--x', '50%');
+        el.style.setProperty('--y', '50%');
         updateRadioIcon();
       });
-      el.addEventListener('mouseenter', function () { updateRadioIcon(); });
     }
-    enable3DTilt(radioBall);
+    enableRadioSpotlight(radioBall);
 
     /* 监听主题切换，动态换 SVG */
     const themeObserver = new MutationObserver(updateRadioIcon);
