@@ -108,6 +108,27 @@
     });
   }
 
+  // 把 CSS 变量里的 url("...") / url(...) 抽成裸 URL。
+  // 关键：getComputedStyle 返回的是 "url(/img/...)" 这种 CSS 函数值，
+  // 不能直接赋给 <img>.src（会被当成相对路径 404）。必须先剥离 url() 包裹。
+  function cssUrlToSrc(value) {
+    if (!value) return '';
+    value = value.trim();
+    const m = value.match(/^url\((['"]?)([\s\S]*?)\1\)$/i);
+    return m ? m[2].trim() : value;
+  }
+
+  // 页面加载即预加载全部四季背景图，让首次手动切换也能秒切、不再现拉网络
+  function preloadAllSeasons() {
+    const root = document.documentElement;
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    SEASONS.forEach(function (s) {
+      const bgVar = isMobile ? '--endy-bg-' + s + '-mobile' : '--endy-bg-' + s;
+      const url = cssUrlToSrc((getComputedStyle(root).getPropertyValue(bgVar) || '').trim());
+      if (url) preloadImage(url);
+    });
+  }
+
   // 切换令牌：快速连点时只让最后一次切换真正生效，避免多个临时层叠加导致闪烁/卡顿
   let seasonToken = 0;
 
@@ -133,7 +154,7 @@
     // 按视口选桌面/移动背景变量，用于预加载与临时层
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
     const bgVar = isMobile ? '--endy-bg-' + season + '-mobile' : '--endy-bg-' + season;
-    const bgUrl = (getComputedStyle(root).getPropertyValue(bgVar) || '').trim();
+    const bgUrl = cssUrlToSrc((getComputedStyle(root).getPropertyValue(bgVar) || '').trim());
 
     const myToken = ++seasonToken;
 
@@ -294,6 +315,7 @@
     initSeasonToggle();
     initHomePreloader();
     sliderGuard();
+    preloadAllSeasons(); // 提前缓存四季背景图，消除手动切换时的预加载延迟
   }
 
   // 立即设置季节（脚本注入较早，先落定 data-season 避免日间背景闪一下默认冬季图）
