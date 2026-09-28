@@ -824,11 +824,18 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   height: 32px;
   flex-shrink: 0;
   border-radius: 50%;
+  /* 缩放/发光移到容器层，避免与封面旋转动画争用 transform 导致冲突 */
+  transition: transform 0.4s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
 }
 #endy-music.collapsed .em-cover-wrap {
   width: 36px;
   height: 36px;
   border-radius: 50%;
+}
+#endy-music.playing .em-cover-wrap {
+  transform: scale(1.05);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.6);
 }
 #endy-music .em-cover {
   width: 100%;
@@ -836,12 +843,12 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--anzhiyu-white, #fff);
-  transition: transform 0.4s linear, box-shadow 0.3s ease;
+  /* 旋转动画常驻、默认暂停：播放/暂停切换只改 play-state，角度不归零，避免突变 */
+  animation: em-spin 8s linear infinite;
+  animation-play-state: paused;
 }
 #endy-music.playing .em-cover {
-  animation: em-spin 8s linear infinite;
-  box-shadow: 0 0 14px rgba(255, 255, 255, 0.6);
-  transform: scale(1.05);
+  animation-play-state: running;
 }
 @keyframes em-spin {
   from { transform: rotate(0deg); }

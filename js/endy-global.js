@@ -791,7 +791,8 @@
     initHomePreloader();
     sliderGuard();
     initEndyMusic(); // 左下角自研音乐胶囊（HTML5 Audio + music.json + 电台模式）
-    preloadAllSeasons(); // 提前缓存四季背景图，消除手动切换时的预加载延迟
+    // 不再预加载全部四季大图：手动切换时 setSeason() 会单独预加载目标图，
+    // 全量预加载会拖慢首屏（每次进页多下 ~2MB 大图），且 PJAX 切页后会重复触发。
   }
 
   // 立即设置季节（脚本注入较早，先落定 data-season 避免日间背景闪一下默认冬季图）
