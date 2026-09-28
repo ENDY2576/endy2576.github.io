@@ -400,20 +400,8 @@
     wrapper.appendChild(radioBall);
     document.body.appendChild(wrapper);
 
-    /* 滚动自动显隐：页面在顶部时隐藏胶囊球，向下滚动超过阈值后滑出显示 */
-    (function initAutoHide(el) {
-      const THRESHOLD = 80;
-      let rafId = null;
-      function update() {
-        rafId = null;
-        el.classList.toggle('endy-player-visible', window.scrollY > THRESHOLD);
-      }
-      window.addEventListener('scroll', function () {
-        if (rafId) return;
-        rafId = requestAnimationFrame(update);
-      }, { passive: true });
-      update();
-    })(wrapper);
+    /* 音乐胶囊默认隐藏，只在音乐馆页面由 easter-eggs.js 强制显示。
+       之前的全局"滚动自动显隐"已移除，避免普通页面下滑时胶囊意外出现。 */
 
     const coverWrap = nav.querySelector('.em-cover-wrap');
     const coverEl = nav.querySelector('.em-cover');
@@ -426,10 +414,12 @@
     const barEl = nav.querySelector('.em-bar');
 
     let songs = [];
+    let defaultSongs = []; // 默认歌单备份，隐藏歌单切回时使用
     let index = 0;
     let playing = false;
     let radioMode = false;
     let collapsed = false;
+    let usingSecret = false; // 当前是否在播放隐藏 QQ 音乐歌单
     let audio = null;
     let lrcData = [];
 
@@ -605,22 +595,59 @@
 
     function toggleCollapse() { applyCollapsed(!collapsed); }
 
-    /* 彩蛋2：播放键 5 连击触发，拉取 QQ 音乐歌单并替换当前歌单 */
+    /* 彩蛋2：播放键 5 连击触发，拉取 QQ 音乐歌单并替换当前歌单；再 5 连击切回默认歌单 */
     const SECRET_PLAYLIST_URL = 'https://api.injahow.cn/meting/?server=tencent&type=playlist&id=9784840844';
-    function triggerQQMusicPlaylist() {
+
+    // Meting API 各实例字段名不统一（title/author/pic 等），统一标准化后再使用
+    function normalizeSongs(list) {
+      return (list || []).map(function (s) {
+        return {
+          name: s.name || s.title || '未知歌曲',
+          artist: s.artist || s.author || s.singer || '未知歌手',
+          url: s.url || s.src || '',
+          cover: s.cover || s.pic || '',
+          lrc: s.lrc || s.lyric || ''
+        };
+      }).filter(function (s) { return s.url; });
+    }
+
+    function playCurrent() {
+      loadAudio(index);
+      if (audio) audio.play().catch(function () {});
+    }
+
+    function enterSecretPlaylist(list) {
+      usingSecret = true;
+      applyCollapsed(false); // 展开胶囊，让隐藏歌单可见
+      songs = list;
+      index = 0;
+      playCurrent();
+      document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: true, mode: 'secret', count: list.length } }));
+    }
+
+    function exitSecretPlaylist() {
+      usingSecret = false;
+      songs = defaultSongs.slice();
+      index = 0;
+      playCurrent();
+      document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: true, mode: 'default' } }));
+    }
+
+    function toggleSecretPlaylist() {
+      if (usingSecret) {
+        exitSecretPlaylist();
+        return;
+      }
       fetch(SECRET_PLAYLIST_URL)
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          if (!Array.isArray(data) || !data.length) {
+          const raw = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+          const list = normalizeSongs(raw);
+          if (!list.length) {
             document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false, reason: 'empty' } }));
             return;
           }
-          applyCollapsed(false); // 展开胶囊，让隐藏歌单可见
-          songs = data.slice();
-          index = 0;
-          loadAudio(0);
-          if (audio) audio.play().catch(function () {});
-          document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: true, count: data.length } }));
+          enterSecretPlaylist(list);
         })
         .catch(function (err) {
           console.error('[endy-music] 隐藏歌单加载失败', err);
@@ -628,7 +655,7 @@
         });
     }
 
-    /* 播放键：单击播放/暂停；1500ms 内连点 5 次触发隐藏 QQ 音乐歌单 */
+    /* 播放键：单击播放/暂停；1500ms 内连点 5 次在默认歌单与隐藏 QQ 音乐歌单之间切换 */
     let playClicks = [];
     playBtn.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -637,7 +664,7 @@
       playClicks = playClicks.filter(function (t) { return now - t <= 1500; });
       if (playClicks.length >= 5) {
         playClicks = [];
-        triggerQQMusicPlaylist();
+        toggleSecretPlaylist();
         return;
       }
       togglePlay();
@@ -713,7 +740,8 @@
     fetch(PLAYLIST_URL)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        songs = Array.isArray(data) ? data : [];
+        songs = normalizeSongs(Array.isArray(data) ? data : []);
+        defaultSongs = songs.slice();
         if (!songs.length) { titleEl.textContent = '暂无歌曲'; return; }
         loadState();
         applyCollapsed(collapsed);

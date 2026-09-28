@@ -1,7 +1,7 @@
 /* 彖渊子 · 彩蛋合集（easter-eggs.js）
  * 五个隐藏彩蛋：
  *   彩蛋1  进入音乐馆(/life/music/) → 强制显示音乐胶囊 + toast「🎧 你找到了音乐胶囊」
- *   彩蛋2  音乐胶囊封面快速连点 5 次 → 隐藏歌单（逻辑在 endy-global.js，这里只弹 toast）
+ *   彩蛋2  音乐胶囊播放键 5 连击 → 隐藏 QQ 音乐歌单（再 5 连击切回默认歌单；逻辑在 endy-global.js，这里只弹 toast）
  *   彩蛋3  搜索框输入暗号「彖渊子」→ 弹出彩蛋卡（谜语 + 隐藏入口 /life/secret/）
  *   彩蛋4  打开 DevTools 控制台 → ASCII 艺术字线索 + 提示连点站名 5 下（额外：站名连点 5 下也有惊喜）
  *   彩蛋5  滚到任意长文最底部 → 页脚上方淡入站长悄悄话（随机名言）
@@ -41,14 +41,15 @@
     setTimeout(function () { whenReady(selector, cb, tries + 1); }, 50);
   }
 
-  /* ---------- 彩蛋1：音乐馆强制显示音乐胶囊 ---------- */
+  /* ---------- 彩蛋1：音乐馆强制显示音乐胶囊；普通页面保持隐藏 ---------- */
   function initMusicPageEgg() {
-    if (!location.pathname.startsWith('/life/music/')) return;
+    const isMusicPage = location.pathname.startsWith('/life/music/');
     whenReady('#endy-music-wrapper', function (wrapper) {
-      // 强制显示并覆盖"顶部自动隐藏"逻辑
-      wrapper.classList.add('endy-player-visible', 'endy-force-visible');
+      // 音乐馆页强制显示；离开音乐馆时移除，确保普通页面不会随滚动出现
+      wrapper.classList.toggle('endy-player-visible', isMusicPage);
+      wrapper.classList.toggle('endy-force-visible', isMusicPage);
     });
-    if (!sessionStorage.getItem('endy-egg1')) {
+    if (isMusicPage && !sessionStorage.getItem('endy-egg1')) {
       sessionStorage.setItem('endy-egg1', '1');
       setTimeout(function () { showToast('🎧 你找到了音乐胶囊'); }, 900);
     }
@@ -57,9 +58,10 @@
   /* ---------- 彩蛋2：隐藏歌单 toast（播放逻辑在 endy-global.js） ---------- */
   function initSecretPlaylistEgg() {
     document.addEventListener('endy:egg2', function (e) {
-      const found = e.detail && e.detail.found;
-      if (found) showToast('🎧 你找到了隐藏歌单', { duration: 4200 });
-      else showToast('🤫 隐藏歌单还空着呢', { duration: 2600 });
+      const d = e.detail || {};
+      if (d.mode === 'default') { showToast('🎧 已切回默认歌单', { duration: 2600 }); return; }
+      if (d.found) showToast('🎧 你找到了隐藏歌单', { duration: 4200 });
+      else showToast('🤫 隐藏歌单接口暂时不可用', { duration: 3200 });
     });
   }
 
@@ -110,18 +112,12 @@
 
   /* ---------- 彩蛋4：控制台 ASCII 艺术字 + 站名 5 连点彩蛋 ---------- */
   function initConsoleEgg() {
-    const art =
-      '╔══════════════════════════════════╗\n' +
-      '║   ╭━━━╮  ╭━━━╮  ╭━━━╮  ╭━━━╮   ║\n' +
-      '║   ╰╮╭╯   ╰╮╭╯   ╰╮╭╯   ╰╮╭╯   ║\n' +
-      '║    ╰╯     ╰╯     ╰╯     ╰╯     ║\n' +
-      '║       彖        渊        子        ║\n' +
-      '╚══════════════════════════════════╝';
+    // 带样式的标题单独 try/catch，避免某些被 hook 的 console.log 抛错后连普通提示也出不来
     try {
-      console.log('%c' + art, 'color:#7c5cff;font-size:12px;line-height:1.3;font-family:monospace;');
-      console.log('%c彖渊子', 'color:#ff7eb6;font-size:34px;font-weight:bold;');
-      console.log('%c你打开了控制台 👀 试着在首页快速连点中间的大站名「彖渊子」5 下，会有惊喜。', 'color:#8a8a99;font-size:13px;');
-    } catch (e) { /* 某些环境 console.log 不支持 %c，忽略 */ }
+      console.log('%c彖 渊 子', 'color:#ff7eb6; font-size:40px; font-weight:bold; text-shadow: 3px 3px 0 #7c5cff; padding: 4px 0;');
+    } catch (e) { /* 忽略 */ }
+    // 普通文本提示：即使 %c 被其他脚本覆盖，这句也尽量可见
+    console.log('🎉 彖渊子彩蛋：你打开了控制台。在首页快速连点中间的大站名「彖渊子」5 下，会有惊喜。');
 
     // 额外彩蛋：首页 Hero 大站名连点 5 下
     whenReady('#site-info #site-title', function (siteName) {
