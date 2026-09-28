@@ -44,6 +44,10 @@
     { id: 'season',    icon: '🍂', name: '四季开关',     hint: '在中控台，发现四季背景切换入口。' }
   ];
 
+  // 彩蛋成就页：触发方法（hint）是否全部显示。默认隐藏（未解锁卡片不剧透），
+  // 在成就页搜索框输入密码“200466”可切换显示。
+  let eggsRevealed = false;
+
   function getDiscovered() {
     let map = {};
     try {
@@ -190,6 +194,15 @@
       if (!t || typeof t.matches !== 'function') return;
       if (!t.matches(INPUT_SELECTOR)) return;
       const v = (t.value || '').trim().replace(/\s+/g, '');
+      // 彩蛋成就页密码：输入 200466 切换显示全部触发方法（清空输入框，避免触发真实搜索）
+      if (location.pathname.startsWith('/life/eggs/') && v === '200466') {
+        eggsRevealed = !eggsRevealed;
+        t.value = '';
+        if (t.blur) { try { t.blur(); } catch (e2) {} }
+        initEggsPage();
+        showToast(eggsRevealed ? '🗝️ 已显示全部彩蛋触发方法' : '🔒 已隐藏彩蛋触发方法', { duration: 2600 });
+        return;
+      }
       if (KEYWORDS[v]) KEYWORDS[v]();
       else hideEggCard();
     });
@@ -337,18 +350,28 @@
       '<div class="endy-eggs-grid">';
     EGGS.forEach(function (egg) {
       const found = !!map[egg.id];
+      // 未解锁且不处于“已揭示”状态时不剧透触发方法；用占位文案保持卡片高度对齐
+      const showHint = eggsRevealed || found;
+      const hintHtml = showHint
+        ? '<div class="endy-egg-hint">' + egg.hint + '</div>'
+        : '<div class="endy-egg-hint endy-egg-hint--hidden">🔒 触发方法已隐藏</div>';
       html +=
         '<div class="endy-egg-card ' + (found ? 'found' : 'locked') + '">' +
           '<div class="endy-egg-icon">' + egg.icon + '</div>' +
           '<div class="endy-egg-name">' + egg.name + '</div>' +
-          '<div class="endy-egg-hint">' + egg.hint + '</div>' +
+          hintHtml +
           '<div class="endy-egg-badge">' + (found ? '已发现' : '未解锁') + '</div>' +
         '</div>';
     });
     html +=
       '</div>' +
       '<div class="endy-eggs-actions">' +
-        '<button id="endy-eggs-reset" class="endy-eggs-btn" type="button">🔄 重置所有彩蛋状态</button>' +
+        '<button id="endy-eggs-reset" class="endy-eggs-btn" type="button">' +
+          '<svg class="endy-eggs-reset-icon" viewBox="0 0 1024 1024" width="16" height="16" fill="currentColor" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M502.714987 58.258904l-126.531056-54.617723a52.797131 52.797131 0 0 0-41.873587 96.855428A447.865322 447.865322 0 0 0 392.02307 946.707184a61.535967 61.535967 0 0 0 13.83649 1.820591 52.797131 52.797131 0 0 0 13.65443-103.773672 342.453118 342.453118 0 0 1-31.678278-651.771485l-8.374718 19.480321a52.615072 52.615072 0 0 0 27.855039 69.182448 51.522718 51.522718 0 0 0 20.572675 4.369418A52.797131 52.797131 0 0 0 476.498481 254.882703L530.205907 127.441352a52.979191 52.979191 0 0 0-27.49092-69.182448zM962.960326 509.765407A448.775617 448.775617 0 0 0 643.992829 68.090094a52.797131 52.797131 0 1 0-30.403866 101.042786A342.635177 342.635177 0 0 1 674.578753 801.059925a52.615072 52.615072 0 0 0-92.30395-50.612422l-71.913335 117.246043a52.433013 52.433013 0 0 0 17.295612 72.82363l117.063985 72.823629a52.797131 52.797131 0 1 0 54.617722-89.755123l-16.021198-10.013249A448.593558 448.593558 0 0 0 962.960326 509.765407z"></path>' +
+          '</svg>' +
+          '<span>重置所有彩蛋状态</span>' +
+        '</button>' +
       '</div>';
     container.innerHTML = html;
     const resetBtn = document.getElementById('endy-eggs-reset');

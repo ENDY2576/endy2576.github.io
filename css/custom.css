@@ -1297,6 +1297,9 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 .endy-egg-card.locked .endy-egg-badge { color: #888; background: rgba(0, 0, 0, 0.06); }
 .endy-eggs-actions { text-align: center; }
 .endy-eggs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 22px;
   font-size: 14px;
   border-radius: 999px;
@@ -1307,9 +1310,12 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   transition: background 0.2s ease, transform 0.15s ease;
 }
 .endy-eggs-btn:hover { background: rgba(59, 130, 246, 0.08); transform: scale(1.03); }
+.endy-eggs-reset-icon { flex-shrink: 0; }
+.endy-egg-hint--hidden { color: #b6b6b6; font-style: italic; letter-spacing: .3px; }
 [data-theme="dark"] .endy-egg-card { background: rgba(30, 30, 35, 0.7); border-color: rgba(255, 255, 255, 0.08); }
 [data-theme="dark"] .endy-egg-name { color: #e6e6e6; }
 [data-theme="dark"] .endy-egg-hint { color: #aaa; }
 [data-theme="dark"] .endy-eggs-count { color: #aaa; }
 [data-theme="dark"] .endy-egg-card.locked .endy-egg-badge { color: #999; background: rgba(255, 255, 255, 0.08); }
 [data-theme="dark"] .endy-eggs-btn { background: rgba(40, 40, 45, 0.9); color: #e6e6e6; border-color: rgba(255, 255, 255, 0.12); }
+[data-theme="dark"] .endy-egg-hint--hidden { color: #6b6b6b; }
