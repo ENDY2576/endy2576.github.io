@@ -352,9 +352,10 @@
       const found = !!map[egg.id];
       // 未解锁且不处于“已揭示”状态时不剧透触发方法；用占位文案保持卡片高度对齐
       const showHint = eggsRevealed || found;
+      // 未解锁且不揭示时：留空（不剧透），保留空容器维持卡片高度对齐
       const hintHtml = showHint
         ? '<div class="endy-egg-hint">' + egg.hint + '</div>'
-        : '<div class="endy-egg-hint endy-egg-hint--hidden">🔒 触发方法已隐藏</div>';
+        : '<div class="endy-egg-hint"></div>';
       html +=
         '<div class="endy-egg-card ' + (found ? 'found' : 'locked') + '">' +
           '<div class="endy-egg-icon">' + egg.icon + '</div>' +
