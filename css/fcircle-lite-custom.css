@@ -173,7 +173,7 @@
   align-items: center;
   gap: 5px;
   padding: 6px 14px;
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid var(--fc-card-border);
   background: rgba(59, 130, 246, 0.08);
   color: var(--fc-primary);
@@ -185,6 +185,7 @@
 
 .fc-lite-btn:hover {
   background: rgba(59, 130, 246, 0.16);
+  border-radius: 16px;
 }
 
 .fc-lite-btn:active {
@@ -195,11 +196,12 @@
   background: color-mix(in srgb, var(--fc-primary) 16%, transparent);
   color: #fff;
   border: 1px solid #f59e0b;
-  border-radius: var(--fc-radius);
+  border-radius: 16px;
 }
 
 .fc-lite-btn-primary:hover {
   background: color-mix(in srgb, var(--fc-primary) 28%, transparent);
+  border-radius: 16px;
   transform: translateY(-1px);
 }
 
@@ -623,7 +625,7 @@
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
-  border-radius: var(--fc-radius);
+  border-radius: 16px;
   padding: 16px;
   transform: translateY(16px) scale(0.96);
   transition: transform 0.25s ease;
