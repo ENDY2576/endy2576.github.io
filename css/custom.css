@@ -1021,3 +1021,22 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 [data-theme="dark"] #topPostGroup .top-group-list-item .top-group-info .article-title:hover {
   color: var(--endy-fix-text) !important;
 }
+
+/* ==================================================================
+   修复首页轮播图标题/描述文字重叠（2026-09-28）
+   根因：.blog-slider__title 使用 -webkit-line-clamp:1 + display:-webkit-box，
+   在 1.5x 缩放或特定字体下会出现合成重影。标题单行无需 line-clamp，
+   改用 white-space:nowrap 截断；描述保留 line-clamp 但 translateZ(0) 独立图层。
+   ================================================================== */
+.blog-slider__title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+  transform: translateZ(0);
+}
+.blog-slider__text {
+  transform: translateZ(0);
+}
