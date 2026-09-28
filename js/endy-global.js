@@ -360,6 +360,9 @@
     const oldToggle = document.getElementById('endy-music-toggle');
     if (oldToggle) oldToggle.remove();
 
+    // 临时关闭电台模式功能：把这里改成 true 即可恢复（隐藏电台球 + 不加载/不启用随机电台）
+    const RADIO_ENABLED = false;
+
     const wrapper = document.createElement('div');
     wrapper.id = 'endy-music-wrapper';
     wrapper.setAttribute('role', 'region');
@@ -434,7 +437,8 @@
       try {
         // 默认展开（对齐 zhheo）；只有显式收起过（'1'）才保持球态
         collapsed = localStorage.getItem(KEY_COLLAPSE) === '1';
-        radioMode = localStorage.getItem(KEY_RADIO) === '1';
+        // 电台模式临时关闭：RADIO_ENABLED=false 时不恢复旧状态
+        radioMode = RADIO_ENABLED && localStorage.getItem(KEY_RADIO) === '1';
       } catch (e) { /* 忽略 */ }
     }
 
@@ -607,6 +611,7 @@
     /* 电台球：点击切换电台模式；开启时若未播放则立刻随机开播（点击有效果） */
     radioBall.addEventListener('click', function (e) {
       e.stopPropagation();
+      if (!RADIO_ENABLED) return; /* 电台模式临时关闭 */
       const willOn = !radioMode;
       applyRadio(willOn);
       if (willOn && audio && audio.paused && songs.length) playRandom();
@@ -629,6 +634,7 @@
     if (radioNextBtn) radioNextBtn.addEventListener('click', function (e) { e.stopPropagation(); radioSkip(1); });
     /* 键盘可达性：Enter / Space 切换电台模式 */
     radioBall.addEventListener('keydown', function (e) {
+      if (!RADIO_ENABLED) return; /* 电台模式临时关闭 */
       if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 32) {
         e.preventDefault();
         const willOn = !radioMode;

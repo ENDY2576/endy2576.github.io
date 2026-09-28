@@ -578,6 +578,9 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   pointer-events: auto;
 }
 
+/* 电台模式临时关闭：隐藏电台球（JS 里 RADIO_ENABLED 改 true 即恢复） */
+#endy-radio-ball { display: none !important; }
+
 /* 电台球：默认 48px 白球（与音乐球一致），悬浮展开成紧凑主题色胶囊，
    带鼠标跟随 spotlight + 上下边缘流光（无几何起伏，只提亮按压部位） */
 #endy-radio-ball {
