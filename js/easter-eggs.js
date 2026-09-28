@@ -120,11 +120,11 @@
     try {
       console.log('%c' + art, 'color:#7c5cff;font-size:12px;line-height:1.3;font-family:monospace;');
       console.log('%c彖渊子', 'color:#ff7eb6;font-size:34px;font-weight:bold;');
-      console.log('%c你打开了控制台 👀 试着连点页面左上角的站名「彖渊子」5 下，会有惊喜。', 'color:#8a8a99;font-size:13px;');
+      console.log('%c你打开了控制台 👀 试着在首页快速连点中间的大站名「彖渊子」5 下，会有惊喜。', 'color:#8a8a99;font-size:13px;');
     } catch (e) { /* 某些环境 console.log 不支持 %c，忽略 */ }
 
-    // 额外彩蛋：左上角站名连点 5 下
-    whenReady('#site-name a, #site-name', function (siteName) {
+    // 额外彩蛋：首页 Hero 大站名连点 5 下
+    whenReady('#site-info #site-title', function (siteName) {
       let clicks = [];
       siteName.addEventListener('click', function () {
         const now = Date.now();

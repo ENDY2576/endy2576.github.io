@@ -432,7 +432,6 @@
     let collapsed = false;
     let audio = null;
     let lrcData = [];
-    let secretSongs = [];
 
     function loadState() {
       try {
@@ -606,21 +605,43 @@
 
     function toggleCollapse() { applyCollapsed(!collapsed); }
 
-    /* 彩蛋2：封面 5 连点触发。把歌单换成 secret 隐藏曲目并开播，派发事件给 easter-eggs.js 弹 toast */
-    function triggerSecretPlaylist() {
-      if (!secretSongs.length) {
-        document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false } }));
-        return;
-      }
-      applyCollapsed(false); // 展开胶囊，让隐藏歌单可见
-      songs = secretSongs.slice();
-      index = 0;
-      loadAudio(0);
-      if (audio) audio.play().catch(function () {});
-      document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: true } }));
+    /* 彩蛋2：播放键 5 连击触发，拉取 QQ 音乐歌单并替换当前歌单 */
+    const SECRET_PLAYLIST_URL = 'https://api.injahow.cn/meting/?server=tencent&type=playlist&id=9784840844';
+    function triggerQQMusicPlaylist() {
+      fetch(SECRET_PLAYLIST_URL)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!Array.isArray(data) || !data.length) {
+            document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false, reason: 'empty' } }));
+            return;
+          }
+          applyCollapsed(false); // 展开胶囊，让隐藏歌单可见
+          songs = data.slice();
+          index = 0;
+          loadAudio(0);
+          if (audio) audio.play().catch(function () {});
+          document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: true, count: data.length } }));
+        })
+        .catch(function (err) {
+          console.error('[endy-music] 隐藏歌单加载失败', err);
+          document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false, reason: 'error' } }));
+        });
     }
 
-    playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+    /* 播放键：单击播放/暂停；1500ms 内连点 5 次触发隐藏 QQ 音乐歌单 */
+    let playClicks = [];
+    playBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const now = Date.now();
+      playClicks.push(now);
+      playClicks = playClicks.filter(function (t) { return now - t <= 1500; });
+      if (playClicks.length >= 5) {
+        playClicks = [];
+        triggerQQMusicPlaylist();
+        return;
+      }
+      togglePlay();
+    });
     prevBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index - 1); if (audio) audio.play().catch(function () {}); });
     nextBtn.addEventListener('click', function (e) { e.stopPropagation(); loadAudio(index + 1); if (audio) audio.play().catch(function () {}); });
     /* 电台球：点击切换电台模式；开启时若未播放则立刻随机开播（点击有效果） */
@@ -658,22 +679,11 @@
       }
     });
     /* 唱片区域：单击收起/展开，双击跳转音乐馆；按钮子元素 stopPropagation */
-    coverWrap.title = '单击收起/展开，双击跳转音乐馆，快速连点 5 次有惊喜';
+    coverWrap.title = '单击收起/展开，双击跳转音乐馆';
     coverWrap.style.cursor = 'pointer';
     let coverClickTimer = null;
-    let coverClicks = [];
     coverWrap.addEventListener('click', function (e) {
       e.stopPropagation();
-      // 彩蛋2：1500ms 内连点封面 5 次 → 隐藏歌单（独立于单击/双击）
-      const now = Date.now();
-      coverClicks.push(now);
-      coverClicks = coverClicks.filter(function (t) { return now - t <= 1500; });
-      if (coverClicks.length >= 5) {
-        coverClicks = [];
-        if (coverClickTimer) { clearTimeout(coverClickTimer); coverClickTimer = null; }
-        triggerSecretPlaylist();
-        return;
-      }
       if (coverClickTimer) {
         clearTimeout(coverClickTimer);
         coverClickTimer = null;
@@ -703,10 +713,7 @@
     fetch(PLAYLIST_URL)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        const all = Array.isArray(data) ? data : [];
-        // 正常歌单排除隐藏曲目；隐藏曲目仅由封面 5 连点彩蛋触发
-        songs = all.filter(function (s) { return !s.secret; });
-        secretSongs = all.filter(function (s) { return s.secret === true; });
+        songs = Array.isArray(data) ? data : [];
         if (!songs.length) { titleEl.textContent = '暂无歌曲'; return; }
         loadState();
         applyCollapsed(collapsed);
