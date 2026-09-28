@@ -124,9 +124,11 @@
       return;
     }
 
-    // 复位 #web_bg 可能残留的内联样式（防止旧过渡打断后背景卡在透明）
+    // 复位 #web_bg 可能残留的内联样式（防止旧过渡打断后背景卡在透明/缩放/滤镜）
     bg.style.transition = 'none';
     bg.style.opacity = '1';
+    bg.style.transform = 'scale(1)';
+    bg.style.filter = 'none';
 
     // 按视口选桌面/移动背景变量，用于预加载与临时层
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -143,6 +145,16 @@
     preloadImage(bgUrl).then(function () {
       if (myToken !== seasonToken) return; // 已被更新的切换取代，放弃本次
 
+      const DURATION = 1.8;
+      const EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
+
+      // 让旧背景也加入过渡：变暗、轻微放大，与新图做真正的 cross-dissolve
+      // 这样两张图在视觉上会短暂叠化，而不是新图生硬地盖住旧图
+      bg.style.transition = `opacity ${DURATION}s ${EASE}, transform ${DURATION}s ${EASE}, filter ${DURATION}s ${EASE}`;
+      bg.style.opacity = '1';
+      bg.style.transform = 'scale(1)';
+      bg.style.filter = 'brightness(1) saturate(1)';
+
       const next = document.createElement('div');
       next.id = 'web_bg_next';
       next.style.cssText = [
@@ -155,17 +167,23 @@
         'background-repeat: no-repeat',
         'pointer-events: none',
         'opacity: 0',
-        // 新图从轻微放大缓收束到 1：把四张图构图/画幅差异变成一次缓慢运镜，
-        // 而不是"主体突然变大变小"。缩放始终 >=1，边缘不会露底。
+        // 新图从轻微放大缓收束到 1，旧图同步轻微放大淡出：
+        // 把四张图构图/画幅差异变成一次缓慢运镜，而不是"主体突然变大变小"。
+        // 缩放始终 >=1，边缘不会露底。
         'transform: scale(1.04)',
         'transform-origin: center center',
         'will-change: opacity, transform',
-        'transition: opacity 1.6s cubic-bezier(0.4, 0, 0.2, 1), transform 1.6s cubic-bezier(0.4, 0, 0.2, 1)'
+        `transition: opacity ${DURATION}s ${EASE}, transform ${DURATION}s ${EASE}`
       ].join(';');
       document.body.insertBefore(next, document.body.firstChild);
 
-      // 强制重排，确保 opacity / transform 过渡真正触发
+      // 强制重排，确保 opacity / transform / filter 过渡真正触发
       void next.offsetWidth;
+
+      // 同时触发：旧图淡出变暗，新图淡入收束
+      bg.style.opacity = '0.72';
+      bg.style.transform = 'scale(1.02)';
+      bg.style.filter = 'brightness(0.86) saturate(0.82)';
       next.style.opacity = '1';
       next.style.transform = 'scale(1)';
 
@@ -177,18 +195,27 @@
         // 正式背景换为新图（与临时层一致），再移除临时层，无缝衔接、无闪白
         root.setAttribute('data-season', season);
         localStorage.setItem(SEASON_STORAGE_KEY, season);
+        // 临时层仍盖着 web_bg，此时把 web_bg 重置为正常状态（新图、不透明、无滤镜）。
+        // 这样等两帧新图真正上屏后移除临时层，底下露出的就是正常的 web_bg。
+        bg.style.transition = 'none';
+        bg.style.opacity = '1';
+        bg.style.transform = 'scale(1)';
+        bg.style.filter = 'none';
         // 关键：等 #web_bg 的新背景真正上屏（两帧）再撤临时层，
         // 否则中间有一帧两层都不是新图 → 露出底色，就是用户看到的"闪白"
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
             setTimeout(function () {
-              if (myToken === seasonToken) next.remove();
+              if (myToken === seasonToken) {
+                next.remove();
+                bg.style.transition = '';
+              }
             }, 120);
           });
         });
       };
       next.addEventListener('transitionend', done, { once: true });
-      setTimeout(done, 1900); // 兜底：过渡事件偶发未触发时也能收尾（略长于 1.6s 过渡）
+      setTimeout(done, 2100); // 兜底：过渡事件偶发未触发时也能收尾（略长于 1.8s 过渡）
     });
   }
 

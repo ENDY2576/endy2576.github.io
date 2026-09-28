@@ -7,7 +7,7 @@
   --fc-text-main: #2c3e50;
   --fc-text-sub: #5f6f81;
   --fc-radius: 16px;
-  --fc-radius-hover: 18px;
+  --fc-radius-hover: 16px;
   --fc-primary: #3b82f6;
   font-size: 15px;
   color: var(--fc-text-main);
@@ -50,7 +50,7 @@
   background: color-mix(in srgb, var(--fc-primary) 18%, transparent);
   color: #fff;
   border-color: var(--fc-card-border);
-  border-radius: var(--fc-radius-hover);
+  border-radius: 16px !important;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.10);
 }
 
