@@ -614,21 +614,11 @@
 
     function toggleCollapse() { applyCollapsed(!collapsed); }
 
-    /* 彩蛋2：播放键 5 连击触发，切换到隐藏歌单（硬编码指定曲目，绕过受限歌单接口）；
-       再 5 连击切回默认歌单 */
-    const SECRET_BASE = 'https://api.injahow.cn/meting/?';
-    // 隐藏歌单：用户指定的 QQ音乐曲目。原歌单 9784840844 被腾讯接口限流（code:-100007）无法直接枚举，
-    // 故改为硬编码曲目列表。songmid 由 scripts/resolve_qq_songs.py 从分享链接的 songid 转换得到。
-    const SECRET_SONGS = [
-      { name: '江上清风游', artist: '变奏的梦想', id: '003Mb4Eh0X2cN8' },
-      { name: 'YOSEMITE (心平能愈三千疾)', artist: 'Knorr', id: '002Z6oqu4LaUWh' },
-      { name: '夜、萤火虫和你', artist: 'AniFace', id: '0021VYHj0M9W8V' },
-      { name: '明镜菩提', artist: '正版原声', id: '0003kyCF1bXRSH' },
-      { name: '问佛', artist: '纯音乐', id: '002iZSlU4VaRR7' },
-      { name: 'Sustain宿命小曲', artist: '清见', id: '0032Glvp3B5v6E' },
-      { name: '理想境', artist: '郯隗', id: '000JCy8R0ET4k3' },
-      { name: '水墨兰亭', artist: '李志辉', id: '002pDbVN3aopU9' }
-    ];
+    /* 彩蛋2：播放键 5 连击触发，切换到隐藏歌单；再 5 连击切回默认歌单。
+       隐藏歌单数据来自同源静态文件 /json/secret-music.json（由 scripts/resolve_secret_music.py
+       预解析 QQ音乐直链并写入，绕过 api.injahow.cn 对 tencent 的 302→http 混合内容拦截问题）。
+       vkey 短期有效，过期后重跑解析脚本并重新部署即可刷新。 */
+    const SECRET_JSON = '/json/secret-music.json';
 
     // Meting API 各实例字段名不统一（title/author/pic/src/mp3 等），统一标准化后再使用
     function normalizeSongs(list) {
@@ -644,46 +634,8 @@
       });
     }
 
-    // 隐藏歌单里的歌曲只给了 songmid，需要按 id 请求 type=url 补回真实音频直链；
-    // Meting 的 type=url 返回 JSON {url: 真实音频地址}（偶发限流返回空，retry 兜底）。
-    // 同时并行补封面（type=pic），失败不影响播放。
-    function fetchRealUrl(s, server, attempts) {
-      attempts = attempts || 3;
-      const u = SECRET_BASE + 'server=' + encodeURIComponent(server) +
-        '&type=url&id=' + encodeURIComponent(s.id);
-      const p = SECRET_BASE + 'server=' + encodeURIComponent(server) +
-        '&type=pic&id=' + encodeURIComponent(s.id);
-      return fetch(u)
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          const real = (d && d.url) ? d.url
-            : (Array.isArray(d) && d[0] && d[0].url ? d[0].url : '');
-          if (real) { s.url = real; return; }
-          if (attempts > 1) return fetchRealUrl(s, server, attempts - 1);
-          throw new Error('no url');
-        })
-        .catch(function () {
-          if (attempts > 1) return fetchRealUrl(s, server, attempts - 1);
-          throw new Error('url fetch failed');
-        });
-      // 封面并行补充（不阻塞播放）
-      fetch(p)
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          const pic = (d && d.pic) ? d.pic
-            : (Array.isArray(d) && d[0] && d[0].pic ? d[0].pic : '');
-          if (pic) s.cover = pic;
-        })
-        .catch(function () {});
-    }
-
-    function resolveSongUrls(list, server) {
-      const need = list.filter(function (s) { return !s.url && s.id; });
-      if (!need.length) return Promise.resolve(list);
-      return Promise.all(need.map(function (s) {
-        return fetchRealUrl(s, server, 3).catch(function () { /* 单首失败不影响其余 */ });
-      })).then(function () { return list; });
-    }
+    // 隐藏歌单的音频直链已预解析并烘焙进 /json/secret-music.json（同源静态），
+    // 不再运行时跨域请求 api.injahow.cn（其 type=url 返回 302→http CDN，浏览器因混合内容拦截）。
 
     function playCurrent() {
       loadAudio(index);
@@ -707,19 +659,20 @@
       document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: true, mode: 'default' } }));
     }
 
-    // 隐藏歌单改用硬编码 SECRET_SONGS（见上方），不再拉取受限歌单，故移除 fetchPlaylistWithRetry。
-
+    // 隐藏歌单：直接加载同源静态 JSON（已预解析为 https 直链），无需运行时跨域请求。
     function toggleSecretPlaylist() {
       if (usingSecret) {
         exitSecretPlaylist();
         return;
       }
-      const server = 'tencent';
-      // 直接用硬编码的隐藏曲目列表（不再拉受限歌单），仅补全每首的真实音频直链
-      const list = normalizeSongs(SECRET_SONGS);
-      resolveSongUrls(list, server)
-        .then(function (resolved) {
-          const usable = resolved.filter(function (s) { return s.url; });
+      fetch(SECRET_JSON)
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          const list = normalizeSongs(Array.isArray(data) ? data : []);
+          const usable = list.filter(function (s) { return s.url; });
           if (!usable.length) {
             document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false, reason: 'empty' } }));
             return;
