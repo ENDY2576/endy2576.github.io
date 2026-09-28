@@ -568,7 +568,7 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   user-select: none;
 }
 
-/* 电台球：默认 48px 白球（与音乐球一致），悬浮展开成 240px 主题色胶囊，
+/* 电台球：默认 48px 白球（与音乐球一致），悬浮展开成紧凑主题色胶囊，
    带鼠标跟随 spotlight + 上下边缘流光（无几何起伏，只提亮按压部位） */
 #endy-radio-ball {
   position: relative;
@@ -703,7 +703,7 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   max-width: 150px;
   margin-left: 8px;
 }
-/* 悬浮展开时的内联控制（对齐音乐胶囊：播放/下一首），默认收起 */
+/* 悬浮展开时的内联控制（对齐音乐胶囊：上一首/播放/下一首），默认收起 */
 #endy-radio-ball .em-radio-controls {
   display: flex;
   align-items: center;
@@ -717,7 +717,7 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 }
 #endy-radio-ball:hover .em-radio-controls {
   opacity: 1;
-  max-width: 72px;
+  max-width: 100px;
   pointer-events: auto;
 }
 #endy-radio-ball .em-radio-btn {
@@ -772,11 +772,29 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   box-shadow: var(--anzhiyu-shadow-border, 0 4px 12px rgba(0,0,0,0.08));
   backdrop-filter: saturate(180%) blur(20px);
   cursor: pointer;
-  transition: padding 0.35s ease, border-radius 0.35s ease, box-shadow 0.35s ease, height 0.35s ease;
+  transition: width 0.35s ease, padding 0.35s ease, border-radius 0.35s ease, box-shadow 0.35s ease, height 0.35s ease;
   overflow: hidden;
 }
 
-/* 球态：音乐球 42px，封面水平居中（更小巧） */
+/* 暗色模式：音乐胶囊强化玻璃效果 + 浅色文字适配 */
+[data-theme="dark"] #endy-music {
+  background: rgba(25, 25, 35, 0.55);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+[data-theme="dark"] #endy-music.collapsed {
+  background: rgba(35, 35, 48, 0.68);
+}
+[data-theme="dark"] #endy-music .em-title { color: #fff; }
+[data-theme="dark"] #endy-music .em-artist { color: rgba(255, 255, 255, 0.72); }
+[data-theme="dark"] #endy-music .em-lrc { color: rgba(255, 255, 255, 0.72); }
+[data-theme="dark"] #endy-music .em-inline-controls .em-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.92);
+}
+[data-theme="dark"] #endy-music .em-inline-controls .em-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* 球态：音乐球 48px，封面水平居中（与电台球一致） */
 #endy-music.collapsed {
   width: 48px;
   height: 48px;

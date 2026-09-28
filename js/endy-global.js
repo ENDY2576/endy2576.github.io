@@ -375,6 +375,7 @@
       '<img class="em-radio-icon" src="/img/radio/radio-day.svg" alt="" />' +
       '<span class="em-radio-text">电台模式</span>' +
       '<span class="em-radio-controls">' +
+      '<button class="em-radio-btn em-radio-prev" type="button" aria-label="电台上一首">⏮</button>' +
       '<button class="em-radio-btn em-radio-play" type="button" aria-label="电台播放/暂停">▶</button>' +
       '<button class="em-radio-btn em-radio-next" type="button" aria-label="电台下一首">⏭</button>' +
       '</span>';
@@ -595,19 +596,22 @@
       applyRadio(willOn);
       if (willOn && audio && audio.paused && songs.length) playRandom();
     });
-    /* 内联控制：对齐音乐胶囊交互（stopPropagation 避免误触发电台切换） */
+    /* 内联控制：对齐音乐胶囊交互（stopPropagation 避免误触发电台切换）
+       电台模式下 prev/next 都随机切歌，不做顺序播放 */
+    const radioPrevBtn = radioBall.querySelector('.em-radio-prev');
     const radioPlayBtn = radioBall.querySelector('.em-radio-play');
     const radioNextBtn = radioBall.querySelector('.em-radio-next');
+    function radioSkip(delta) {
+      if (radioMode) playRandom();
+      else { loadAudio(index + delta); if (audio) audio.play().catch(function () {}); }
+    }
+    if (radioPrevBtn) radioPrevBtn.addEventListener('click', function (e) { e.stopPropagation(); radioSkip(-1); });
     if (radioPlayBtn) radioPlayBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       if (!audio) loadAudio(0);
       togglePlay();
     });
-    if (radioNextBtn) radioNextBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (radioMode) playRandom();
-      else { loadAudio(index + 1); if (audio) audio.play().catch(function () {}); }
-    });
+    if (radioNextBtn) radioNextBtn.addEventListener('click', function (e) { e.stopPropagation(); radioSkip(1); });
     /* 键盘可达性：Enter / Space 切换电台模式 */
     radioBall.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 32) {
