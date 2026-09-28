@@ -591,3 +591,22 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 #nav-music.endy-collapsed #nav-music-hoverTips {
   display: none;
 }
+
+/* ==================================================================
+   夜间模式文字适配补全（2026-09-28）
+   截图反馈的三处仍未反白：标签云、即刻短文条、顶部推荐卡片标题
+   ================================================================== */
+[data-theme="dark"] .tag-cloud-list a,
+[data-theme="dark"] .tag-cloud-list a:hover {
+  color: var(--endy-fix-text) !important;
+}
+
+[data-theme="dark"] #bbTimeList .li-style,
+[data-theme="dark"] #bbTimeList .li-style:hover {
+  color: var(--endy-fix-text) !important;
+}
+
+[data-theme="dark"] #topPostGroup .top-group-list-item .top-group-info .article-title,
+[data-theme="dark"] #topPostGroup .top-group-list-item .top-group-info .article-title:hover {
+  color: var(--endy-fix-text) !important;
+}
