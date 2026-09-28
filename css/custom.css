@@ -1034,11 +1034,19 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 
 /* ==================================================================
    修复首页轮播图标题/描述文字重叠（2026-09-28）
-   根因（主）：top.pug 给每个 .blog-slider__item 硬编码 inline opacity:1，
-   Swiper fade 模式下非 active slide 本该 opacity:0，却被 inline 覆盖为 1，
-   导致多个 slide 叠在一起 → "两层轮播图互相覆盖"。已在 top.pug 移除。
-   兜底：同时用更高优先级选择器覆盖 transform/line-clamp，防合成重影。
+   根因（诊断确认）：top.pug 给每个 .blog-slider__item 硬编码 inline opacity:1，
+   且主题加载的 Swiper bundle 不含 EffectFade，导致 fade 失效、退化成横向滑动；
+   非 active slide 本该不可见，却因 inline opacity:1 全部叠在一起。
+   ① 已在 top.pug 移除 inline opacity；② 用 !important 兜底，只让 active slide 可见。
    ================================================================== */
+#swiper_container .blog-slider__item {
+  opacity: 0 !important;
+  transition: opacity 0.35s ease;
+}
+#swiper_container .blog-slider__item.swiper-slide-active {
+  opacity: 1 !important;
+  z-index: 1;
+}
 .blog-slider__content > .blog-slider__title {
   display: block;
   white-space: nowrap;
