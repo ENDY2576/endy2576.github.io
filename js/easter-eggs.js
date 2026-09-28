@@ -1,6 +1,6 @@
 /* 彖渊子 · 彩蛋合集（easter-eggs.js）
  * 五个隐藏彩蛋：
- *   彩蛋1  进入音乐馆(/life/music/) → 强制显示音乐胶囊 + toast「🎧 你找到了音乐胶囊」
+ *   彩蛋1  首次进入音乐馆(/life/music/) → 发现并强制显示音乐胶囊 + toast；之后胶囊变全局播放器（仅其他页面存在、顶部自动隐藏）；再回音乐馆不再显示
  *   彩蛋2  音乐胶囊播放键 5 连击 → 隐藏 QQ 音乐歌单（再 5 连击切回默认歌单；逻辑在 endy-global.js，这里只弹 toast）
  *   彩蛋3  搜索框输入暗号「彖渊子」→ 弹出彩蛋卡（谜语 + 隐藏入口 /life/secret/）
  *   彩蛋4  打开 DevTools 控制台 → ASCII 艺术字线索 + 提示连点站名 5 下（额外：站名连点 5 下也有惊喜）
@@ -41,18 +41,33 @@
     setTimeout(function () { whenReady(selector, cb, tries + 1); }, 50);
   }
 
-  /* ---------- 彩蛋1：音乐馆强制显示音乐胶囊；普通页面保持隐藏 ---------- */
+  /* ---------- 彩蛋1：音乐胶囊发现逻辑 ----------
+     - 首次进入音乐馆：强制显示胶囊 + toast「🎧 你找到了音乐胶囊」+ localStorage 标记已发现
+     - 之后切到其他页面：胶囊作为全局播放器存在，启用"滚动到顶自动隐藏"
+     - 再次进入音乐馆：本页不再显示胶囊 */
   function initMusicPageEgg() {
     const isMusicPage = location.pathname.startsWith('/life/music/');
+    const discovered = localStorage.getItem('endy-music-discovered') === '1';
+    const setAuto = window.endySetMusicAutoHide || function () {};
     whenReady('#endy-music-wrapper', function (wrapper) {
-      // 音乐馆页强制显示；离开音乐馆时移除，确保普通页面不会随滚动出现
-      wrapper.classList.toggle('endy-player-visible', isMusicPage);
-      wrapper.classList.toggle('endy-force-visible', isMusicPage);
+      if (isMusicPage && !discovered) {
+        // 首次进入音乐馆：发现胶囊
+        wrapper.classList.add('endy-force-visible');
+        wrapper.classList.remove('endy-player-visible');
+        setAuto(false);
+        localStorage.setItem('endy-music-discovered', '1');
+        setTimeout(function () { showToast('🎧 你找到了音乐胶囊'); }, 900);
+      } else if (isMusicPage && discovered) {
+        // 再次进入音乐馆：本页不显示胶囊
+        wrapper.classList.remove('endy-force-visible', 'endy-player-visible');
+        setAuto(false);
+      } else {
+        // 其他页面：已发现则启用滚动自动隐藏，否则保持隐藏
+        wrapper.classList.remove('endy-force-visible');
+        setAuto(discovered);
+        if (!discovered) wrapper.classList.remove('endy-player-visible');
+      }
     });
-    if (isMusicPage && !sessionStorage.getItem('endy-egg1')) {
-      sessionStorage.setItem('endy-egg1', '1');
-      setTimeout(function () { showToast('🎧 你找到了音乐胶囊'); }, 900);
-    }
   }
 
   /* ---------- 彩蛋2：隐藏歌单 toast（播放逻辑在 endy-global.js） ---------- */

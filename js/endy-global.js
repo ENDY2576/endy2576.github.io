@@ -400,8 +400,27 @@
     wrapper.appendChild(radioBall);
     document.body.appendChild(wrapper);
 
-    /* 音乐胶囊默认隐藏，只在音乐馆页面由 easter-eggs.js 强制显示。
-       之前的全局"滚动自动显隐"已移除，避免普通页面下滑时胶囊意外出现。 */
+    /* 音乐胶囊显隐控制：
+       - 默认隐藏；是否按"滚动到顶自动隐藏"由 easter-eggs.js 通过 endySetMusicAutoHide 控制。
+       - 仅在"已发现过（localStorage 标记）且不在音乐馆页"时才启用，避免普通页面/音乐馆误现。 */
+    let autoHideEnabled = false;
+    function updateAutoHide() {
+      if (!autoHideEnabled) return;
+      const onMusic = location.pathname.startsWith('/life/music/');
+      if (onMusic) { wrapper.classList.remove('endy-player-visible'); return; }
+      wrapper.classList.toggle('endy-player-visible', window.scrollY > 80);
+    }
+    // 暴露给 easter-eggs.js：非音乐馆页 + 已发现时启用滚动自动隐藏
+    window.endySetMusicAutoHide = function (on) {
+      autoHideEnabled = !!on;
+      if (!autoHideEnabled) wrapper.classList.remove('endy-player-visible');
+      else updateAutoHide();
+    };
+    window.addEventListener('scroll', function () {
+      if (autoHideEnabled) requestAnimationFrame(updateAutoHide);
+    }, { passive: true });
+    window.addEventListener('resize', updateAutoHide);
+    updateAutoHide();
 
     const coverWrap = nav.querySelector('.em-cover-wrap');
     const coverEl = nav.querySelector('.em-cover');
@@ -596,19 +615,44 @@
     function toggleCollapse() { applyCollapsed(!collapsed); }
 
     /* 彩蛋2：播放键 5 连击触发，拉取 QQ 音乐歌单并替换当前歌单；再 5 连击切回默认歌单 */
-    const SECRET_PLAYLIST_URL = 'https://api.injahow.cn/meting/?server=tencent&type=playlist&id=9784840844';
+    const SECRET_BASE = 'https://api.injahow.cn/meting/?';
+    const SECRET_PLAYLIST_URL = SECRET_BASE + 'server=tencent&type=playlist&id=9784840844';
 
-    // Meting API 各实例字段名不统一（title/author/pic 等），统一标准化后再使用
+    // Meting API 各实例字段名不统一（title/author/pic/src/mp3 等），统一标准化后再使用
     function normalizeSongs(list) {
       return (list || []).map(function (s) {
         return {
-          name: s.name || s.title || '未知歌曲',
-          artist: s.artist || s.author || s.singer || '未知歌手',
-          url: s.url || s.src || '',
-          cover: s.cover || s.pic || '',
-          lrc: s.lrc || s.lyric || ''
+          name: s.name || s.title || s.songname || '未知歌曲',
+          artist: s.artist || s.author || s.singer || s.artists || '未知歌手',
+          url: s.url || s.src || s.mp3 || '',
+          cover: s.cover || s.pic || s.image || s.img || '',
+          lrc: s.lrc || s.lyric || s.lrclink || '',
+          id: s.id || s.songid || s.mid || ''
         };
-      }).filter(function (s) { return s.url; });
+      });
+    }
+
+    // 部分 Meting 实例在歌单里只给 id 不给直链（url 为空），需按 id 再请求一次 type=song 补回直链；
+    // 否则虽然能列出多首，但没有可播放的 url，导致切不了歌。
+    function resolveSongUrls(list, server) {
+      const need = list.filter(function (s) { return !s.url && s.id; });
+      if (!need.length) return Promise.resolve(list);
+      return Promise.all(need.map(function (s) {
+        const url = SECRET_BASE + 'server=' + encodeURIComponent(server) +
+          '&type=song&id=' + encodeURIComponent(s.id);
+        return fetch(url)
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            const arr = Array.isArray(d) ? d : (d && d.data) || [];
+            const one = arr[0];
+            if (one && one.url) {
+              s.url = one.url;
+              if (!s.cover && one.cover) s.cover = one.cover;
+              if (!s.lrc && one.lrc) s.lrc = one.lrc;
+            }
+          })
+          .catch(function () { /* 单首失败不影响其余 */ });
+      })).then(function () { return list; });
     }
 
     function playCurrent() {
@@ -638,6 +682,8 @@
         exitSecretPlaylist();
         return;
       }
+      const serverMatch = SECRET_PLAYLIST_URL.match(/server=([^&]+)/);
+      const server = serverMatch ? serverMatch[1] : 'tencent';
       fetch(SECRET_PLAYLIST_URL)
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -647,7 +693,15 @@
             document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false, reason: 'empty' } }));
             return;
           }
-          enterSecretPlaylist(list);
+          // 兜底：补全没有直链的歌曲（按 id 再请求一次）
+          resolveSongUrls(list, server).then(function (resolved) {
+            const usable = resolved.filter(function (s) { return s.url; });
+            if (!usable.length) {
+              document.dispatchEvent(new CustomEvent('endy:egg2', { detail: { found: false, reason: 'empty' } }));
+              return;
+            }
+            enterSecretPlaylist(usable);
+          });
         })
         .catch(function (err) {
           console.error('[endy-music] 隐藏歌单加载失败', err);
