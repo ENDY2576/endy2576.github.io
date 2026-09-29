@@ -24,7 +24,7 @@
 
   var THUMB = 18;                          // 滑块直径，两端各内缩一半，保证滑块不越界
   var FRAME = 1000 / 60;
-  var FRICTION = 0.94;                     // 每帧速度保留率
+  var FRICTION = 0.945;                    // 每帧速度保留率（越大滑得越远，越吃释放速度）
   var GLIDE_GAIN = FRAME / (1 - FRICTION); // v * GAIN ≈ 惯性还能滑多远
   var SUB_STEP = 4;                        // 物理积分子步长（ms），保证稳定
 
@@ -63,9 +63,9 @@
     var span = max - min;
     var snap = o.snap > 0 ? +o.snap : span / 10;
     var step = o.step > 0 ? +o.step : snap / 10;
-    var maxOver = snap * 1.2;              // 过冲距离上限：1.2 个刻度
-    var omega = 0.035;                      // 弹簧角频率 rad/ms（周期约 180ms）
-    var zeta = 0.72;                        // 阻尼比（<1，回程有一次极轻微回弹）
+    var maxOver = o.maxOvershoot != null ? +o.maxOvershoot : snap * 2.4; // 过冲上限（弹簧惯性回弹的幅度）
+    var omega = 0.03;                       // 弹簧角频率 rad/ms（决定回弹快慢）
+    var zeta = 0.58;                        // 阻尼比（越小回弹越明显）
     var k1 = omega * omega;
     var c1 = 2 * zeta * omega;
     var velWindow = 90;                     // 释放速度采样窗口（ms）

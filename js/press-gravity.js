@@ -54,6 +54,7 @@
 
   var current = null;      // 正在被「按压」的卡片
   var hovered = null;      // 正在被「悬停跟随」的卡片
+  var hoverRect = null;    // 进入卡片时量好的矩形（move 期间只读缓存，不再触发布局）
   var hoverPt = null;
   var hoverRaf = 0;
 
@@ -179,6 +180,7 @@
     if (!hovered) return;
     var el = hovered;
     hovered = null;
+    hoverRect = null;
     hoverPt = null;
     el.style.transition = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)';
     el.style.transform = el.__endyHoverBase || '';
@@ -192,7 +194,33 @@
     }, 340);
   }
 
-  function onHoverMove(e) {
+  // 只在「进入卡片」时做一次昂贵操作（closest 选择器匹配 + getComputedStyle + 量矩形），
+  // 之后的 pointermove 只是在缓存矩形上做减法 —— 这是修卡顿的关键。
+  function enterHover(card, e) {
+    if (card === hovered) return;
+    leaveHover();
+    var r0 = card.getBoundingClientRect();
+    if (!r0.width || !r0.height || r0.width < MIN_W || r0.height < MIN_H) return;
+    if (has3d(card)) return;
+    var b = window.getComputedStyle(card).transform;
+    hovered = card;
+    hoverRect = r0;
+    card.__endyHoverBase = (!b || b === 'none') ? '' : b;
+    paintHover(e.clientX, e.clientY);
+  }
+
+  function paintHover(cx, cy) {
+    if (!hovered || !hoverRect) return;
+    var r = hoverRect;
+    var rx = clamp01((cx - r.left) / r.width);
+    var ry = clamp01((cy - r.top) / r.height);
+    hovered.style.transformOrigin = (rx * 100).toFixed(2) + '% ' + (ry * 100).toFixed(2) + '%';
+    hovered.style.transition = 'transform 160ms cubic-bezier(0.2, 0, 0.35, 1)';
+    hovered.style.transform =
+      tiltTransform(rx, ry, HOVER_TILT, HOVER_SCALE, hovered.__endyHoverBase);
+  }
+
+  function onOver(e) {
     if (window.__endyPressEnabled === false) return;
     if (window.__endyDragActive) return;
     if (e.pointerType && e.pointerType !== 'mouse') return;  // 触摸没有「悬停」语义
@@ -205,31 +233,28 @@
 
     var card = t.closest(CARDS);
     if (!card || card.classList.contains('endy-drag-item')) { leaveHover(); return; }
+    enterHover(card, e);
+  }
 
-    if (card !== hovered) {
-      leaveHover();
-      var r0 = card.getBoundingClientRect();
-      if (!r0.width || !r0.height || r0.width < MIN_W || r0.height < MIN_H) return;
-      if (has3d(card)) return;
-      var b = window.getComputedStyle(card).transform;
-      card.__endyHoverBase = (!b || b === 'none') ? '' : b;
-      hovered = card;
-    }
-
+  function onHoverMove(e) {
+    if (!hovered || current) return;
+    if (e.pointerType && e.pointerType !== 'mouse') return;
     hoverPt = { x: e.clientX, y: e.clientY };
     if (hoverRaf) return;
     hoverRaf = requestAnimationFrame(function () {
       hoverRaf = 0;
       if (!hovered || !hoverPt || !hovered.isConnected) return;
-      var r = hovered.getBoundingClientRect();
-      if (!r.width || !r.height) return;
-      var rx = clamp01((hoverPt.x - r.left) / r.width);
-      var ry = clamp01((hoverPt.y - r.top) / r.height);
-      hovered.style.transformOrigin = (rx * 100).toFixed(2) + '% ' + (ry * 100).toFixed(2) + '%';
-      hovered.style.transition = 'transform 160ms cubic-bezier(0.2, 0, 0.35, 1)';
-      hovered.style.transform =
-        tiltTransform(rx, ry, HOVER_TILT, HOVER_SCALE, hovered.__endyHoverBase);
+      paintHover(hoverPt.x, hoverPt.y);
     });
+  }
+
+  // 滚动 / 缩放后缓存的矩形会失效，便宜地重测一次
+  var rectTimer = 0;
+  function refreshRect() {
+    clearTimeout(rectTimer);
+    rectTimer = setTimeout(function () {
+      if (hovered && hovered.isConnected) hoverRect = hovered.getBoundingClientRect();
+    }, 80);
   }
 
   // 暴露给拖拽排序脚本：拖拽接管某张卡时，先把按压状态收干净
@@ -238,7 +263,10 @@
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('pointerup', onUp, true);
   document.addEventListener('pointercancel', onUp, true);
-  document.addEventListener('pointermove', onHoverMove, true);
+  document.addEventListener('pointerover', onOver, true);   // 进卡片才做识别（贵）
+  document.addEventListener('pointermove', onHoverMove, true); // 移动只做坐标运算（便宜）
+  document.addEventListener('scroll', refreshRect, { passive: true });
+  window.addEventListener('resize', refreshRect);
   document.addEventListener('mouseleave', leaveHover);
   window.addEventListener('blur', function () { onUp(); leaveHover(); });
   // 页面切走（pjax 跳转）时也要回正，否则卡片会一直歪着

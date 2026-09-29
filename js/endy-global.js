@@ -860,3 +860,43 @@
     setTimeout(refreshLazyLoad, 600);
   });
 })();
+
+/* ==================================================================
+   左上角主页图标（#site-name / .back-home-button）→ 回主页：
+   先整页淡出（约 220ms），再走 pjax 跳转，落地后轻微淡入。
+   只用 opacity，不动 transform/filter —— 否则 fixed 元素（右侧按钮、
+   看板娘舞台）的定位基准会被破坏。
+   ================================================================== */
+(function () {
+  'use strict';
+  if (window.__endyHomeTransBound) return;
+  window.__endyHomeTransBound = true;
+
+  function leave() {
+    document.body.classList.remove('endy-page-out');
+    document.body.classList.add('endy-page-in');
+    setTimeout(function () { document.body.classList.remove('endy-page-in'); }, 420);
+  }
+
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+    if (!t || t.nodeType !== 1 || typeof t.closest !== 'function') return;
+    const el = t.closest('#site-name, .back-home-button');
+    if (!el) return;
+    const href = el.getAttribute('href') || '/';
+    if (el.id !== 'site-name' && href === 'javascript:void(0);') {
+      // .back-home-button 没有 href，固定回主页
+    }
+    const target = el.id === 'site-name' ? (href || '/') : '/';
+    if (target === location.pathname) return;
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.add('endy-page-out');
+    setTimeout(function () {
+      if (window.pjax && typeof window.pjax.loadUrl === 'function') window.pjax.loadUrl(target);
+      else location.href = target;
+    }, 220);
+  }, true);
+
+  document.addEventListener('pjax:complete', leave);
+})();

@@ -38,6 +38,7 @@
 
   var cache = new WeakMap();   // container → { items, crect }
   var curContainer = null;
+  var lastItem = null;
 
   function itemsOf(container) {
     var kids = container.children;
@@ -86,6 +87,7 @@
 
   function resetAll(container) {
     var info = cache.get(container);
+    lastItem = null;
     if (!info) return;
     info.items.forEach(function (d) { reset(d.el); });
   }
@@ -131,8 +133,10 @@
 
       el.style.zIndex = '1';
       el.style.transition = 'transform ' + DUR + 'ms ' + EASE;
+      // 邻居除了让位，还带一点横向挤压 —— 看起来像「被当前卡片挤开」
       el.style.transform =
-        'translateX(' + (dir * push).toFixed(2) + 'px) scale(' + (1 - 0.03 * f).toFixed(3) + ')';
+        'translateX(' + (dir * push).toFixed(2) + 'px)' +
+        ' scale(' + (1 - 0.07 * f).toFixed(3) + ', ' + (1 - 0.02 * f).toFixed(3) + ')';
     }
   }
 
@@ -159,6 +163,9 @@
       if (info.items[i].el.contains(t)) { item = info.items[i].el; break; }
     }
     if (!item) return;
+    // 同一张卡内移动不重复计算（pointerover 在子元素间会频繁触发）
+    if (item === lastItem && curContainer === c) return;
+    lastItem = item;
 
     // transform 对非替换的行内元素无效，标签若真是 inline 就临时改成 inline-block
     var cs = window.getComputedStyle(item);

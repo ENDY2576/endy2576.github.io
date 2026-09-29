@@ -2118,3 +2118,36 @@ body.endy-dragging * { cursor: grabbing !important; }
   .endy-slider.is-snap .endy-slider-tick.is-active { animation: none; }
   .endy-slider-thumb { transition: box-shadow 0.2s ease; }
 }
+
+/* ==================================================================
+   「随便逛逛」按钮：更平滑的渐入
+   backwards 而非 forwards：动画结束后交还样式控制权，不影响主题自己的 hover 动画
+   ================================================================== */
+#random-hover {
+  animation: endy-random-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes endy-random-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #random-hover { animation: none; }
+}
+
+/* ==================================================================
+   回主页过渡：点击左上角主页图标时整页淡出，落地后轻微淡入
+   ================================================================== */
+body.endy-page-out {
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  pointer-events: none;
+}
+body.endy-page-in {
+  animation: endy-page-in 0.38s ease-out;
+}
+@keyframes endy-page-in {
+  from { opacity: 0; }
+}
