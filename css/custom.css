@@ -2239,35 +2239,35 @@ img[data-lazy-src*="pZRXSc6"] {
 }
 
 /* ==================================================================
-   拖拽排序：空位示意框的「渐变出现 / 淡出消失」
-   - .endy-drag-slot：落点空槽，每次新出现都重播渐入（虚线 + 淡底淡入）
-   - .endy-drag-origin：原位示意框，卡片被拖远（补位）后淡出消失，
-     拖回来又淡入出现
+   拖拽排序（方向 A / iOS 实时重排）
+   - .endy-drag-silhouette：落点占位 = 半透明同形剪影（主题色），呼吸脉冲；
+     不是虚线框，读起来是「放这里」而不是「加载中/报错」
+   - .endy-drag-item：被拖起的浮空卡，大柔影 + 抓取光标 + 提升层级
+   - body.endy-dragging：拖拽中全局抓取光标、禁选中
    ================================================================== */
-.endy-drag-slot {
-  transition: opacity 0.3s ease;
+.endy-drag-silhouette {
+  border-radius: 12px;
+  background: rgba(75, 92, 196, 0.14);
+  box-shadow: inset 0 0 0 2px rgba(75, 92, 196, 0.32);
+  pointer-events: none;
+  animation: endy-silhouette-pulse 1.6s ease-in-out infinite;
 }
-.endy-drag-slot.endy-slot-in {
-  animation: endy-slot-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+@keyframes endy-silhouette-pulse {
+  0%, 100% { background: rgba(75, 92, 196, 0.10); }
+  50%      { background: rgba(75, 92, 196, 0.22); }
 }
-@keyframes endy-slot-in {
-  from {
-    opacity: 0;
-    transform: scaleY(0.92);
-    background: rgba(75, 92, 196, 0);
-    border-color: rgba(75, 92, 196, 0);
-  }
+.endy-drag-item {
+  cursor: grabbing !important;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.30) !important;
+  will-change: transform, left, top;
+  pointer-events: none;
 }
-.endy-drag-origin {
-  transition: opacity 0.32s ease, transform 0.32s ease, border-color 0.32s ease;
-}
-.endy-drag-origin.is-hidden {
-  opacity: 0;
-  transform: scale(0.96);
-  border-color: rgba(75, 92, 196, 0);
+body.endy-dragging {
+  cursor: grabbing !important;
+  user-select: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .endy-drag-slot.endy-slot-in { animation: none; }
+  .endy-drag-silhouette { animation: none; }
 }
 
 /* ==================================================================

@@ -1,17 +1,22 @@
 /**
- * 首页文章卡片拖拽排序 v2
+ * 首页文章卡片交互 v3 —— 方向 A（iOS 实时重排）
  * ------------------------------------------------------------
- * 交互规则（逐条对应）：
- *   1) 拖离原位不超过 3/4 卡高 → 原区域保持空位（原位虚线框 + 流内空槽），
- *      卡片随时可以放回去，其他卡片不动；
- *   2) 超过 3/4 → 后面的卡片自动补位上来（空槽撤出文档流，FLIP 平移）；
- *   3) 补位后把卡片压到某张卡上 → 那里自动让位出一个空槽（区域示意），
- *       松手即落到这个空槽；空槽跟随悬停位置移动；
- *   4) 把卡片「甩」出列表（释放点在列表外 + 释放速度超过阈值）→ 进入该文章；
- *      飞出距离与释放速度成正比，体现「甩的力气」；慢慢拉出去则会弹回列表。
- *   5) 松手后那一次 click 一律吃掉，绝不会误触跳文章。
+ * 统一由本脚本独占 .recent-post-item 的「悬浮倾斜 / 按下 / 拖起 / 实时重排 / 落位 / 甩出」，
+ * 不再与 press-gravity 抢同一张卡片的 transform（press-gravity 在拖拽时通过
+ * window.__endyDragActive 主动让位，互不打架）。
  *
- * 其它：触摸长按 220ms 激活；顺序存 localStorage；__endyResetPostOrder() 重置。
+ * 交互规则（对应方向 A）：
+ *   1) 悬浮：卡片朝光标做 ≤5° 的 3D 微倾（由 press-gravity 负责，本脚本不重复）。
+ *   2) 拖起：移动超过 6px（触摸需长按 200ms）才激活，卡片 scale 1.04 浮空，
+ *      以「弹簧迟滞」跟随光标（带一点重量感），z-index 置顶、光标变抓取。
+ *   3) 实时重排：拖拽时占位用「半透明同形剪影」(非虚线框)，随光标在列表中实时移动，
+ *      其余卡片用 FLIP 平滑让位 —— 像 iOS 主屏一样边拖边排。
+ *   4) 落位：松手后卡片用弹簧引擎归位（过冲 ~6%、约 380ms 收敛），邻居收拢填满。
+ *   5) 甩出：释放点在列表外 + 释放速度超阈值 → 沿速度向量飞出并进入文章，
+ *      飞出距离与速度成正比（体现「甩的力气」）；慢慢拉出则弹回列表。
+ *   6) 松手后的那一次 click 一律吃掉，绝不误触跳文章。
+ *
+ * 其它：顺序存 localStorage；__endyResetPostOrder() 重置；尊重 prefers-reduced-motion。
  */
 (function () {
   'use strict';
@@ -23,17 +28,24 @@
   var ITEM = '.recent-post-item';
   var STORE_KEY = 'endy-home-post-order';
 
-  var MOUSE_ACTIVATE = 8;
-  var TOUCH_HOLD = 220;
-  var FLIP_MS = 200;
-  var FILL_AT = 0.8;       // 拖离原位超过 80% 卡高 → 后面卡片滑入补位
-  var UNFILL_AT = 0.55;    // 退回 55% 以内 → 空位重新出现（迟滞，避免来回抖）
-  var THROW_SPEED = 0.55;  // px/ms，超过才算「甩出去」
-  var THROW_MS = 380;
+  var MOUSE_ACTIVATE = 6;       // 鼠标移动超过此像素才判定为拖拽（区分点击）
+  var TOUCH_HOLD = 200;         // 触摸长按激活
+  var FLIP_MS = 260;            // 邻居让位 FLIP 时长
+  var THROW_SPEED = 0.55;       // px/ms，超过才算「甩出去」
+  var THROW_MS = 360;
+  var LIFT_SCALE = 1.04;        // 浮空缩放
+  var PRESS_SCALE = 0.97;       // 按下下沉（保留给将来统一按压用）
+  var DRAG_TILT = 3;            // 拖拽时随速度的微倾上限（度）
+  var FOLLOW = 0.3;             // 跟手弹簧迟滞系数（越小越「重」）
+  var SPRING = { stiffness: 260, damping: 22 }; // 落位弹簧（过冲 ~6%）
 
-  var state = null;
-  var rafId = 0;
+  var REDUCED = false;
+  try { REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  var state = null;             // 拖拽状态
   var suppressClickUntil = 0;
+
+  function clamp(v, min, max) { return v < min ? min : (v > max ? max : v); }
 
   /* ---------------- 工具 ---------------- */
 
@@ -49,21 +61,10 @@
     try { return new URL(href, location.href).pathname; } catch (e) { return href; }
   }
 
-  function currentTranslateY(el) {
-    var t = window.getComputedStyle(el).transform;
-    if (!t || t === 'none') return 0;
-    var m = t.match(/matrix\(([^)]+)\)/);
-    if (m) { var p = m[1].split(','); return parseFloat(p[5]) || 0; }
-    var m3 = t.match(/matrix3d\(([^)]+)\)/);
-    if (m3) { var q = m3[1].split(','); return parseFloat(q[13]) || 0; }
-    return 0;
-  }
-
-  function layoutTop(el) { return el.getBoundingClientRect().top - currentTranslateY(el); }
-
-  function siblingsOf(container) {
-    var out = [];
-    var kids = container.children;
+  // 当前流内的文章卡（排除正在拖的那张和占位剪影）
+  function flowItems() {
+    var c = state.container, out = [];
+    var kids = c.children;
     for (var i = 0; i < kids.length; i++) {
       var el = kids[i];
       if (el === state.item || el === state.slot) continue;
@@ -72,14 +73,20 @@
     return out;
   }
 
-  function flipTo(el, fromTop) {
-    var delta = fromTop - el.getBoundingClientRect().top;
-    if (Math.abs(delta) < 0.5) return;
-    if (el.__endyFlip) { try { el.__endyFlip.cancel(); } catch (e) {} }
-    el.__endyFlip = el.animate(
-      [{ transform: 'translateY(' + delta + 'px)' }, { transform: 'translateY(0)' }],
-      { duration: FLIP_MS, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }
-    );
+  function clearDragStyles(item) {
+    item.style.position = '';
+    item.style.left = '';
+    item.style.top = '';
+    item.style.width = '';
+    item.style.height = '';
+    item.style.margin = '';
+    item.style.zIndex = '';
+    item.style.transform = '';
+    item.style.transition = '';
+    item.style.transformOrigin = '';
+    item.style.willChange = '';
+    item.style.pointerEvents = '';
+    item.style.boxShadow = '';
   }
 
   /* ---------------- 顺序持久化 ---------------- */
@@ -87,8 +94,7 @@
   function saveOrder() {
     var c = document.querySelector(CONTAINER);
     if (!c) return;
-    var urls = [];
-    var items = c.querySelectorAll(ITEM);
+    var urls = [], items = c.querySelectorAll(ITEM);
     for (var i = 0; i < items.length; i++) {
       var u = itemUrl(items[i]);
       if (u) urls.push(u);
@@ -128,9 +134,64 @@
     location.reload();
   };
 
+  /* ---------------- 实时重排：占位剪影随光标移动 ---------------- */
+
+  // 根据指针 Y 计算应插入的索引（vertical list）
+  function targetIndex(pointerY) {
+    var items = flowItems();
+    for (var i = 0; i < items.length; i++) {
+      var r = items[i].getBoundingClientRect();
+      if (pointerY < r.top + r.height / 2) return i;
+    }
+    return items.length;
+  }
+
+  // 把占位剪影移到目标位置；仅当目标索引变化时才重排并 FLIP，避免每帧抖动
+  function setTarget(pointerY) {
+    var s = state;
+    var items = flowItems();
+    var idx = targetIndex(pointerY);
+    var pag = s.container.querySelector('#pagination');
+    var ref = (idx >= items.length) ? (pag || null) : items[idx];
+    if (s.slot.nextSibling === ref) return; // 没变化，不动
+
+    var before = items.map(function (el) { return el.getBoundingClientRect().top; });
+    s.container.insertBefore(s.slot, ref);
+    items.forEach(function (el, i) {
+      var after = el.getBoundingClientRect().top;
+      var delta = before[i] - after;
+      if (Math.abs(delta) < 0.5) return;
+      if (el.__flip) { try { el.__flip.cancel(); } catch (e) {} }
+      el.__flip = el.animate(
+        [{ transform: 'translateY(' + delta + 'px)' }, { transform: 'translateY(0)' }],
+        { duration: FLIP_MS, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }
+      );
+    });
+  }
+
+  /* ---------------- 跟手帧循环（弹簧迟滞） ---------------- */
+
+  function frame() {
+    var s = state;
+    if (!s || !s.active) return;
+    var tx = s.pointerX - s.grabX;
+    var ty = s.pointerY - s.grabY;
+    s.curX += (tx - s.curX) * FOLLOW;
+    s.curY += (ty - s.curY) * FOLLOW;
+    var vx = tx - s.curX, vy = ty - s.curY;
+    var tiltY = clamp(vx / 40, -DRAG_TILT, DRAG_TILT);
+    var tiltX = clamp(-vy / 40, -DRAG_TILT, DRAG_TILT);
+    s.item.style.left = (s.originLeft + s.curX) + 'px';
+    s.item.style.top = (s.originTop + s.curY) + 'px';
+    s.item.style.transform =
+      'perspective(900px) rotateX(' + tiltX.toFixed(2) + 'deg) rotateY(' + tiltY.toFixed(2) + 'deg) scale(' + LIFT_SCALE + ')';
+    if (s.needSlot) { s.needSlot = false; setTarget(s.pointerY); }
+    s.raf = requestAnimationFrame(frame);
+  }
+
   /* ---------------- 拖拽生命周期 ---------------- */
 
-  function startDrag() {
+  function startDrag(e) {
     var s = state;
     s.active = true;
     window.__endyDragActive = true;
@@ -139,142 +200,41 @@
     var item = s.item;
     var rect = item.getBoundingClientRect();
     s.originRect = rect;
-    s.width = rect.width;
-    s.height = rect.height;
-    s.savedCss = item.style.cssText;
-    var mb = parseFloat(window.getComputedStyle(item).marginBottom) || 0;
-    s.slotMargin = mb;
-    s.filled = false;          // false = 原位留空；true = 已补位、空槽跟随悬停
+    s.originLeft = rect.left;
+    s.originTop = rect.top;
+    s.grabX = e.clientX - rect.left;
+    s.grabY = e.clientY - rect.top;
+    s.curX = 0; s.curY = 0;
+    s.pointerX = e.clientX; s.pointerY = e.clientY;
 
-    item.classList.add('endy-drag-item');
+    // 收掉 press-gravity 可能残留的悬浮倾斜，避免两套管子打架
     if (typeof window.__endyPressRelease === 'function') {
-      try { window.__endyPressRelease(item); } catch (e) {}
+      try { window.__endyPressRelease(item); } catch (e2) {}
     }
+    item.classList.add('endy-drag-item');
+    item.style.transition = 'none';
+    item.style.transform = '';
 
-    // 流内空槽：占住原位置，卡片拖回来直接落进去
+    var mb = parseFloat(window.getComputedStyle(item).marginBottom) || 0;
     var slot = document.createElement('div');
-    slot.className = 'endy-drag-slot';
+    slot.className = 'endy-drag-silhouette';
     slot.style.height = rect.height + 'px';
     slot.style.marginBottom = mb + 'px';
     s.slot = slot;
     item.parentNode.insertBefore(slot, item);
 
-    // 原位虚线框（绝对定位浮层，不占额外高度）
-    var origin = document.createElement('div');
-    origin.className = 'endy-drag-origin';
-    origin.style.position = 'absolute';
-    origin.style.left = (rect.left + window.pageXOffset) + 'px';
-    origin.style.top = (rect.top + window.pageYOffset) + 'px';
-    origin.style.width = rect.width + 'px';
-    origin.style.height = rect.height + 'px';
-    origin.style.pointerEvents = 'none';
-    origin.style.zIndex = '1';
-    document.body.appendChild(origin);
-    s.origin = origin;
-
-    // 拖拽项脱离文档流
-    item.classList.add('endy-drag-ghost');
     item.style.position = 'fixed';
+    item.style.margin = '0';
     item.style.left = rect.left + 'px';
     item.style.top = rect.top + 'px';
     item.style.width = rect.width + 'px';
     item.style.height = rect.height + 'px';
-    item.style.margin = '0';
     item.style.zIndex = '99998';
     item.style.pointerEvents = 'none';
     document.body.classList.add('endy-dragging');
 
-    try { item.setPointerCapture(s.pointerId); } catch (e) {}
-  }
-
-  function applyTransform() {
-    var s = state;
-    s.item.style.transform =
-      'translate3d(' + s.dx + 'px,' + s.dy + 'px,0) scale(1.02) rotate(0.4deg)';
-  }
-
-  // 空槽每次「新出现」都重播一次渐入动画（虚线框 + 淡主题色底淡入）
-  function replaySlotIn(slot) {
-    if (!slot) return;
-    slot.style.display = '';
-    slot.classList.remove('endy-slot-in');
-    void slot.offsetWidth;
-    slot.classList.add('endy-slot-in');
-  }
-
-  // 补位 / 收回空位（带迟滞，防止在阈值附近来回抖）
-  function setFilled(v) {
-    var s = state;
-    if (s.filled === v) return;
-    s.filled = v;
-    var others = siblingsOf(s.container);
-    if (!v) {
-      // 恢复空位：空槽回到原位（第一张卡片之前，而不是容器最顶上——上面还有分类栏）
-      var before = others.map(function (el) { return el.getBoundingClientRect().top; });
-      var firstItem = s.container.querySelector('.recent-post-item');
-      s.container.insertBefore(s.slot, firstItem || s.container.firstChild);
-      others.forEach(function (el, i) { flipTo(el, before[i]); });
-      // 「原位」示意框重新淡入
-      if (s.origin) s.origin.classList.remove('is-hidden');
-      replaySlotIn(s.slot);
-    } else {
-      // 补位：空槽撤出文档流，后面的卡片补上来；原位示意框同时淡出消失
-      var b2 = others.map(function (el) { return el.getBoundingClientRect().top; });
-      s.slot.style.display = 'none';
-      others.forEach(function (el, i) { flipTo(el, b2[i]); });
-      if (s.origin) s.origin.classList.add('is-hidden');
-    }
-  }
-
-  // 每帧：按状态决定空槽位置
-  function updateSlot() {
-    var s = state;
-    if (!s || !s.active) return;
-
-    var ghost = s.item.getBoundingClientRect();
-    var centerY = ghost.top + ghost.height / 2;
-    var disp = Math.abs(centerY - (s.originRect.top + s.height / 2));
-
-    if (!s.filled) {
-      if (disp > s.height * FILL_AT) setFilled(true);
-      return;                                   // 未补位：布局完全不动
-    }
-    if (disp < s.height * UNFILL_AT) { setFilled(false); return; }
-
-    // 已补位：空槽跟随「压在哪张卡上」
-    var others = siblingsOf(s.container);
-    if (!others.length) return;
-
-    var target = others.length;
-    for (var i = 0; i < others.length; i++) {
-      var top = layoutTop(others[i]);
-      var h = others[i].offsetHeight;
-      if (centerY < top + h / 2) { target = i; break; }
-    }
-
-    var kids = s.container.children;
-    var slotIdx = 0;
-    for (var k = 0; k < kids.length; k++) {
-      if (kids[k] === s.slot) break;
-      if (others.indexOf(kids[k]) !== -1) slotIdx++;
-    }
-    if (target === slotIdx) return;
-
-    var before = others.map(function (el) { return el.getBoundingClientRect().top; });
-    // 可放置示意区不能越过页码：到底也只插在最后一张卡之后、分页 #pagination 之前
-    s.slot.style.display = '';
-    var ref = others[target] || s.container.querySelector('#pagination');
-    s.container.insertBefore(s.slot, ref || null);
-    others.forEach(function (el, idx) { flipTo(el, before[idx]); });
-    replaySlotIn(s.slot);
-  }
-
-  function scheduleUpdate() {
-    if (rafId) return;
-    rafId = requestAnimationFrame(function () {
-      rafId = 0;
-      updateSlot();
-    });
+    try { item.setPointerCapture(s.pointerId); } catch (e3) {}
+    s.raf = requestAnimationFrame(frame);
   }
 
   function releaseVel() {
@@ -289,15 +249,7 @@
     return { x: (last.x - arr[0].x) / dt, y: (last.y - arr[0].y) / dt };
   }
 
-  function cleanupDom(s) {
-    if (s.slot && s.slot.parentNode) s.slot.parentNode.removeChild(s.slot);
-    if (s.origin && s.origin.parentNode) s.origin.parentNode.removeChild(s.origin);
-    document.body.classList.remove('endy-dragging');
-    window.__endyDragActive = false;
-    state = null;
-  }
-
-  // 甩出列表 → 飞出并进入文章（飞多远由释放速度决定，体现「甩的力气」）
+  // 甩出列表 → 飞出并进入文章
   function throwOut(s, vx, vy) {
     var item = s.item;
     var speed = Math.hypot(vx, vy) || 1;
@@ -305,10 +257,12 @@
     var fx = (vx / speed) * dist;
     var fy = (vy / speed) * dist;
 
+    var fromT = item.style.transform ||
+      'perspective(900px) translate3d(0,0,0) rotateX(0) rotateY(0) scale(' + LIFT_SCALE + ')';
     var fly = item.animate(
       [
-        { transform: item.style.transform, opacity: 1 },
-        { transform: 'translate3d(' + (s.dx + fx) + 'px,' + (s.dy + fy) + 'px,0) scale(0.9) rotate(' + (fx > 0 ? 6 : -6) + 'deg)', opacity: 0 }
+        { transform: fromT, opacity: 1 },
+        { transform: 'perspective(900px) translate3d(' + fx + 'px,' + fy + 'px,0) rotate(' + (fx > 0 ? 10 : -10) + 'deg) scale(0.9)', opacity: 0 }
       ],
       { duration: THROW_MS, easing: 'cubic-bezier(0.3, 0, 0.6, 0.6)', fill: 'forwards' }
     );
@@ -316,15 +270,17 @@
     var go = function () {
       if (gone) return;
       gone = true;
-      item.classList.remove('endy-drag-ghost', 'endy-drag-item');
-      item.style.cssText = s.savedCss || '';
-      cleanupDom(s);
+      if (s.slot && s.slot.parentNode) s.slot.parentNode.removeChild(s.slot);
+      document.body.classList.remove('endy-dragging');
+      window.__endyDragActive = false;
+      item.classList.remove('endy-drag-item');
+      clearDragStyles(item);
+      state = null;
       suppressClickUntil = Date.now() + 500;
       if (window.pjax && typeof window.pjax.loadUrl === 'function') window.pjax.loadUrl(s.url);
       else location.href = s.url;
     };
-    fly.onfinish = go;
-    fly.oncancel = go;
+    fly.onfinish = go; fly.oncancel = go;
     setTimeout(go, THROW_MS + 500);
   }
 
@@ -334,7 +290,7 @@
     var item = s.item, slot = s.slot;
     var v = releaseVel();
 
-    // 甩出判定：释放点在列表外 + 速度够快
+    // 甩出判定
     var cr = s.container.getBoundingClientRect();
     var gc = item.getBoundingClientRect();
     var cx = gc.left + gc.width / 2, cy = gc.top + gc.height / 2;
@@ -348,31 +304,54 @@
 
     var slotRect = slot.getBoundingClientRect();
     var cur = item.getBoundingClientRect();
-    var restDx = s.dx + (slotRect.left - cur.left);
-    var restDy = s.dy + (slotRect.top - cur.top);
-
-    var land = item.animate(
-      [
-        { transform: 'translate3d(' + s.dx + 'px,' + s.dy + 'px,0) scale(1.02) rotate(0.4deg)' },
-        { transform: 'translate3d(' + restDx + 'px,' + restDy + 'px,0) scale(1) rotate(0deg)' }
-      ],
-      { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' }
-    );
+    // 以「固定定位原点」为基准的偏移量
+    var curOffX = cur.left - s.originLeft;
+    var curOffY = cur.top - s.originTop;
+    var tgtOffX = slotRect.left - s.originLeft;
+    var tgtOffY = slotRect.top - s.originTop;
 
     var done = function () {
-      item.classList.remove('endy-drag-ghost', 'endy-drag-item');
-      item.style.cssText = s.savedCss || '';
+      if (s.settleAnim) { try { s.settleAnim.cancel(); } catch (e) {} }
+      item.classList.remove('endy-drag-item');
+      clearDragStyles(item);
       if (slot.parentNode) {
         slot.parentNode.insertBefore(item, slot);
         slot.parentNode.removeChild(slot);
       }
-      cleanupDom(s);
+      document.body.classList.remove('endy-dragging');
+      window.__endyDragActive = false;
+      state = null;
       saveOrder();
       suppressClickUntil = Date.now() + 220;
     };
-    land.onfinish = done;
-    land.oncancel = done;
-    setTimeout(function () { if (state === s) done(); }, 400);
+
+    if (REDUCED) {
+      // 降级：无位移动画，直接归位
+      done();
+      return;
+    }
+
+    // 弹簧落位：过冲 + 收敛到目标
+    var pts = (window.EndySpring && window.EndySpring.samples)
+      ? window.EndySpring.samples(SPRING)
+      : [0, 0.5, 1];
+    var frames = pts.map(function (p) {
+      var e = p; // 允许 >1 的过冲
+      var tx = curOffX + (tgtOffX - curOffX) * e;
+      var ty = curOffY + (tgtOffY - curOffY) * e;
+      var sc = LIFT_SCALE + (1 - LIFT_SCALE) * Math.max(0, Math.min(1, e));
+      return {
+        transform: 'perspective(900px) translate3d(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px,0) rotateX(0deg) rotateY(0deg) scale(' + sc.toFixed(4) + ')'
+      };
+    });
+    var anim = item.animate(frames, {
+      duration: frames.length * 1000 / 60,
+      easing: 'linear',
+      fill: 'forwards'
+    });
+    s.settleAnim = anim;
+    anim.onfinish = done; anim.oncancel = done;
+    setTimeout(function () { if (state === s) done(); }, 800);
   }
 
   function cancelDrag() {
@@ -403,12 +382,12 @@
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
-      dx: 0,
-      dy: 0,
       active: false,
       holdReady: false,
       samples: [],
-      type: e.pointerType || 'mouse'
+      type: e.pointerType || 'mouse',
+      needSlot: false,
+      raf: 0
     };
     state.holdTimer = setTimeout(function () {
       if (state) state.holdReady = true;
@@ -416,7 +395,7 @@
   }
 
   function onMove(e) {
-    if (!state || e.pointerId !== state.pointerId) return;
+    if (!state || (e.pointerId !== state.pointerId)) return;
     var s = state;
     var dx = e.clientX - s.startX;
     var dy = e.clientY - s.startY;
@@ -425,15 +404,14 @@
     if (!s.active) {
       var canStart = s.type === 'mouse' ? dist > MOUSE_ACTIVATE : (s.holdReady && dist > 4);
       if (!canStart) return;
-      startDrag();
+      startDrag(e);
     }
 
-    s.dx = dx;
-    s.dy = dy;
+    s.pointerX = e.clientX;
+    s.pointerY = e.clientY;
     s.samples.push({ t: Date.now(), x: e.clientX, y: e.clientY });
     if (s.samples.length > 24) s.samples.shift();
-    applyTransform();
-    scheduleUpdate();
+    s.needSlot = true;
     if (e.cancelable) e.preventDefault();
   }
 
@@ -446,7 +424,7 @@
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('pointermove', onMove, true);
   document.addEventListener('pointerup', onUp, true);
-  document.addEventListener('pointercancel', function () { cancelDrag(); }, true);
+  document.addEventListener('pointercancel', cancelDrag, true);
   window.addEventListener('blur', cancelDrag);
 
   document.addEventListener('touchmove', function (e) {
