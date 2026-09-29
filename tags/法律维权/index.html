@@ -61,7 +61,7 @@
   isHome: false,
   isHighlightShrink: false,
   isToc: false,
-  postUpdate: '2026-09-29 09:26:27',
+  postUpdate: '2026-09-29 09:57:53',
   postMainColor: '',
 }</script><noscript><style type="text/css">
   #nav {
@@ -605,16 +605,127 @@ document.addEventListener('pjax:error', e => {
   if (e.request.status === 404) {
     pjax.loadUrl('/404.html')
   }
-})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><script charset="UTF-8" src="https://cdn.cbd.int/anzhiyu-theme-static@1.1.5/accesskey/accesskey.js"></script></div><div id="popup-window"><div class="popup-window-title">通知</div><div class="popup-window-divider"></div><div class="popup-window-content"><div class="popup-tip">你好呀</div><div class="popup-link"><i class="anzhiyufont anzhiyu-icon-arrow-circle-right"></i></div></div></div><!-- hexo injector body_end start --><script src="/pluginsSrc/oh-my-live2d/dist/index.min.js"></script><script>const oml2d = OML2D.loadOml2d({dockedPosition:"right",mobileDisplay:false,sayHello:false,primaryColor:"#ff7eb6",models:[{"name":"miku","path":"/live2d_models/miku/miku.model3.json","scale":0.035,"anchor":[0.5,0.5],"position":[170,200],"stageStyle":{"width":320,"height":400},"motionPreloadStrategy":"IDLE","volume":0}],tips:{idleTips:{interval:15000,message:["彖辞破暗，渊澄万象 —— 欢迎来到彖渊子。","点我一下，我会换个表情哦～","葱，才是本体。","这里是彖渊子的看板娘：初音未来。"]},welcomeTips: {"message":{"daybreak":"天快亮了，初音陪你一起熬夜？","morning":"上午好～今天也要元气满满！","noon":"中午啦，记得吃饭哦～","afternoon":"午后犯困的话，听首歌吧♪","dusk":"傍晚了，今天辛苦啦～","night":"晚上好，要听我唱一首吗？","lateNight":"很晚了，早点休息吧，晚安～","weeHours":"这么晚还不睡？当心熬夜秃头哦！"}}},menus:{items:(d)=>[...d,{id:'Expression',icon:'icon-like',title:'换个表情',onClick:(o)=>{try{var m=o.models&&o.models.model;if(m&&m.expression)m.expression()}catch(e){}}},{id:'Motion',icon:'icon-skin',title:'动一下',onClick:(o)=>{try{var m=o.models&&o.models.model;if(m&&m.motion)m.motion('tap_body')}catch(e){}}}]}});// 点击看板娘：只换表情，不触发/不打断动作。
-// oml2d 自带的 hit 回调是「播一个随机动作」，这里先 off() 整体摘掉，再绑一个只换表情的。
-// off 不带回调名 = 移除该事件的所有监听，包括插件内部那个。
-try {
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><script charset="UTF-8" src="https://cdn.cbd.int/anzhiyu-theme-static@1.1.5/accesskey/accesskey.js"></script></div><div id="popup-window"><div class="popup-window-title">通知</div><div class="popup-window-divider"></div><div class="popup-window-content"><div class="popup-tip">你好呀</div><div class="popup-link"><i class="anzhiyufont anzhiyu-icon-arrow-circle-right"></i></div></div></div><!-- hexo injector body_end start --><script src="/pluginsSrc/oh-my-live2d/dist/index.min.js"></script><script>const oml2d = OML2D.loadOml2d({dockedPosition:"right",mobileDisplay:false,sayHello:false,primaryColor:"#ff7eb6",models:[{"name":"miku","path":"/live2d_models/miku/miku.model3.json","scale":0.035,"anchor":[0.5,0.5],"position":[170,200],"stageStyle":{"width":320,"height":400},"motionPreloadStrategy":"IDLE","volume":0}],tips:{idleTips:{interval:15000,message:["彖辞破暗，渊澄万象 —— 欢迎来到彖渊子。","点我一下，我会换个表情哦～","葱，才是本体。","这里是彖渊子的看板娘：初音未来。"]},welcomeTips: {"message":{"daybreak":"天快亮了，初音陪你一起熬夜？","morning":"上午好～今天也要元气满满！","noon":"中午啦，记得吃饭哦～","afternoon":"午后犯困的话，听首歌吧♪","dusk":"傍晚了，今天辛苦啦～","night":"晚上好，要听我唱一首吗？","lateNight":"很晚了，早点休息吧，晚安～","weeHours":"这么晚还不睡？当心熬夜秃头哦！"}}},menus:{items:(d)=>{return d.filter(i=>i.id==='Rest');}}});// ===== 看板娘交互：连击 3 次弹出设置面板 + 模型拖动 =====
+// 点击模型：只换表情，不播动作（已 off 掉默认 hit）。
+(function () {
+  var THEME = '#ff7eb6'; // 与 primaryColor 一致
+  window.__mikuLastScale = 0.035;
+  window.__mikuDragEnabled = false;
+  window.__mikuClickTimes = [];
+  window.__mikuDragBound = false;
+
+  function model() { return oml2d.models && oml2d.models.model; }
+
+  // 创建 / 显示设置面板（圆角 + 主题色）
+  window.__mikuOpenPanel = function () {
+    var p = document.getElementById('miku-settings-panel');
+    if (!p) {
+      p = document.createElement('div');
+      p.id = 'miku-settings-panel';
+      p.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+          '<span style="font-weight:700;color:' + THEME + ';font-size:15px;letter-spacing:1px;">看板娘设置</span>' +
+          '<button id="miku-panel-close" style="border:none;background:' + THEME + '22;color:' + THEME + ';width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:16px;line-height:1;">×</button>' +
+        '</div>' +
+        '<div style="margin-bottom:14px;">' +
+          '<div style="font-size:13px;margin-bottom:8px;color:#666;">模型大小 <span id="miku-scale-val" style="color:' + THEME + ';font-weight:600;">' + window.__mikuLastScale.toFixed(3) + '</span></div>' +
+          '<input id="miku-scale-input" type="range" min="0.01" max="0.15" step="0.001" style="width:100%;accent-color:' + THEME + ';">' +
+        '</div>' +
+        '<label style="display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#666;cursor:pointer;">' +
+          '<span>允许拖动</span>' +
+          '<input id="miku-drag-toggle" type="checkbox" style="accent-color:' + THEME + ';width:18px;height:18px;">' +
+        '</label>';
+      p.style.cssText = 'position:fixed;z-index:99999;background:#fff;border:2px solid ' + THEME + ';border-radius:18px;padding:18px 20px;box-shadow:0 10px 30px ' + THEME + '55;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;width:248px;color:#333;box-sizing:border-box;';
+      document.body.appendChild(p);
+
+      // 定位到模型左侧
+      var stage = document.getElementById('oml2d-stage');
+      if (stage) {
+        var r = stage.getBoundingClientRect();
+        var left = r.left - 248 - 16; if (left < 12) left = 12;
+        var top = r.top; if (top < 12) top = 12;
+        p.style.left = left + 'px';
+        p.style.top = top + 'px';
+      } else { p.style.right = '20px'; p.style.bottom = '120px'; }
+
+      var slider = p.querySelector('#miku-scale-input');
+      var val = p.querySelector('#miku-scale-val');
+      slider.value = window.__mikuLastScale;
+      slider.oninput = function () {
+        var v = parseFloat(this.value);
+        window.__mikuLastScale = v;
+        oml2d.setModelScale(v);
+        val.textContent = v.toFixed(3);
+      };
+      var dragToggle = p.querySelector('#miku-drag-toggle');
+      dragToggle.checked = window.__mikuDragEnabled;
+      dragToggle.onchange = function () {
+        window.__mikuDragEnabled = this.checked;
+        var m = model(); if (!m) return;
+        if (window.__mikuDragEnabled) { window.__mikuInitDrag(); }
+      };
+      p.querySelector('#miku-panel-close').onclick = function () { window.__mikuClosePanel(); };
+    }
+    p.style.display = 'block';
+  };
+
+  window.__mikuClosePanel = function () {
+    var p = document.getElementById('miku-settings-panel');
+    if (p) p.style.display = 'none';
+  };
+
+  // 拖动：在 stage 上用 pointer 事件移动模型，开关关闭时由用户取消勾选即停止
+  window.__mikuInitDrag = function () {
+    var stage = document.getElementById('oml2d-stage');
+    if (!stage || stage.__mikuDragBound) return;
+    stage.__mikuDragBound = true;
+    var dragging = false, sx = 0, sy = 0, ol = 0, ob = 0;
+    stage.addEventListener('pointerdown', function (e) {
+      if (!window.__mikuDragEnabled) return;
+      dragging = true; sx = e.clientX; sy = e.clientY;
+      var rect = stage.getBoundingClientRect();
+      stage.style.right = 'auto';
+      stage.style.left = rect.left + 'px';
+      stage.style.bottom = (window.innerHeight - rect.bottom) + 'px';
+      ol = rect.left; ob = window.innerHeight - rect.bottom;
+      try { stage.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      stage.style.left = (ol + dx) + 'px';
+      stage.style.bottom = (ob - dy) + 'px';
+    });
+    stage.addEventListener('pointerup', function (e) {
+      if (!dragging) return; dragging = false;
+      try { stage.releasePointerCapture(e.pointerId); } catch (_) {}
+    });
+  };
+
+  // 连击检测：模型区域 1.2s 内点击 3 次弹面板；单击只换表情（不播动作）
+  document.addEventListener('click', function (e) {
+    var stage = document.getElementById('oml2d-stage');
+    if (!stage || !stage.contains(e.target)) return;
+    if (e.target.closest && e.target.closest('#oml2d-menus')) return; // 忽略菜单按钮
+    var now = Date.now();
+    window.__mikuClickTimes.push(now);
+    window.__mikuClickTimes = window.__mikuClickTimes.filter(function (t) { return now - t < 1200; });
+    if (window.__mikuClickTimes.length >= 3) {
+      window.__mikuClickTimes = [];
+      window.__mikuOpenPanel();
+      return;
+    }
+    if (!window.__mikuDragEnabled) {
+      var m = model(); if (m && m.expression) m.expression();
+    }
+  });
+
+  // 关闭 oml2d 默认「点击播放随机动作」，仅保留表情切换（由上面的 click 监听处理）
   oml2d.onLoad(function (status) {
     if (status !== 'success') return;
-    var m = oml2d.models && oml2d.models.model;
+    var m = model();
     if (!m) return;
     try { m.off('hit'); } catch (e) {}
-    try { m.on('hit', function () { m.expression(); }); } catch (e) {}
   });
-} catch (e) {}
+})();
 </script><!-- hexo injector body_end end --></body></html>
