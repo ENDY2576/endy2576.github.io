@@ -22,7 +22,7 @@
   // 参与按压反馈的「卡片」选择器
   var CARDS = [
     '.card-widget', '.card', '.post-card', '.recent-post-item', '.article-sort-item',
-    '.article-item', '.author-content-item', '.categoryItem', '.tag-cloud-list a',
+    '.article-item', '.author-content-item', '.tag-cloud-list a',
     '.card-tags a', '.card-categories a', '.card-archives li', '.card-webinfo li',
     '.flink-list-item', '.site-card', '.friend-content', '.gallery-item', '.fj-gallery a',
     '.note', '.post-copyright', '.relatedPosts .relatedPosts-list-item',

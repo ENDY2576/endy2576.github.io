@@ -2208,10 +2208,31 @@ img[data-lazy-src*="pZRXSc6"] {
    免得覆盖主题原生效果。
    ================================================================== */
 .categoryGroup .categoryItem {
-  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  /* expo-out：起步快、尾段极缓 —— 有明确的「加速度 → 收尾」节奏，
+     比 linear / ease 的匀速推挤自然得多 */
+  transition: width 0.62s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.45s ease !important;
+  will-change: width, transform;
 }
-.categoryGroup .categoryItem:hover {
-  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1) !important;
+/* 悬浮那张：略微放大抬起，抢到视觉焦点 */
+.categoryGroup:hover .categoryItem:hover {
+  transform: translateY(-4px) scale(1.012);
+  z-index: 2;
+  box-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.28) !important;
+}
+/* 其余两张：延迟 60ms 再被「挤」下去，形成一圈有先后的挤压波纹 */
+.categoryGroup:hover .categoryItem:not(:hover) {
+  transition-delay: 0.06s;
+  transform: scale(0.982);
+  filter: saturate(0.92);
+}
+.categoryGroup .categoryItem a.categoryButton {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.categoryItem:hover a.categoryButton i,
+.categoryItem:hover a.categoryButton svg {
+  transition-delay: 0.1s;
 }
 @media (prefers-reduced-motion: reduce) {
   .categoryGroup .categoryItem { transition: none !important; }
