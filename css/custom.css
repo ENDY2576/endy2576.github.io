@@ -1346,11 +1346,16 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
      整个 640×960 舞台需要向右下平移。舞台其余区域透明，pointer-events 已关闭。 */
   right: -165px !important;
   bottom: -242px !important;
+  /* 开关切换时平滑淡入淡出 + 轻微下滑（transform 由 .miku-hidden 接管） */
+  transition: opacity 0.36s ease, visibility 0.36s ease,
+              transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 #oml2d-stage.miku-hidden {
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+  /* 隐藏时整体滑回屏幕外，出现时从这里滑回来 —— 与透明度过渡叠加成平滑动画 */
+  transform: translateY(130%) scale(0.985) !important;
 }
 #oml2d-stage.miku-hidden canvas,
 #oml2d-stage.miku-hidden #oml2d-tips,
@@ -1361,6 +1366,7 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 #miku-hitbox.miku-hidden {
   visibility: hidden !important;
   opacity: 0 !important;
+  transition: opacity 0.36s ease, visibility 0.36s ease;
 }
 
 /* 右侧设置面板 + 中控台：Miku 开关图标居中 */
@@ -1908,6 +1914,18 @@ body.endy-dragging * { cursor: grabbing !important; }
   0% { box-shadow: 0 0 0 0 rgba(75, 92, 196, 0.45); }
   70% { box-shadow: 0 0 0 9px rgba(75, 92, 196, 0); }
   100% { box-shadow: 0 0 0 0 rgba(75, 92, 196, 0); }
+}
+/* 开关联动波纹：拨动任意开关，其余开关按距离（--wave-delay）依次荡开 */
+.miku-switch-btn.wave {
+  animation: miku-sw-wave 560ms var(--wave-delay, 0ms) ease-out;
+}
+@keyframes miku-sw-wave {
+  0% { box-shadow: 0 0 0 0 rgba(75, 92, 196, 0.28); transform: scale(1); }
+  40% { box-shadow: 0 0 0 6px rgba(75, 92, 196, 0); transform: scale(1.07); }
+  100% { box-shadow: 0 0 0 0 rgba(75, 92, 196, 0); transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .miku-switch-btn.wave { animation: none; }
 }
 /* 联动禁用：隐藏看板娘 / 休息中时，相关开关变灰且不可点 */
 .miku-switch-btn.is-disabled {

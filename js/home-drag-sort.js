@@ -200,9 +200,10 @@
     s.filled = v;
     var others = siblingsOf(s.container);
     if (!v) {
-      // 恢复空位：空槽回到最前（原位）
+      // 恢复空位：空槽回到原位（第一张卡片之前，而不是容器最顶上——上面还有分类栏）
       var before = others.map(function (el) { return el.getBoundingClientRect().top; });
-      s.container.insertBefore(s.slot, s.container.firstChild);
+      var firstItem = s.container.querySelector('.recent-post-item');
+      s.container.insertBefore(s.slot, firstItem || s.container.firstChild);
       others.forEach(function (el, i) { flipTo(el, before[i]); });
     } else {
       // 补位：空槽撤出文档流，后面的卡片补上来
@@ -248,7 +249,9 @@
 
     var before = others.map(function (el) { return el.getBoundingClientRect().top; });
     s.slot.style.display = '';
-    s.container.insertBefore(s.slot, others[target] || null);
+    // 可放置示意区不能越过页码：到底也只插在最后一张卡之后、分页 #pagination 之前
+    var ref = others[target] || s.container.querySelector('#pagination');
+    s.container.insertBefore(s.slot, ref || null);
     others.forEach(function (el, idx) { flipTo(el, before[idx]); });
   }
 

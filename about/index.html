@@ -1874,8 +1874,6 @@ document.addEventListener('pjax:error', e => {
         }).join('');
       }
 
-      var EXPR_ACTION = ['待机', '走路'];
-
       p.innerHTML =
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
           '<span style="font-weight:700;color:' + THEME + ';font-size:15px;letter-spacing:1px;">看板娘设置</span>' +
@@ -1902,8 +1900,6 @@ document.addEventListener('pjax:error', e => {
         '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' + btnGroup(EXPR_EMOTION, 'expr') + '</div>' +
         '<div style="font-size:12px;color:#999;margin-bottom:8px;">动作</div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' + btnGroup(EXPR_MOTION, 'expr') + '</div>' +
-        '<div style="font-size:12px;color:#999;margin-bottom:8px;">互动</div>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' + btnGroup(EXPR_ACTION, 'act') + '</div>' +
         '<div id="miku-skill-info" style="font-size:11px;color:#999;text-align:center;line-height:1.4;padding-top:8px;border-top:1px solid ' + THEME + '33;">' +
           '🎤 hatsune-miku-kanban v1.0.0<br>已加载「彖渊子的看板娘 · 初音未来」设定' +
         '</div>';
@@ -1958,9 +1954,25 @@ document.addEventListener('pjax:error', e => {
         slider.style.accentColor = THEME;
       }
 
+      // 开关联动涟漪：拨动任意一个开关，其余开关按距离依次荡开一圈波纹，
+      // 提示「这三个是一组整体设置」。
+      function waveFrom(el) {
+        var list = Array.prototype.slice.call(p.querySelectorAll('.miku-switch-btn'));
+        var idx = list.indexOf(el);
+        list.forEach(function (b, i) {
+          if (b === el) return;
+          b.classList.remove('wave');
+          void b.offsetWidth;   // 强制重排，保证连续点击也能重播动画
+          b.style.setProperty('--wave-delay', (Math.abs(i - idx) * 70) + 'ms');
+          b.classList.add('wave');
+          setTimeout(function () { b.classList.remove('wave'); }, 700);
+        });
+      }
+
       // 开关一：显示 / 隐藏看板娘
       p.querySelector('#miku-sw-visible').onclick = function () {
         window.__mikuToggleVisible();
+        waveFrom(this);
       };
 
       // 开关二：允许拖动
@@ -1968,6 +1980,7 @@ document.addEventListener('pjax:error', e => {
         if (!window.__mikuVisible || window.__mikuResting) return;
         window.__mikuDragEnabled = !window.__mikuDragEnabled;
         syncSwitchUI();
+        waveFrom(this);
         if (window.__mikuDragEnabled && oml2d && oml2d.tipsMessage) {
           oml2d.tipsMessage('现在可以拖着我到处走啦～', 2600, 2);
           alignTipsToHead();
@@ -2001,6 +2014,7 @@ document.addEventListener('pjax:error', e => {
           } catch (e) {}
           window.__mikuResting = true;
         }
+        waveFrom(this);
         syncSwitchUI();
         setTimeout(updateHitbox, 50);
         setTimeout(updateHitbox, 300);
