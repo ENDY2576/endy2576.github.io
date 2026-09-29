@@ -590,12 +590,12 @@ document.addEventListener('pjax:error', e => {
   if (e.request.status === 404) {
     pjax.loadUrl('/404.html')
   }
-})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><script charset="UTF-8" src="https://cdn.cbd.int/anzhiyu-theme-static@1.1.5/accesskey/accesskey.js"></script></div><div id="popup-window"><div class="popup-window-title">通知</div><div class="popup-window-divider"></div><div class="popup-window-content"><div class="popup-tip">你好呀</div><div class="popup-link"><i class="anzhiyufont anzhiyu-icon-arrow-circle-right"></i></div></div></div><!-- hexo injector body_end start --><script src="/pluginsSrc/oh-my-live2d/dist/index.min.js"></script><script>const oml2d = OML2D.loadOml2d({dockedPosition:"right",mobileDisplay:false,sayHello:false,primaryColor:"#ff7eb6",models:[{"name":"miku","path":"/live2d_models/miku/miku_v2.model3.json","scale":0.035,"anchor":[0.5,0.5],"position":[240,320],"stageStyle":{"width":480,"height":640},"motionPreloadStrategy":"IDLE","volume":0}],tips:{idleTips:{interval:15000,message:["彖辞破暗，渊澄万象 —— 欢迎来到彖渊子。","点我一下，我会换个表情哦～","葱，才是本体。","这里是彖渊子的看板娘：初音未来。"]},welcomeTips: {"message":{"daybreak":"天快亮了，初音陪你一起熬夜？","morning":"上午好～今天也要元气满满！","noon":"中午啦，记得吃饭哦～","afternoon":"午后犯困的话，听首歌吧♪","dusk":"傍晚了，今天辛苦啦～","night":"晚上好，要听我唱一首吗？","lateNight":"很晚了，早点休息吧，晚安～","weeHours":"这么晚还不睡？当心熬夜秃头哦！"}}},menus:{items:(d)=>{return [];}}});// ===== 看板娘交互：连击 3 次弹出设置面板 + 模型拖动 + 透明区点击穿透 =====
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><script charset="UTF-8" src="https://cdn.cbd.int/anzhiyu-theme-static@1.1.5/accesskey/accesskey.js"></script></div><div id="popup-window"><div class="popup-window-title">通知</div><div class="popup-window-divider"></div><div class="popup-window-content"><div class="popup-tip">你好呀</div><div class="popup-link"><i class="anzhiyufont anzhiyu-icon-arrow-circle-right"></i></div></div></div><!-- hexo injector body_end start --><script src="/pluginsSrc/oh-my-live2d/dist/index.min.js"></script><script>const oml2d = OML2D.loadOml2d({dockedPosition:"right",mobileDisplay:false,sayHello:false,primaryColor:"#4b5cc4",models:[{"name":"miku","path":"/live2d_models/miku/miku_v2.model3.json","scale":0.035,"anchor":[0.5,0.5],"position":[320,480],"stageStyle":{"width":640,"height":960},"motionPreloadStrategy":"IDLE","volume":0}],tips:{idleTips:{interval:15000,message:["彖辞破暗，渊澄万象 —— 欢迎来到彖渊子。","点我一下，我会换个表情哦～","葱，才是本体。","这里是彖渊子的看板娘：初音未来。"]},welcomeTips: {"message":{"daybreak":"天快亮了，初音陪你一起熬夜？","morning":"上午好～今天也要元气满满！","noon":"中午啦，记得吃饭哦～","afternoon":"午后犯困的话，听首歌吧♪","dusk":"傍晚了，今天辛苦啦～","night":"晚上好，要听我唱一首吗？","lateNight":"很晚了，早点休息吧，晚安～","weeHours":"这么晚还不睡？当心熬夜秃头哦！"}}},menus:{items:(d)=>{return [];}}});// ===== 看板娘交互：连击 3 次弹出设置面板 + 模型拖动 + 透明区仅身体可交互 =====
 (function () {
-  var THEME = '#ff7eb6'; // 与 primaryColor 一致
+  var THEME = '#4b5cc4'; // 博客主题色 deep blue
   var EXPR_EMOTION = ['脸红', '圈圈', 'QQ人'];
   var EXPR_MOTION = ['拿葱', '唱歌', '比心', '前倾'];
-  var SCALE_MIN = 0.01, SCALE_MAX = 0.08, SCALE_STEP = 0.001;
+  var SCALE_MIN = 0.01, SCALE_MAX = 0.1, SCALE_STEP = 0.001;
   var DEFAULT_SCALE = 0.035;
 
   window.__mikuLastScale = DEFAULT_SCALE;
@@ -607,22 +607,37 @@ document.addEventListener('pjax:error', e => {
   function stage() { return document.getElementById('oml2d-stage'); }
   function canvas() { var s = stage(); return s ? s.querySelector('canvas') : null; }
 
-  // 让舞台/画布不拦截点击，透明区可穿透到博客按钮
+  // 舞台/画布整体穿透，透明区不拦截博客按钮
   function patchPointerEvents() {
     var s = stage(), c = canvas();
     if (s) s.style.pointerEvents = 'none';
     if (c) c.style.pointerEvents = 'none';
   }
 
-  // 判断屏幕坐标是否真正点中了模型（非透明区）
-  function hitModel(clientX, clientY) {
-    var s = stage(), c = canvas(), m = model();
-    if (!s || !c || !m || !m.hitTest) return false;
-    var r = c.getBoundingClientRect();
-    var x = clientX - r.left, y = clientY - r.top;
-    if (x < 0 || y < 0 || x > r.width || y > r.height) return false;
-    var hits = m.hitTest(x, y);
-    return Array.isArray(hits) && hits.length > 0;
+  // 创建/更新覆盖模型身体的命中框（仅不透明身体区域可交互）
+  function ensureHitbox() {
+    var h = document.getElementById('miku-hitbox');
+    if (!h) {
+      h = document.createElement('div');
+      h.id = 'miku-hitbox';
+      h.style.cssText = 'position:fixed;z-index:99998;background:transparent;pointer-events:auto;cursor:pointer;';
+      document.body.appendChild(h);
+      bindHitboxEvents(h);
+    }
+    return h;
+  }
+
+  function updateHitbox() {
+    var h = ensureHitbox(), c = canvas(), m = model();
+    if (!h || !c || !m) return;
+    try {
+      var b = m.getBounds(true); // canvas-local AABB
+      var r = c.getBoundingClientRect();
+      h.style.left = (r.left + b.x) + 'px';
+      h.style.top = (r.top + b.y) + 'px';
+      h.style.width = b.width + 'px';
+      h.style.height = b.height + 'px';
+    } catch (e) {}
   }
 
   function setExpression(name) {
@@ -632,6 +647,50 @@ document.addEventListener('pjax:error', e => {
   function syncRestBtn() {
     var btn = document.getElementById('miku-rest-btn');
     if (btn) btn.textContent = window.__mikuResting ? '唤醒' : '休息';
+  }
+
+  function bindHitboxEvents(h) {
+    // 三击弹面板 / 单击换表情
+    h.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('#miku-settings-panel')) return;
+      var now = Date.now();
+      window.__mikuClickTimes.push(now);
+      window.__mikuClickTimes = window.__mikuClickTimes.filter(function (t) { return now - t < 1200; });
+      if (window.__mikuClickTimes.length >= 3) {
+        window.__mikuClickTimes = [];
+        window.__mikuOpenPanel();
+        return;
+      }
+      if (!window.__mikuDragEnabled) {
+        var m = model(); if (m && m.expression) m.expression();
+      }
+    });
+
+    // 拖动
+    var dragging = false, sx = 0, sy = 0, ol = 0, ob = 0;
+    h.addEventListener('pointerdown', function (e) {
+      if (!window.__mikuDragEnabled) return;
+      var s = stage(); if (!s) return;
+      dragging = true; sx = e.clientX; sy = e.clientY;
+      var rect = s.getBoundingClientRect();
+      s.style.right = 'auto';
+      s.style.left = rect.left + 'px';
+      s.style.bottom = (window.innerHeight - rect.bottom) + 'px';
+      ol = rect.left; ob = window.innerHeight - rect.bottom;
+      try { h.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    h.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var s = stage(); if (!s) return;
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      s.style.left = (ol + dx) + 'px';
+      s.style.bottom = (ob - dy) + 'px';
+      updateHitbox();
+    });
+    h.addEventListener('pointerup', function (e) {
+      if (!dragging) return; dragging = false;
+      try { h.releasePointerCapture(e.pointerId); } catch (_) {}
+    });
   }
 
   window.__mikuOpenPanel = function () {
@@ -689,6 +748,7 @@ document.addEventListener('pjax:error', e => {
         window.__mikuLastScale = v;
         oml2d.setModelScale(v);
         val.textContent = v.toFixed(3);
+        updateHitbox();
       };
 
       var dragToggle = p.querySelector('#miku-drag-toggle');
@@ -717,6 +777,8 @@ document.addEventListener('pjax:error', e => {
           window.__mikuResting = true;
         }
         syncRestBtn();
+        setTimeout(updateHitbox, 50);
+        setTimeout(updateHitbox, 300);
       };
 
       p.querySelectorAll('.miku-panel-btn').forEach(function (b) {
@@ -736,50 +798,16 @@ document.addEventListener('pjax:error', e => {
     if (p) p.style.display = 'none';
   };
 
-  // 连击检测：点中模型区域 1.2s 内 3 次弹面板；单击只换表情
-  document.addEventListener('click', function (e) {
-    if (!hitModel(e.clientX, e.clientY)) return;
-    if (e.target.closest && e.target.closest('#miku-settings-panel')) return;
-    var now = Date.now();
-    window.__mikuClickTimes.push(now);
-    window.__mikuClickTimes = window.__mikuClickTimes.filter(function (t) { return now - t < 1200; });
-    if (window.__mikuClickTimes.length >= 3) {
-      window.__mikuClickTimes = [];
-      window.__mikuOpenPanel();
-      return;
-    }
-    if (!window.__mikuDragEnabled) {
-      var m = model(); if (m && m.expression) m.expression();
-    }
-  });
-
-  // 拖动：点中模型时拖动整个 stage
-  var dragging = false, sx = 0, sy = 0, ol = 0, ob = 0;
-  document.addEventListener('pointerdown', function (e) {
-    if (!window.__mikuDragEnabled || !hitModel(e.clientX, e.clientY)) return;
-    var s = stage(); if (!s) return;
-    dragging = true; sx = e.clientX; sy = e.clientY;
-    var rect = s.getBoundingClientRect();
-    s.style.right = 'auto';
-    s.style.left = rect.left + 'px';
-    s.style.bottom = (window.innerHeight - rect.bottom) + 'px';
-    ol = rect.left; ob = window.innerHeight - rect.bottom;
-  });
-  document.addEventListener('pointermove', function (e) {
-    if (!dragging) return;
-    var s = stage(); if (!s) return;
-    var dx = e.clientX - sx, dy = e.clientY - sy;
-    s.style.left = (ol + dx) + 'px';
-    s.style.bottom = (ob - dy) + 'px';
-  });
-  document.addEventListener('pointerup', function () { dragging = false; });
-
   oml2d.onLoad(function (status) {
     if (status !== 'success') return;
     var m = model();
     if (!m) return;
     try { m.off('hit'); } catch (e) {}
     patchPointerEvents();
+    ensureHitbox();
+    updateHitbox();
   });
+
+  window.addEventListener('resize', updateHitbox);
 })();
 </script><!-- hexo injector body_end end --></body></html>
