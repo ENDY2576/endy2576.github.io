@@ -2151,3 +2151,33 @@ body.endy-page-in {
 @keyframes endy-page-in {
   from { opacity: 0; }
 }
+
+/* ==================================================================
+   主题切换时出现的 1px 主题色边框（--style-border-always）：
+   给所有会吃到这条边框的「卡片/面板」补上圆角，避免方角突兀。
+   药丸形元素（标签计数等已有大圆角的）不在此列，不受影响。
+   ================================================================== */
+:where(
+  #article-container pre,
+  #article-container figure.highlight,
+  #article-container .highlight-tools,
+  #article-container .tabs > .tab-contents .tab-item-content,
+  #article-container .timeline .timeline-item .timeline-item-content,
+  #pagination .pagination input,
+  #pagination .pagination .extend.prev,
+  #pagination .pagination .extend.next,
+  #random-post,
+  #post-comment .comment-tips,
+  #sidebar #sidebar-menus,
+  #sidebar #sidebar-menus .back-menu-list-groups .back-menu-list .back-menu-item,
+  #error-wrap .error-content,
+  #album_detail .album-music,
+  #album_detail .timeline ul li.album-item,
+  #bber .bber-music,
+  #bber .timeline ul li.bber-item,
+  #room_page .description,
+  #about-page .author-box .author-tag,
+  #algolia-search .search-dialog #algolia-hits .tag-list
+) {
+  border-radius: 12px;
+}
