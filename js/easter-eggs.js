@@ -213,25 +213,20 @@
   function emitConsoleHint() {
     const titleStyle = 'color:#ff7eb6; font-size:40px; font-weight:bold; text-shadow: 3px 3px 0 #7c5cff; padding: 4px 0;';
     const hint = '🎉 彖渊子彩蛋：你打开了控制台。在首页快速连点中间的大站名「彖渊子」5 下，会有惊喜。';
-    // 多通道输出：某些脚本/扩展只 hook 了 console.log，info/warn 可能仍原生
+    // 只走 console.log 一个通道，各输出一份（此前 log/info/warn 三通道 × F12 重刷会打出 3×2 份）
     try { console.log('%c彖 渊 子', titleStyle); } catch (e) {}
-    try { console.info('%c彖 渊 子', titleStyle); } catch (e) {}
-    try { console.warn('%c彖 渊 子', titleStyle); } catch (e) {}
     console.log(hint);
-    console.info(hint);
-    console.warn(hint);
   }
 
   function initConsoleEgg() {
     emitConsoleHint();
 
     // 监听 F12 / Ctrl+Shift+J / Ctrl+Shift+I / Cmd+Option+J / Cmd+Option+I
-    // 打开控制台时再刷一次，避免页面加载时的日志被某些扩展清掉
+    // 仅解锁彩蛋计数，不再重刷提示（否则打开控制台的瞬间会多出第二份）
     document.addEventListener('keydown', function (e) {
       const isF12 = e.key === 'F12';
       const isDevToolsShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'J' || e.key === 'I');
       if (isF12 || isDevToolsShortcut) {
-        setTimeout(emitConsoleHint, 300);
         markEggFound('console');
       }
     });
