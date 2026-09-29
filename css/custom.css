@@ -2181,3 +2181,13 @@ body.endy-page-in {
 ) {
   border-radius: 12px;
 }
+
+/* ==================================================================
+   头像保险：关于页等处的头像一律保持正圆，防止主题边框/其它规则把它变成方角
+   ================================================================== */
+#about-page .author-box .author-img,
+#about-page .author-box .author-img img,
+.author-img img,
+img[data-lazy-src*="pZRXSc6"] {
+  border-radius: 50% !important;
+}
