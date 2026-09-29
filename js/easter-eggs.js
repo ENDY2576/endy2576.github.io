@@ -476,7 +476,7 @@
     // 未解锁且不在留言板：不处理
     if (!isCommentsPage) return;
 
-    // 留言板：信封打开（hover 或点击）后，停留观看满 10 秒才触发彩蛋
+    // 留言板：信封打开（hover 或点击）后，停留观看满 5 秒才触发彩蛋
     whenReady('#form-wrap', function (wrap) {
       if (wrap.dataset.mikuEggBound) return;
       wrap.dataset.mikuEggBound = '1';
@@ -486,13 +486,12 @@
       function tryUnlock() {
         if (window.__mikuUnlockHandled) return;
         window.__mikuUnlockHandled = true;
-        showToast('✉️ 信封打开了…停留 10 秒看看会发生什么', { duration: 3000 });
         dwellTimer = setTimeout(function () {
           if (typeof window.__mikuUnlock === 'function' && window.__mikuUnlock()) {
             markEggFound('miku');
             showToast('🎤 你找到了 Miku 看板娘', { duration: 4200 });
           }
-        }, 10000);
+        }, 5000);
       }
 
       // 换页立刻作废，避免人已经走了彩蛋才蹦出来
