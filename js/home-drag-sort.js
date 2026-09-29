@@ -26,8 +26,8 @@
   var MOUSE_ACTIVATE = 8;
   var TOUCH_HOLD = 220;
   var FLIP_MS = 200;
-  var FILL_AT = 0.75;      // 拖离原位超过 3/4 卡高 → 补位
-  var UNFILL_AT = 0.6;     // 退回 0.6 以内 → 恢复空位（迟滞，避免来回抖）
+  var FILL_AT = 0.8;       // 拖离原位超过 80% 卡高 → 后面卡片滑入补位
+  var UNFILL_AT = 0.55;    // 退回 55% 以内 → 空位重新出现（迟滞，避免来回抖）
   var THROW_SPEED = 0.55;  // px/ms，超过才算「甩出去」
   var THROW_MS = 380;
 
@@ -193,6 +193,15 @@
       'translate3d(' + s.dx + 'px,' + s.dy + 'px,0) scale(1.02) rotate(0.4deg)';
   }
 
+  // 空槽每次「新出现」都重播一次渐入动画（虚线框 + 淡主题色底淡入）
+  function replaySlotIn(slot) {
+    if (!slot) return;
+    slot.style.display = '';
+    slot.classList.remove('endy-slot-in');
+    void slot.offsetWidth;
+    slot.classList.add('endy-slot-in');
+  }
+
   // 补位 / 收回空位（带迟滞，防止在阈值附近来回抖）
   function setFilled(v) {
     var s = state;
@@ -205,11 +214,15 @@
       var firstItem = s.container.querySelector('.recent-post-item');
       s.container.insertBefore(s.slot, firstItem || s.container.firstChild);
       others.forEach(function (el, i) { flipTo(el, before[i]); });
+      // 「原位」示意框重新淡入
+      if (s.origin) s.origin.classList.remove('is-hidden');
+      replaySlotIn(s.slot);
     } else {
-      // 补位：空槽撤出文档流，后面的卡片补上来
+      // 补位：空槽撤出文档流，后面的卡片补上来；原位示意框同时淡出消失
       var b2 = others.map(function (el) { return el.getBoundingClientRect().top; });
       s.slot.style.display = 'none';
       others.forEach(function (el, i) { flipTo(el, b2[i]); });
+      if (s.origin) s.origin.classList.add('is-hidden');
     }
   }
 
@@ -248,11 +261,12 @@
     if (target === slotIdx) return;
 
     var before = others.map(function (el) { return el.getBoundingClientRect().top; });
-    s.slot.style.display = '';
     // 可放置示意区不能越过页码：到底也只插在最后一张卡之后、分页 #pagination 之前
+    s.slot.style.display = '';
     var ref = others[target] || s.container.querySelector('#pagination');
     s.container.insertBefore(s.slot, ref || null);
     others.forEach(function (el, idx) { flipTo(el, before[idx]); });
+    replaySlotIn(s.slot);
   }
 
   function scheduleUpdate() {

@@ -2216,3 +2216,35 @@ img[data-lazy-src*="pZRXSc6"] {
 @media (prefers-reduced-motion: reduce) {
   .categoryGroup .categoryItem { transition: none !important; }
 }
+
+/* ==================================================================
+   拖拽排序：空位示意框的「渐变出现 / 淡出消失」
+   - .endy-drag-slot：落点空槽，每次新出现都重播渐入（虚线 + 淡底淡入）
+   - .endy-drag-origin：原位示意框，卡片被拖远（补位）后淡出消失，
+     拖回来又淡入出现
+   ================================================================== */
+.endy-drag-slot {
+  transition: opacity 0.3s ease;
+}
+.endy-drag-slot.endy-slot-in {
+  animation: endy-slot-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes endy-slot-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.92);
+    background: rgba(75, 92, 196, 0);
+    border-color: rgba(75, 92, 196, 0);
+  }
+}
+.endy-drag-origin {
+  transition: opacity 0.32s ease, transform 0.32s ease, border-color 0.32s ease;
+}
+.endy-drag-origin.is-hidden {
+  opacity: 0;
+  transform: scale(0.96);
+  border-color: rgba(75, 92, 196, 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .endy-drag-slot.endy-slot-in { animation: none; }
+}
