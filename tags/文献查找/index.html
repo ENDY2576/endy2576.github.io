@@ -61,7 +61,7 @@
   isHome: false,
   isHighlightShrink: false,
   isToc: false,
-  postUpdate: '2026-09-29 11:44:06',
+  postUpdate: '2026-09-29 15:09:40',
   postMainColor: '',
 }</script><noscript><style type="text/css">
   #nav {
@@ -642,17 +642,32 @@ document.addEventListener('pjax:error', e => {
     return h;
   }
 
+  var __hitboxRetries = 0;
   function updateHitbox() {
     var h = ensureHitbox(), c = canvas(), m = model();
-    if (!h || !c || !m) return;
-    try {
-      var b = m.getBounds(true); // canvas-local AABB
-      var r = c.getBoundingClientRect();
-      h.style.left = (r.left + b.x) + 'px';
-      h.style.top = (r.top + b.y) + 'px';
-      h.style.width = b.width + 'px';
-      h.style.height = b.height + 'px';
-    } catch (e) {}
+    if (!h || !c || !m) { retryHitbox(); return; }
+    var r = c.getBoundingClientRect();
+    if (!r.width || !r.height) { retryHitbox(); return; }
+    // 画布内部分辨率 vs 显示尺寸（高 DPI 下不一致），换算到 CSS 像素
+    var sx = r.width / (c.width || r.width);
+    var sy = r.height / (c.height || r.height);
+    var b = null;
+    try { b = m.getBounds(false); } catch (e) { b = null; }
+    if (!b) { retryHitbox(); return; }
+    var bx = (typeof b.x === 'number') ? b.x : (typeof b.minX === 'number' ? b.minX : 0);
+    var by = (typeof b.y === 'number') ? b.y : (typeof b.minY === 'number' ? b.minY : 0);
+    var bw = (typeof b.width === 'number') ? b.width : ((typeof b.maxX === 'number' && typeof b.minX === 'number') ? (b.maxX - b.minX) : 0);
+    var bh = (typeof b.height === 'number') ? b.height : ((typeof b.maxY === 'number' && typeof b.minY === 'number') ? (b.maxY - b.minY) : 0);
+    if (!(bw > 0) || !(bh > 0)) { retryHitbox(); return; }
+    __hitboxRetries = 0;
+    h.style.left = (r.left + bx * sx) + 'px';
+    h.style.top = (r.top + by * sy) + 'px';
+    h.style.width = (bw * sx) + 'px';
+    h.style.height = (bh * sy) + 'px';
+  }
+
+  function retryHitbox() {
+    if (__hitboxRetries++ < 40) setTimeout(updateHitbox, 300);
   }
 
   function setExpression(name) {
@@ -813,15 +828,20 @@ document.addEventListener('pjax:error', e => {
     if (p) p.style.display = 'none';
   };
 
-  oml2d.onLoad(function (status) {
-    if (status !== 'success') return;
+  function initMiku() {
     var m = model();
-    if (!m) return;
+    if (!m) { setTimeout(initMiku, 400); return; }
     try { m.off('hit'); } catch (e) {}
     patchPointerEvents();
     ensureHitbox();
     updateHitbox();
-  });
+  }
+
+  oml2d.onLoad(function () { initMiku(); });
+  // 兜底：若 onLoad 时序错失或模型尚未就绪，延迟重试确保命中框建立
+  setTimeout(initMiku, 600);
+  setTimeout(initMiku, 1800);
+  setTimeout(initMiku, 3600);
 
   window.addEventListener('resize', updateHitbox);
 })();
