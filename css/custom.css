@@ -2269,3 +2269,62 @@ img[data-lazy-src*="pZRXSc6"] {
 @media (prefers-reduced-motion: reduce) {
   .endy-drag-slot.endy-slot-in { animation: none; }
 }
+
+/* ==================================================================
+   全站动效系统（A 动效语言 / B 滚动进场 / F 光影材质）
+   - A：时长收敛到 3 档、曲线收敛到 1 条 expo-out，全站手感统一
+   - B：滚动进场编排（隐藏态由 JS 加，JS 挂了内容照常可见，绝不丢内容）
+   - F：卡片高光跟随指针（径向渐变叠加），静止时也有材质感
+   ================================================================== */
+:root {
+  --endy-dur-fast: 220ms;
+  --endy-dur-base: 420ms;
+  --endy-dur-slow: 640ms;
+  --endy-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --endy-shadow-pop: 0 18px 40px -12px rgba(0, 0, 0, 0.28);
+}
+
+/* ---- B：滚动进场（首屏已可见的不隐藏，只编排视口下方） ---- */
+.endy-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  will-change: opacity, transform;
+}
+.endy-reveal-in {
+  animation: endy-reveal var(--endy-dur-base) var(--endy-ease-out) forwards;
+  animation-delay: var(--endy-delay, 0ms);
+}
+@keyframes endy-reveal {
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- F：光影材质（高光跟随指针，pointer-events:none 不挡点击） ---- */
+.is-lit {
+  position: relative;
+}
+.is-lit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--endy-mx, 50%) var(--endy-my, 50%),
+    rgba(255, 255, 255, 0.22),
+    rgba(255, 255, 255, 0) 55%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 3;
+}
+.is-lit::after { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .endy-reveal,
+  .endy-reveal-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .is-lit::after { content: none; }
+}
