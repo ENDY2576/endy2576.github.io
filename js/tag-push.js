@@ -17,10 +17,13 @@
   if (window.__endyTagPushBound) return;
   window.__endyTagPushBound = true;
 
-  // 参与「挤开」的标签容器（.categoryGroup 是首页三张分类卡的父容器）
+  // 参与「挤开」的标签容器
+  // 注意：.categoryGroup（首页生活/学习/知识三张分类卡）不在这里 ——
+  // 安知鱼自带的是「hover 那张宽度涨到 50%，其余被挤压收窄」的 width 动画，
+  // 我们用 transform 去挤会把它覆盖掉，交给主题原生实现（见 custom.css 的平滑过渡增强）。
   var CONTAINERS = [
     '.card-tag-cloud', '.card-tags', '.tag-cloud-list', '.card-categories',
-    '.categoryGroup', '.post-meta__tags', '.article-sort-item-tags'
+    '.post-meta__tags', '.article-sort-item-tags'
   ].join(',');
 
   var SCALE = 1.14;      // 当前标签放大倍数

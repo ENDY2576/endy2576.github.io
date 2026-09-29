@@ -349,7 +349,12 @@
 
   /* ---------- 彩蛋5：长文底部悄悄话 ---------- */
   function initWhisperEgg() {
-    if (!document.querySelector('#article-container.post-content')) return;
+    // 只在「文章详情页」生效：首页 / 归档 / 分类 / 标签等列表页不触发
+    const isPostPage = !!document.querySelector('#article-container.post-content') &&
+      !!document.querySelector('#post .post-meta, #post-meta, .post-copyright, #post .post-footer');
+    if (!isPostPage) return;
+    // 50% 触发概率：这次没抽中就没了，下次再来
+    if (Math.random() >= 0.5) return;
     const quotes = [
       '万物皆有裂痕，那是光照进来的地方。',
       '慢下来，才能看见被速度忽略的风景。',

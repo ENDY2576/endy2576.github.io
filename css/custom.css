@@ -1346,9 +1346,18 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
      整个 640×960 舞台需要向右下平移。舞台其余区域透明，pointer-events 已关闭。 */
   right: -165px !important;
   bottom: -242px !important;
-  /* 开关切换时平滑淡入淡出 + 轻微下滑（transform 由 .miku-hidden 接管） */
+  /* 开关切换时平滑淡入淡出 + 轻微下滑（transform 由 .miku-hidden 接管）。
+     必须 !important：oml2d 会给舞台写内联 transition，非 !important 会被它盖掉，
+     结果就是「隐藏变成瞬间消失」。
+     另外 canvas / 气泡 / 状态栏也一起淡出，避免主体淡了、部件还在闪。 */
   transition: opacity 0.36s ease, visibility 0.36s ease,
-              transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+              transform 0.42s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+#oml2d-stage,
+#oml2d-stage canvas,
+#oml2d-tips,
+#oml2d-status-bar {
+  transition: opacity 0.36s ease, visibility 0.36s ease;
 }
 #oml2d-stage.miku-hidden {
   visibility: hidden !important;
@@ -2190,4 +2199,20 @@ body.endy-page-in {
 .author-img img,
 img[data-lazy-src*="pZRXSc6"] {
   border-radius: 50% !important;
+}
+
+/* ==================================================================
+   首页分类卡（生活 / 学习 / 知识）：恢复并增强安知鱼原生的「挤压」动画
+   主题规则是 .categoryItem:hover { width: 50% } —— 悬浮那张变宽、
+   另外两张被挤压收窄；这里只把宽度过渡调得更顺滑，不额外加 transform，
+   免得覆盖主题原生效果。
+   ================================================================== */
+.categoryGroup .categoryItem {
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.categoryGroup .categoryItem:hover {
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .categoryGroup .categoryItem { transition: none !important; }
 }
