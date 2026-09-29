@@ -1318,7 +1318,138 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 [data-theme="dark"] .endy-egg-card.locked .endy-egg-badge { color: #999; background: rgba(255, 255, 255, 0.08); }
 [data-theme="dark"] .endy-eggs-btn { background: rgba(40, 40, 45, 0.9); color: #e6e6e6; border-color: rgba(255, 255, 255, 0.12); }
 
-/* 彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏。
+/* ==================================================================
+   Miku 看板娘：彩蛋态默认隐藏，解锁后由开关控制
+   ================================================================== */
+/* 彩蛋态隐藏：用 visibility+opacity 而不是 display:none，
+   避免隐藏再显示时 WebGL canvas 内容丢失/模型缺头。 */
+/* Miku 初始位置：右下角，舞台右缘离屏右 30px，下缘离屏下 30px；
+   横向最大不溢出；竖向保留 640×960 原始画布，避免压扁后模型被裁切。 */
+/* 右侧悬浮按钮抬到看板娘之上。
+   oml2d 舞台 z-index 是 9999，而 anzhiyu 的 #rightside 只有 100，
+   导致看板娘整个压在按钮上面——即便画布透明，按钮也点不到。 */
+#rightside {
+  z-index: 99999 !important;
+}
+#rightside .rightside-item,
+#rightside button {
+  position: relative;
+  z-index: 1;
+}
+
+#oml2d-stage {
+  max-width: min(640px, 92vw) !important;
+  position: fixed !important;
+  left: auto !important;
+  top: auto !important;
+  /* 根据实测：要让 Miku 身体（非整个画布）右缘/下缘离屏幕各 30px，
+     整个 640×960 舞台需要向右下平移。舞台其余区域透明，pointer-events 已关闭。 */
+  right: -165px !important;
+  bottom: -242px !important;
+}
+#oml2d-stage.miku-hidden {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+#oml2d-stage.miku-hidden canvas,
+#oml2d-stage.miku-hidden #oml2d-tips,
+#oml2d-stage.miku-hidden #oml2d-status-bar {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+#miku-hitbox.miku-hidden {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* 右侧设置面板 + 中控台：Miku 开关图标居中 */
+#miku-rightside-toggle,
+#console-miku-toggle .miku-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+#miku-rightside-toggle svg,
+#miku-rightside-toggle img,
+#console-miku-toggle .miku-switch svg,
+#console-miku-toggle .miku-switch img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+  margin: auto;
+  /* 避免主题色/夜间模式 filter 把图标侵染变色，配色由下面单独控制 */
+  filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
+/* 右侧悬浮开关按钮底色比较深（开启态更是主题色），图标统一保持白色 */
+#miku-rightside-toggle svg,
+#miku-rightside-toggle img {
+  width: 30px;
+  height: 30px;
+}
+
+/* 右侧设置面板：开关开启态高亮 */
+#miku-rightside-toggle.miku-toggle-on {
+  background: var(--anzhiyu-main, #4b5cc4) !important;
+  color: #fff !important;
+}
+
+/* oml2d 气泡：按文本自适应宽度，取消省略号，允许自动换行。
+   注意：oml2d 给 #oml2d-tips-content（id，不是 class）设了内联 -webkit-line-clamp/ellipsis，
+   所以必须用 #oml2d-tips-content 选择器 + !important 才能覆盖。 */
+#oml2d-tips {
+  width: auto !important;
+  min-width: 64px;
+  min-height: 0 !important;
+  max-width: 260px;
+  /* 一句话的气泡之前偏高：内边距 8/14 + 行高 1.5 撑出了很厚的空腔。
+     这里收窄内边距、压低行高，短句额外走 .miku-tips-compact。 */
+  padding: 6px 11px !important;
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.3 !important;
+  font-size: 12px;
+  box-sizing: border-box;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+/* 一句话/短句：更薄的内边距，气泡明显变矮 */
+#oml2d-tips.miku-tips-compact {
+  padding: 4px 10px !important;
+}
+#oml2d-tips-content {
+  display: block !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  min-height: 0 !important;
+}
+/* 「我已知晓」按钮离正文近一点，别把气泡撑高 */
+#miku-ack-btn {
+  margin: 6px auto 0 !important;
+  padding: 3px 12px !important;
+  font-size: 11.5px !important;
+}
+/* 深色模式：气泡背景/文字反色 */
+[data-theme='dark'] #oml2d-tips {
+  background-color: #2a2c35 !important;
+  color: #f0f0f0 !important;
+  border-color: #4b5cc4 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+}
+[data-theme='dark'] #oml2d-tips-content {
+  color: #f0f0f0 !important;
+}
+
+/* ==================================================================
+   彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏。
    隐藏态：整组 mapAndInfo 横向+纵向收起淡出，统计卡补位占满整行（不留空洞）；
    连击头像 5 次揭示：统计卡让位回 39%，整组恢复，地图/信息卡按主题 60%/40% 比例贴满。
    注意：主题给 .map/.selfInfo 设了 height:60%/40% + min-height，必须 !important 压制。 */
@@ -1382,4 +1513,590 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   #about-page.endy-private-revealed .author-content-item-group.column.mapAndInfo.endy-private-info {
     width: 100% !important;
   }
+}
+
+/* ========== 夜间模式性能优化：减少重绘重排 ========== */
+/* 1.（已移除）这里原先有一条「永久生效」的全局限制：
+      transition-property: color, background-color, border-color, box-shadow, opacity !important
+   它会把 transform / filter 等从所有元素的过渡列表里抹掉 —— 结果就是
+   卡片 hover 上浮、3D 翻转（rotateY + preserve-3d）这类动画全部变成瞬跳。
+   主题切换时的冻结改由 html.endy-vt-running 承担（只在切换那 0.5 秒生效）。 */
+
+/* 2. 覆盖 darkmode.styl 里大范围的 brightness(.8) filter，把强度从 0.8 提到 0.9
+   并叠一个轻微 contrast，视觉上仍然压暗，但 GPU filter 开销明显下降。 */
+[data-theme="dark"] img,
+[data-theme="dark"] .note,
+[data-theme="dark"] .aplayer,
+[data-theme="dark"] iframe,
+[data-theme="dark"] .hide-button,
+[data-theme="dark"] .btn-anzhiyu,
+[data-theme="dark"] .hl-label,
+[data-theme="dark"] .post-outdate-notice,
+[data-theme="dark"] .error-img,
+[data-theme="dark"] .gist,
+[data-theme="dark"] .ads-wrap {
+  filter: brightness(0.9) contrast(0.96) !important;
+}
+
+/* 3.（已移除）这里原先给卡片加了 contain: layout paint style。
+   layout / paint 属于「分组属性」，会强制 transform-style: flat，
+   把 3D 翻转（preserve-3d）压平，同时 paint 还会裁掉卡片外溢的 hover 动画。
+   只保留纯背景层的 layout 隔离（它们没有后代元素，不会误伤）。 */
+#web_bg,
+#web_bg_next,
+#footer:before,
+#page-header:before {
+  contain: layout;
+}
+
+/* 4. 夜间模式下削弱卡片阴影的扩散范围，减少 GPU 合成层面积与重绘成本。 */
+[data-theme="dark"] .card-widget,
+[data-theme="dark"] .post-card,
+[data-theme="dark"] .author-content-item {
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* 5. 控制台、弹层、Miku 舞台不能受限，否则 fixed 定位会被裁切或渲染异常。 */
+#console,
+#console .console-mask,
+.reward-main,
+#miku-hitbox,
+#oml2d-stage,
+#miku-chat-dialog,
+#miku-panel {
+  contain: none !important;
+}
+
+/* 6. 恢复留言板信封展开动画：butterfly-envelope 用 #form-wrap / #envelope 的
+   transition: all 控制 height/top；全局 transition-property 限制会破坏它。 */
+#form-wrap,
+#envelope {
+  transition-property: all !important;
+}
+
+/* ==================================================================
+   平滑圆角（squircle / 连续曲率圆角）
+   corner-shape 目前只有 Chromium 新内核（Chrome / Edge 139+，以及基于新版
+   Chromium 的 Tabbit、360、QQ 浏览器等）支持；Safari / Firefox 会整段跳过
+   @supports，自动保持原来的普通圆角 —— 渐进增强，零副作用。
+   想更「方」或更「圆」：改 --endy-corner-shape 的值即可，
+   例如 superellipse(1.4)（接近圆角）/ superellipse(2.6)（更接近 iOS 方圆形）。
+   注意：corner-shape 只在元素有非零 border-radius 时才生效。
+
+   ⚠️ 重要：corner-shape 会给元素套一层「圆角裁剪层」，凡是自身或内部子元素
+      带 transform / 缩放 hover 动画的卡片（首页文章卡、封面图放大、按钮按压等），
+      套上后动画会被裁剪层吃掉 —— 所以下面只给「静态容器」开平滑圆角，
+      带交互动画的一律显式 corner-shape: round 排除。
+      想彻底关掉平滑圆角：把 --endy-corner-shape 改成 round 即可（一处生效）。
+   ================================================================== */
+@supports (corner-shape: squircle) {
+  :root {
+    /* round = 关闭平滑圆角（默认关闭）。
+       corner-shape 会让元素产生圆角裁剪层，属于「分组属性」，
+       会强制 transform-style: flat 并裁掉外溢内容 —— 卡片 hover 上浮、
+       3D 翻转（preserve-3d）等动画会被破坏。所以默认不全局开启；
+       想要平滑圆角，给具体元素加 data-endy-squircle 属性即可（见下方规则）。
+       确认某处没有交互动画后，也可以把这里改成 squircle 全站开启。 */
+    --endy-corner-shape: round;
+  }
+
+  /* 只在显式标注的元素上生效：确认该元素自身与后代都没有 transform 类动画时才加属性。
+     用法：<div class="xxx" data-endy-squircle>  */
+  [data-endy-squircle] {
+    corner-shape: squircle;
+  }
+
+  /* ✅ 只给静态容器开：侧栏卡片、关于页内容卡、提示框、表单、弹层、页脚、分页
+     （默认 --endy-corner-shape: round，所以这组规则目前是「待启用」状态；
+       把根变量改成 squircle 后它们才会真正生效） */
+  :where(
+    .card-widget, .author-content-item, .note, .post-copyright,
+    input, textarea, select,
+    .search-dialog, .reward-main, #console,
+    #footer, .pagination a, .pagination .page-number,
+    #oml2d-tips, #miku-chat-dialog, #miku-settings-panel, #miku-article-picker,
+    .endy-egg-card
+  ) {
+    corner-shape: var(--endy-corner-shape);
+  }
+
+  /* ⛔ 排除清单：这些元素自身或子元素有 hover / 按压 / 缩放动画，
+       必须保持 round，否则交互动画会被圆角裁剪层破坏。 */
+  :where(
+    .recent-post-item, .post-card, .article-sort-item, .article-item, .card,
+    .categoryItem, .flink-list-item, .site-card, .friend-content,
+    .gallery-item, .fj-gallery a, .tag-cloud-list a,
+    .card-tags a, .card-categories a, .card-archives li, .card-webinfo li,
+    .relatedPosts .relatedPosts-list-item,
+    .post_cover, .post_bg, .post-img, .cover, .error-img,
+    #article-container img, #article-container figure, #page-header,
+    button, .btn, .anzhiyu-btn, #rightside .rightside-item,
+    #console .button-group button, .console-btn, .miku-panel-btn,
+    .tk-comment, .tk-content, .tk-panel, .tk-submit .tk-input,
+    [class*="avatar"], [class*="circle"], .round, .siteicon,
+    #miku-chat-send, #miku-panel-close, .miku-panel-close
+  ) {
+    corner-shape: round;
+  }
+}
+
+/* ==================================================================
+   重力按压：在卡片内任意位置按下时，按落点做「局部重力」反馈
+   —— 卡片以落点为支点微微下沉/倾斜，并从落点扩散一圈柔和涟漪。
+   动画全部走 transform / opacity，不触发重排；JS 见 source/js/press-gravity.js
+   ================================================================== */
+.endy-press-rel {
+  position: relative;
+}
+.endy-press-ripple {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 0;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  background: radial-gradient(circle,
+              rgba(75, 92, 196, 0.30) 0%,
+              rgba(75, 92, 196, 0.14) 42%,
+              rgba(75, 92, 196, 0.04) 66%,
+              rgba(75, 92, 196, 0) 78%);
+  animation: endy-press-ripple 640ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+[data-theme="dark"] .endy-press-ripple {
+  background: radial-gradient(circle,
+              rgba(255, 255, 255, 0.26) 0%,
+              rgba(255, 255, 255, 0.12) 42%,
+              rgba(255, 255, 255, 0.03) 66%,
+              rgba(255, 255, 255, 0) 78%);
+}
+@keyframes endy-press-ripple {
+  0%   { transform: translate(-50%, -50%) scale(0);    opacity: 0.95; }
+  55%  { opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1);    opacity: 0; }
+}
+/* 尊重系统「减少动态效果」设置：只保留极轻的下沉，不播涟漪 */
+@media (prefers-reduced-motion: reduce) {
+  .endy-press-ripple { animation-duration: 1ms; opacity: 0; }
+}
+
+/* ==================================================================
+   Miku 文章选择器：站内命中多篇文章时，列出最多 3 篇供点选
+   结构由 _config.yml 里 OhMyLive2d.then 的 showArticlePicker() 动态生成
+   ================================================================== */
+#miku-article-picker {
+  position: fixed;
+  z-index: 100000;
+  width: min(320px, 90vw);
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.97);
+  border: 2px solid #4b5cc4;
+  border-radius: 20px;
+  padding: 12px 14px 10px;
+  box-shadow: 0 14px 36px rgba(75, 92, 196, 0.28);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+               'Microsoft YaHei', sans-serif;
+  animation: miku-picker-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes miku-picker-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+#miku-article-picker .map-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b5cc4;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#miku-article-picker .map-close {
+  border: none;
+  background: rgba(75, 92, 196, 0.14);
+  color: #4b5cc4;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+#miku-article-picker .map-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(75, 92, 196, 0.25);
+  background: #fff;
+  color: #333;
+  border-radius: 14px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+#miku-article-picker .map-item:hover {
+  background: rgba(75, 92, 196, 0.08);
+  border-color: #4b5cc4;
+  transform: translateY(-1px);
+}
+#miku-article-picker .map-item .map-item-meta {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: #999;
+}
+#miku-article-picker .map-more {
+  display: block;
+  width: 100%;
+  border: none;
+  background: rgba(75, 92, 196, 0.1);
+  color: #4b5cc4;
+  border-radius: 14px;
+  padding: 7px 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+[data-theme="dark"] #miku-article-picker {
+  background: rgba(32, 33, 40, 0.97);
+  border-color: #6b7ae0;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+[data-theme="dark"] #miku-article-picker .map-title { color: #8f9cf0; }
+[data-theme="dark"] #miku-article-picker .map-item {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e6e6e6;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+[data-theme="dark"] #miku-article-picker .map-item:hover { background: rgba(143, 156, 240, 0.18); }
+[data-theme="dark"] #miku-article-picker .map-close { background: rgba(255, 255, 255, 0.12); color: #c9cff5; }
+
+/* ==================================================================
+   圆形主题切换（View Transitions）
+   两张快照都是 root，尺寸与位置完全一致（不缩放、不位移）；
+   只给上层快照做 clip-path 圆形揭示，圆心由 JS 按真实点击坐标注入。
+   不支持 startViewTransition 的浏览器根本没有这些伪元素，自动走主题原生切换。
+   ================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+/* 切换瞬间冻结页面自身的过渡：保证新旧两张快照都是干净的静态画面 */
+html.endy-vt-running body * {
+  transition: none !important;
+}
+
+/* ==================================================================
+   首页文章卡片拖拽排序（JS: source/js/home-drag-sort.js）
+   ================================================================== */
+/* 空槽：被拖走的那张卡留下的位置，虚线框 + 淡底，明确可见 */
+.endy-drag-slot {
+  box-sizing: border-box;
+  border: 2px dashed rgba(75, 92, 196, 0.45);
+  border-radius: 12px;
+  background: rgba(75, 92, 196, 0.06);
+}
+[data-theme="dark"] .endy-drag-slot {
+  border-color: rgba(143, 156, 240, 0.5);
+  background: rgba(143, 156, 240, 0.08);
+}
+/* 被拖起的卡片：脱离文档流，抬起来 */
+.endy-drag-ghost {
+  transition: none !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22) !important;
+  opacity: 0.97;
+  cursor: grabbing;
+}
+[data-theme="dark"] .endy-drag-ghost {
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55) !important;
+}
+body.endy-dragging {
+  cursor: grabbing;
+  -webkit-user-select: none;
+  user-select: none;
+}
+body.endy-dragging * { cursor: grabbing !important; }
+
+/* ==================================================================
+   Miku 开关图标黑白适配（按需求固化）：
+   - 右侧悬浮开关：白天 / 夜间都保持白色（按钮底为深色或主题色）；
+   - 中控台开关：白天黑色（brightness(0) 把白色剪影压成纯黑），
+     夜间白色（恢复原色）。
+   ================================================================== */
+#console-miku-toggle .miku-switch img {
+  filter: brightness(0) !important;
+}
+[data-theme="dark"] #console-miku-toggle .miku-switch img {
+  filter: none !important;
+}
+
+/* ==================================================================
+   看板娘设置面板：三个统一风格的开关（显示 / 拖动 / 休息）
+   开关本体是 button[role=switch]，滑块用 transform 位移，
+   开启时轨道补色 + 一圈柔和脉冲，和看板娘的显隐/滑出动画联动。
+   ================================================================== */
+.miku-sw-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(75, 92, 196, 0.06);
+}
+.miku-sw-label {
+  font-size: 13px;
+  color: #555;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.miku-switch-btn {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(120, 125, 150, 0.32);
+  cursor: pointer;
+  transition: background 0.28s ease, box-shadow 0.28s ease, opacity 0.2s ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.miku-switch-btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(75, 92, 196, 0.25);
+}
+.miku-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  /* 轻微回弹：开合有「咔哒」的手感 */
+  transition: transform 0.3s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+.miku-switch-btn.is-on {
+  background: var(--miku-theme, #4b5cc4);
+  box-shadow: 0 0 0 3px rgba(75, 92, 196, 0.14);
+}
+.miku-switch-btn.is-on .miku-switch-knob {
+  transform: translateX(20px);
+}
+/* 按下时滑块被「挤压」一点，联动手感 */
+.miku-switch-btn:active .miku-switch-knob {
+  width: 21px;
+}
+.miku-switch-btn:active.is-on .miku-switch-knob {
+  transform: translateX(17px);
+}
+/* 开启瞬间轨道扩散一圈光晕 */
+.miku-switch-btn.just-on {
+  animation: miku-sw-pulse 480ms ease-out;
+}
+@keyframes miku-sw-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(75, 92, 196, 0.45); }
+  70% { box-shadow: 0 0 0 9px rgba(75, 92, 196, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(75, 92, 196, 0); }
+}
+/* 联动禁用：隐藏看板娘 / 休息中时，相关开关变灰且不可点 */
+.miku-switch-btn.is-disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+[data-theme="dark"] .miku-sw-label { color: #b9c0e0; }
+[data-theme="dark"] .miku-sw-row { background: rgba(255, 255, 255, 0.07); }
+
+/* ==================================================================
+   拖拽排序：原位空位虚拟框（被拖走的那张卡原来所在的位置）
+   与「落点槽 .endy-drag-slot」区分开：这里一直停在最开始的位置，
+   用来提示「这张卡是从这里拿走的」。
+   ================================================================== */
+.endy-drag-origin {
+  box-sizing: border-box;
+  border: 2px dashed rgba(75, 92, 196, 0.32);
+  border-radius: 12px;
+  background: rgba(75, 92, 196, 0.035);
+  position: relative;
+}
+.endy-drag-origin::after {
+  content: "原位";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: rgba(75, 92, 196, 0.5);
+}
+[data-theme="dark"] .endy-drag-origin {
+  border-color: rgba(143, 156, 240, 0.34);
+  background: rgba(143, 156, 240, 0.05);
+}
+/* ==================================================================
+   带刻度的惯性吸附滑杆（JS: source/js/slider-snap.js）
+   位置全部由 --endy-p（0~1）驱动，JS 只改这一个变量，不逐帧读布局。
+   ================================================================== */
+@property --endy-p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.endy-slider {
+  --endy-thumb: 18px;
+  --endy-thumb-half: 9px;
+  --endy-accent: #4b5cc4;
+  position: relative;
+  padding: 16px 0 6px;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.endy-slider-rail {
+  position: relative;
+  height: 28px;
+}
+.endy-slider-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(75, 92, 196, 0.16);
+  overflow: hidden;
+}
+.endy-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--endy-thumb-half) + var(--endy-p) * (100% - var(--endy-thumb)));
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(75, 92, 196, 0.5), var(--endy-accent));
+}
+/* 刻度尺：挂在轨道下方，避免和填充条抢对比度 */
+.endy-slider-ticks {
+  position: absolute;
+  left: var(--endy-thumb-half);
+  right: var(--endy-thumb-half);
+  top: 18px;
+  height: 9px;
+  pointer-events: none;
+}
+.endy-slider-tick {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 5px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: rgba(75, 92, 196, 0.26);
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  transition: background 0.2s ease, height 0.2s ease;
+}
+.endy-slider-tick.is-major {
+  height: 9px;
+  background: rgba(75, 92, 196, 0.42);
+}
+.endy-slider-tick.is-active {
+  background: var(--endy-accent);
+}
+.endy-slider-thumb {
+  position: absolute;
+  top: 9px;
+  left: calc(var(--endy-thumb-half) + var(--endy-p) * (100% - var(--endy-thumb)));
+  width: var(--endy-thumb);
+  height: var(--endy-thumb);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--endy-accent);
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px rgba(75, 92, 196, 0.32);
+  transition: transform 0.18s ease, box-shadow 0.2s ease;
+}
+.endy-slider.is-pressed .endy-slider-thumb {
+  transform: translate(-50%, -50%) scale(1.16);
+  box-shadow: 0 3px 12px rgba(75, 92, 196, 0.45);
+}
+.endy-slider:focus-visible .endy-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(75, 92, 196, 0.22), 0 2px 6px rgba(75, 92, 196, 0.32);
+}
+/* 吸附完成：滑块轻轻「坐实」，命中的刻度弹一下 */
+.endy-slider.is-snap .endy-slider-thumb {
+  animation: endy-thumb-snap 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.endy-slider.is-snap .endy-slider-tick.is-active {
+  animation: endy-tick-pulse 420ms ease-out;
+}
+@keyframes endy-thumb-snap {
+  0% { transform: translate(-50%, -50%) scale(1.12); }
+  60% { transform: translate(-50%, -50%) scale(0.96); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes endy-tick-pulse {
+  0% { transform: translateX(-50%) scaleY(1); }
+  35% { transform: translateX(-50%) scaleY(1.9); }
+  100% { transform: translateX(-50%) scaleY(1); }
+}
+/* 数值气泡：拖动 / 惯性滑行 / 键盘聚焦时出现 */
+.endy-slider-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 7px);
+  transform: translate(-50%, 4px) scale(0.9);
+  background: var(--endy-accent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.endy-slider.is-pressed .endy-slider-bubble,
+.endy-slider.is-animating .endy-slider-bubble,
+.endy-slider:focus-visible .endy-slider-bubble {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+/* 面板是白底，强制浅色配色（不跟随夜间模式变量） */
+.endy-slider--light {
+  --endy-accent: #4b5cc4;
+}
+.endy-slider--light .endy-slider-track { background: rgba(75, 92, 196, 0.16); }
+.endy-slider--light .endy-slider-thumb { background: #fff; }
+[data-theme="dark"] .endy-slider:not(.endy-slider--light) {
+  --endy-accent: #8f9cff;
+}
+[data-theme="dark"] .endy-slider:not(.endy-slider--light) .endy-slider-track {
+  background: rgba(255, 255, 255, 0.16);
+}
+[data-theme="dark"] .endy-slider:not(.endy-slider--light) .endy-slider-thumb {
+  background: #2a2f45;
+}
+@media (prefers-reduced-motion: reduce) {
+  .endy-slider.is-snap .endy-slider-thumb,
+  .endy-slider.is-snap .endy-slider-tick.is-active { animation: none; }
+  .endy-slider-thumb { transition: box-shadow 0.2s ease; }
 }

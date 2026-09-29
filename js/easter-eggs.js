@@ -42,7 +42,8 @@
     { id: 'console',   icon: '🖥️', name: '控制台密语',   hint: '打开 DevTools，或连点首页大站名 5 下。' },
     { id: 'whisper',   icon: '🐾', name: '底部悄悄话',   hint: '把一篇长文读到最底部。' },
     { id: 'season',    icon: '🍂', name: '四季开关',     hint: '在中控台，发现四季背景切换入口。' },
-    { id: 'about',    icon: '🧑', name: '关于我',       hint: '在个人页，连击头像 5 次。' }
+    { id: 'about',    icon: '🧑', name: '关于我',       hint: '在个人页，连击头像 5 次。' },
+    { id: 'miku',     icon: '🎤', name: 'Miku 看板娘', hint: '在留言板，打开那封信。' }
   ];
 
   // 彩蛋成就页：触发方法（hint）是否全部显示。默认隐藏（未解锁卡片不剧透），
@@ -78,9 +79,16 @@
       localStorage.removeItem('endy-music-discovered');
       localStorage.removeItem('endy-season-unlocked');
       localStorage.removeItem('endy-ania-cursor');
+      // 看板娘彩蛋：清掉解锁标记 + oml2d 自身状态，确保她能重新隐藏
+      localStorage.removeItem('endy-miku-unlocked');
+      localStorage.removeItem('endy-miku-chat');
+      localStorage.removeItem('OML2D_STATUS');
+      localStorage.removeItem('OML2D_MODEL_INDEX');
+      localStorage.removeItem('OML2D_MODEL_CLOTHES_INDEX');
     } catch (e) {}
     document.body.classList.remove('endy-ania-cursor');
   }
+  window.clearEggDiscovery = clearEggDiscovery;
 
   /* ---------- 等待某元素出现（PJAX 后 DOM 可能是异步挂的） ---------- */
   function whenReady(selector, cb, tries) {
@@ -211,15 +219,24 @@
 
   /* ---------- 彩蛋4：控制台 ASCII 艺术字 + 站名 5 连点彩蛋 ---------- */
   function emitConsoleHint() {
-    const titleStyle = 'color:#ff7eb6; font-size:40px; font-weight:bold; text-shadow: 3px 3px 0 #7c5cff; padding: 4px 0;';
+    if (window.__endyConsoleHintEmitted) return;
+    window.__endyConsoleHintEmitted = true;
+    const titleStyle = 'color:#fff; background:linear-gradient(90deg,#7c5cff,#ff7eb6); font-size:24px; font-weight:bold; padding:6px 14px; border-radius:8px; line-height:1.6;';
+    const hintStyle = 'color:#ff7eb6; font-size:12px;';
     const hint = '🎉 彖渊子彩蛋：你打开了控制台。在首页快速连点中间的大站名「彖渊子」5 下，会有惊喜。';
-    // 只走 console.log 一个通道，各输出一份（此前 log/info/warn 三通道 × F12 重刷会打出 3×2 份）
-    try { console.log('%c彖 渊 子', titleStyle); } catch (e) {}
-    console.log(hint);
+    // anzhiyu 主题在 queueMicrotask 里把 console.log 替换成空函数，所以这里主用 console.warn。
+    // 如果浏览器（如 360/QQ/搜狗）过滤 warn，再兜底用主题保存的原始 log（HoldLog）。
+    try { console.warn('%c彖 渊 子', titleStyle); } catch (e) {}
+    try { console.warn('%c' + hint, hintStyle); } catch (e) {}
+    if (typeof window.HoldLog === 'function') {
+      try { window.HoldLog.call(console, '%c彖 渊 子', titleStyle); } catch (e) {}
+      try { window.HoldLog.call(console, '%c' + hint, hintStyle); } catch (e) {}
+    }
   }
 
   function initConsoleEgg() {
-    emitConsoleHint();
+    // 主题会先把 console.log 设为空函数，再在 queueMicrotask 里恢复；延迟到下一个宏任务执行，避开压制。
+    setTimeout(emitConsoleHint, 0);
 
     // 监听 F12 / Ctrl+Shift+J / Ctrl+Shift+I / Cmd+Option+J / Cmd+Option+I
     // 仅解锁彩蛋计数，不再重刷提示（否则打开控制台的瞬间会多出第二份）
@@ -262,6 +279,27 @@
 
   // 页面加载时恢复已保存的光标状态
   try { if (localStorage.getItem('endy-ania-cursor') === '1') document.body.classList.add('endy-ania-cursor'); } catch (e) {}
+
+  /* ---------- 控制台彩蛋诊断入口 ----------
+     用法：打开 DevTools 后，在控制台输入 __endyConsoleEggDiag() 或 __endyTriggerConsoleEgg()
+     前者打印检测信息并强制触发一次，后者只强制触发。 */
+  window.__endyConsoleEggDiag = function () {
+    const logs = [];
+    logs.push('easter-eggs.js loaded: true');
+    logs.push('HoldLog present: ' + (typeof window.HoldLog === 'function'));
+    logs.push('console.log is theme no-op: ' + (console.log && console.log.toString && /function\s*\(\)\s*\{\s*\}/.test(console.log.toString())));
+    logs.push('__endyConsoleHintEmitted: ' + !!window.__endyConsoleHintEmitted);
+    console.warn('%c彩蛋4诊断', 'color:#fff;background:#4b5cc4;padding:4px 10px;border-radius:6px;');
+    console.warn(logs.join('\n'));
+    console.warn('正在用 console.warn 强制触发一次：');
+    window.__endyConsoleHintEmitted = false;
+    emitConsoleHint();
+    return '诊断完成';
+  };
+  window.__endyTriggerConsoleEgg = function () {
+    window.__endyConsoleHintEmitted = false;
+    emitConsoleHint();
+  };
 
   /* ---------- 彩蛋6：中控台点击四季按钮 → 右侧栏出现四季切换 ---------- */
   function initSeasonEgg() {
@@ -406,6 +444,52 @@
     });
   }
 
+  /* ---------- 彩蛋9：Miku 看板娘（留言板开信触发） ---------- */
+  function initMikuEgg() {
+    const isCommentsPage = location.pathname.startsWith('/comments/');
+    const unlocked = localStorage.getItem('endy-miku-unlocked') === '1';
+
+    function applyUnlock() {
+      if (typeof window.__mikuUnlock === 'function') {
+        window.__mikuUnlock();
+        return true;
+      }
+      return false;
+    }
+
+    // 已解锁：等待看板娘脚本就绪后全局生效
+    if (unlocked) {
+      if (!applyUnlock()) {
+        let tries = 0;
+        const timer = setInterval(function () {
+          if (applyUnlock() || ++tries > 40) clearInterval(timer);
+        }, 150);
+      }
+      return;
+    }
+
+    // 未解锁且不在留言板：不处理
+    if (!isCommentsPage) return;
+
+    // 留言板：监听信封展开（hover 或点击 #form-wrap）
+    whenReady('#form-wrap', function (wrap) {
+      if (wrap.dataset.mikuEggBound) return;
+      wrap.dataset.mikuEggBound = '1';
+
+      function tryUnlock() {
+        if (window.__mikuUnlockHandled) return;
+        window.__mikuUnlockHandled = true;
+        if (typeof window.__mikuUnlock === 'function' && window.__mikuUnlock()) {
+          markEggFound('miku');
+          showToast('🎤 你找到了 Miku 看板娘', { duration: 4200 });
+        }
+      }
+
+      wrap.addEventListener('mouseenter', tryUnlock, { once: true });
+      wrap.addEventListener('click', tryUnlock, { once: true });
+    });
+  }
+
   /* ---------- 挂载 ---------- */
   function bootEggs() {
     initMusicPageEgg();
@@ -414,12 +498,13 @@
     initSeasonEgg(); // 彩蛋6：中控台四季按钮 → 解锁右侧栏四季按钮
     initSiteNameEgg();   // 彩蛋4 站点名 5 连击（PJAX 切页后重绑，避免一次性失灵）
     initAboutPageEgg();  // 彩蛋8：个人页头像 5 连击揭示私密信息
+    initMikuEgg();       // 彩蛋9：留言板开信触发 Miku 看板娘
     initEggsPage();      // 彩蛋7：彩蛋成就册页面渲染
   }
 
   function fullBoot() {
+    initConsoleEgg();   // 控制台彩蛋最先执行，确保即使后续初始化异常也不影响显示
     bootEggs();
-    initConsoleEgg();   // 控制台只需执行一次（绑定站名也用 whenReady 兜底）
     initSecretPlaylistEgg();
   }
 

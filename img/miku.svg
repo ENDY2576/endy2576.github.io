@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 左双马尾 -->
+  <path d="M11 13C5 17 5 33 11 39c2.5 2 5-1 5-7V21"/>
+  <!-- 右双马尾 -->
+  <path d="M37 13C43 17 43 33 37 39c-2.5 2-5-1-5-7V21"/>
+  <!-- 脸部轮廓 -->
+  <ellipse cx="24" cy="22" rx="9.5" ry="8.5"/>
+  <!-- 刘海 -->
+  <path d="M15 14c2.5-3.5 8.5-4 15-1"/>
+  <!-- 发饰/耳机小方块 -->
+  <rect x="11.5" y="18" width="3" height="5" rx="1"/>
+  <rect x="33.5" y="18" width="3" height="5" rx="1"/>
+  <!-- 眼睛 -->
+  <circle cx="20.5" cy="23" r="1.5"/>
+  <circle cx="27.5" cy="23" r="1.5"/>
+  <!-- 嘴巴 -->
+  <path d="M21.5 27.5c1.5 1.5 3.5 1.5 5 0"/>
+</svg>
