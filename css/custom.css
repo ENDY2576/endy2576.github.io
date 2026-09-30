@@ -1965,22 +1965,6 @@ html.endy-vt-running body * {
   border-color: rgba(143, 156, 240, 0.5);
   background: rgba(143, 156, 240, 0.08);
 }
-/* 被拖起的卡片：脱离文档流，抬起来 */
-.endy-drag-ghost {
-  transition: none !important;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22) !important;
-  opacity: 0.97;
-  cursor: grabbing;
-}
-[data-theme="dark"] .endy-drag-ghost {
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55) !important;
-}
-body.endy-dragging {
-  cursor: grabbing;
-  -webkit-user-select: none;
-  user-select: none;
-}
-body.endy-dragging * { cursor: grabbing !important; }
 
 /* ==================================================================
    Miku 开关图标黑白适配（按需求固化）：
@@ -2383,45 +2367,62 @@ img[data-lazy-src*="pZRXSc6"] {
 }
 
 /* ==================================================================
-   拖拽排序（方向 A / iOS 实时重排）
-   - .endy-drag-silhouette：落点占位 = 半透明同形剪影（主题色），呼吸脉冲；
-     不是虚线框，读起来是「放这里」而不是「加载中/报错」
-   - .endy-drag-item：被拖起的浮空卡，大柔影 + 抓取光标 + 提升层级
-   - body.endy-dragging：拖拽中全局抓取光标、禁选中
+   拖拽排序 v5（隐形原卡占位 + 浮层幽灵跟手）
+   - 不再往 flex 双列里插入占位 div，彻底消除「洞宽 vs 卡片宽」错位。
+   - 被拖卡保留在 DOM 流内 visibility:hidden，它自己就是尺寸天然正确的「洞」。
+   - .endy-drag-ghost：视觉浮层克隆，大柔影 + 抓取光标 + fixed 置顶。
+   - .endy-drag-item：被拖起状态类（给 ghost 和隐形原卡共用）。
+   - body.endy-dragging：拖拽中全局抓取光标、禁选中。
    ================================================================== */
-.endy-drag-silhouette {
-  border-radius: 12px;
-  background: rgba(75, 92, 196, 0.14);
-  box-shadow: inset 0 0 0 2px rgba(75, 92, 196, 0.32);
-  pointer-events: none;
-  box-sizing: border-box;
-  animation: endy-silhouette-pulse 1.6s ease-in-out infinite;
-}
-@keyframes endy-silhouette-pulse {
-  0%, 100% { background: rgba(75, 92, 196, 0.10); }
-  50%      { background: rgba(75, 92, 196, 0.22); }
-}
 .endy-drag-item {
   cursor: grabbing !important;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.30) !important;
-  will-change: transform, left, top;
   pointer-events: none;
+}
+.endy-drag-ghost {
+  transition: none !important;
+  box-shadow: 0 18px 36px -9px rgba(0, 0, 0, 0.22) !important;
+  will-change: transform;
+  cursor: grabbing;
+  contain: layout style paint;
+  opacity: 1;
+  background: var(--anzhiyu-card-bg, #fff) !important;
+  overflow: hidden !important;
+}
+[data-theme="dark"] .endy-drag-ghost {
+  box-shadow: 0 18px 36px -9px rgba(0, 0, 0, 0.45) !important;
+  background: var(--anzhiyu-card-bg, #1d1e22) !important;
 }
 body.endy-dragging {
   cursor: grabbing !important;
   user-select: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .endy-drag-silhouette { animation: none; }
-}
+body.endy-dragging * { cursor: grabbing !important; }
 
-/* 拖拽排序占位修正：主题用「非首项 margin-top:20px」做卡片间距，
-   占位剪影不是 .recent-post-item，顶替首项后会让紧跟其后的真实卡片
-   仍带 20px 顶部留白 → 顶部出现空白、看起来邻居没补位。
-   这里让「紧跟分类栏 / 占位剪影」的首张卡片去掉多余 margin-top。
-   正常态（非拖拽）首卡本就是 :first-child 无 margin-top，不影响原布局。 */
+/* 分类栏后的首张卡片去掉多余 margin-top（与正常态 :first-child 一致） */
 #recent-posts > #categoryBar + .recent-post-item { margin-top: 0 !important; }
-#recent-posts > .endy-drag-silhouette + .recent-post-item { margin-top: 0 !important; }
+
+/* P3 键盘可达：焦点环 + 键盘拖拽高亮 + 屏幕阅读器播报区 */
+.recent-post-item:focus-visible {
+  outline: 2px solid var(--anzhiyu-main, #4b5cc4);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+.endy-kbd-dragging {
+  outline: 2px dashed var(--anzhiyu-main, #4b5cc4);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(75, 92, 196, 0.18) !important;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ==================================================================
    全站动效系统（A 动效语言 / B 滚动进场 / F 光影材质）

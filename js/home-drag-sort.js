@@ -1,22 +1,29 @@
 /**
- * 首页文章卡片交互 v3 —— 方向 A（iOS 实时重排）
- * ------------------------------------------------------------
+ * 首页文章卡片交互 v5 —— 世界级「隐形原卡占位 + 浮层幽灵跟手」实时重排
+ * --------------------------------------------------------------------
  * 统一由本脚本独占 .recent-post-item 的「悬浮倾斜 / 按下 / 拖起 / 实时重排 / 落位 / 甩出」，
  * 不再与 press-gravity 抢同一张卡片的 transform（press-gravity 在拖拽时通过
  * window.__endyDragActive 主动让位，互不打架）。
  *
- * 交互规则（对应方向 A）：
- *   1) 悬浮：卡片朝光标做 ≤5° 的 3D 微倾（由 press-gravity 负责，本脚本不重复）。
- *   2) 拖起：移动超过 6px（触摸需长按 200ms）才激活，卡片 scale 1.04 浮空，
- *      以「弹簧迟滞」跟随光标（带一点重量感），z-index 置顶、光标变抓取。
- *   3) 实时重排：拖拽时占位用「半透明同形剪影」(非虚线框)，随光标在列表中实时移动，
- *      其余卡片用 FLIP 平滑让位 —— 像 iOS 主屏一样边拖边排。
- *   4) 落位：松手后卡片用弹簧引擎归位（过冲 ~6%、约 380ms 收敛），邻居收拢填满。
- *   5) 甩出：释放点在列表外 + 释放速度超阈值 → 沿速度向量飞出并进入文章，
- *      飞出距离与速度成正比（体现「甩的力气」）；慢慢拉出则弹回列表。
- *   6) 松手后的那一次 click 一律吃掉，绝不误触跳文章。
+ * v5 核心改进（针对 v4 slot 占位在 flex 双列下反复错位的问题）：
+ *   · 不再往 flex 流里插入任何占位 div，彻底告别「洞宽 vs 卡片宽」的博弈。
+ *   · 拖起时：原卡保留在 DOM 流内，仅 visibility:hidden，它自身就是「洞」，
+ *     尺寸永远与 flex 分配给它的盒子完全一致。
+ *   · 视觉反馈：创建原卡的 fixed 浮层克隆（ghost）跟随指针，带弹簧迟滞 / 速度形变。
+ *   · 实时重排：按指针 2D 位置移动隐形原卡在 DOM 中的顺序，flex 自然重排，
+ *     邻居卡片做 rect-measuring FLIP。
+ *   · 落位：ghost 用弹簧动画飞回隐形原卡的位置，移除 ghost、恢复 visibility。
  *
- * 其它：顺序存 localStorage；__endyResetPostOrder() 重置；尊重 prefers-reduced-motion。
+ * 交互规则：
+ *   1) 悬浮：卡片朝光标微倾（press-gravity 负责）。
+ *   2) 拖起：移动超过 6px（触摸需长按 200ms）激活；ghost scale 1.04 浮空、跟手。
+ *   3) 实时重排：2D 最近格子命中，横拖也准。
+ *   4) 落位：磁吸到洞，过冲 ~6%、约 380ms 收敛。
+ *   5) 边缘自动滚动：拖到视口边缘自动滚屏。
+ *   6) 甩出：列表外 + 速度阈值 → 飞出并进入文章。
+ *   7) 键盘重排：Tab 聚焦 → Space/Enter 拾起 → 方向键 → Enter/Space 放下、Esc 取消。
+ *   8) 松手后 click 一律吃掉，不误触跳文章。
+ *   9) 顺序存 localStorage；__endyResetPostOrder() 重置；尊重 prefers-reduced-motion。
  */
 (function () {
   'use strict';
@@ -33,21 +40,23 @@
   var FLIP_MS = 260;            // 邻居让位 FLIP 时长
   var THROW_SPEED = 0.55;       // px/ms，超过才算「甩出去」
   var THROW_MS = 360;
-  var LIFT_SCALE = 1.04;        // 浮空缩放
-  var PRESS_SCALE = 0.97;       // 按下下沉（保留给将来统一按压用）
-  // —— P2(a) 速度形变：拖拽中按指针「真实速度」做形变的参数 ——
-  var SPEED_TILT = 12;          // 随速度的最大倾斜（度），朝运动方向倾倒
-  var SPEED_SCALE = 0.05;       // 随速度的最大额外放大（形变量，0~5%）
+  var LIFT_SCALE = 1.0;         // 不缩放：保持 ghost 与原卡尺寸完全一致
+  var SPEED_TILT = 6;           // 随速度的轻微倾斜（度），保留一点跟手感
+  var SPEED_SCALE = 0.0;        // 不额外放大
   var SPEED_GAIN = 6;           // 速度→角度 增益（px/ms × 增益 = 度）
-  var SPEED_DECAY = 0.82;       // 每帧速度衰减：指针静止时倾斜/放大平滑回正
+  var SPEED_DECAY = 0.82;       // 每帧速度衰减
   var FOLLOW = 0.3;             // 跟手弹簧迟滞系数（越小越「重」）
   var SPRING = { stiffness: 260, damping: 22 }; // 落位弹簧（过冲 ~6%）
+  var EDGE = 80;                // 边缘自动滚动触发区（px）
+  var MAX_SCROLL = 16;          // 边缘自动滚动最大单帧位移
 
   var REDUCED = false;
   try { REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
-  var state = null;             // 拖拽状态
+  var state = null;             // 指针拖拽状态
   var suppressClickUntil = 0;
+  var kbDrag = null;            // 键盘拖拽中的卡片
+  var liveRegion = null;        // aria-live 播报节点
 
   function clamp(v, min, max) { return v < min ? min : (v > max ? max : v); }
 
@@ -65,32 +74,87 @@
     try { return new URL(href, location.href).pathname; } catch (e) { return href; }
   }
 
-  // 当前流内的文章卡（排除正在拖的那张和占位剪影）
+  // 当前流内的文章卡（排除正在拖的隐形原卡 + 视觉 ghost）
   function flowItems() {
     var c = state.container, out = [];
     var kids = c.children;
     for (var i = 0; i < kids.length; i++) {
       var el = kids[i];
-      if (el === state.item || el === state.slot) continue;
+      if (el === state.item) continue;          // 隐形原卡 = 洞，不参与命中
+      if (el.classList && el.classList.contains('endy-drag-ghost')) continue; // 视觉浮层不算流内卡
       if (el.classList && el.classList.contains('recent-post-item')) out.push(el);
     }
     return out;
   }
 
-  function clearDragStyles(item) {
-    item.style.position = '';
-    item.style.left = '';
-    item.style.top = '';
-    item.style.width = '';
-    item.style.height = '';
-    item.style.margin = '';
-    item.style.zIndex = '';
-    item.style.transform = '';
+  function getOverlay() {
+    var ov = document.getElementById('endy-drag-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'endy-drag-overlay';
+      ov.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:99998;';
+      document.body.appendChild(ov);
+    }
+    return ov;
+  }
+
+  function removeGhost(ghost) {
+    if (!ghost || !ghost.parentNode) return false;
+    var p = ghost.parentNode;
+    try { p.removeChild(ghost); } catch (e) { return false; }
+    if (p.id === 'endy-drag-overlay' && p.childNodes.length === 0 && p.parentNode) {
+      try { p.parentNode.removeChild(p); } catch (e) {}
+    }
+    return true;
+  }
+
+  function resetOriginal(item) {
+    if (!item) return;
+    item.classList.remove('endy-drag-item');
+    item.style.visibility = '';
+    item.style.pointerEvents = '';
     item.style.transition = '';
+    item.style.transform = '';
+    item.style.height = '';
+    item.style.overflow = '';
     item.style.transformOrigin = '';
     item.style.willChange = '';
-    item.style.pointerEvents = '';
     item.style.boxShadow = '';
+  }
+
+  // 强制清理：幂等，可从 console 手动调用
+  function cleanupDrag(s) {
+    if (!s) return;
+    if (s.raf) { try { cancelAnimationFrame(s.raf); } catch (e) {} s.raf = 0; }
+    if (s.settleAnim) { try { s.settleAnim.cancel(); } catch (e) {} s.settleAnim = null; }
+    if (s.holdTimer) { clearTimeout(s.holdTimer); s.holdTimer = null; }
+    try { document.body.classList.remove('endy-dragging'); } catch (e) {}
+    window.__endyDragActive = false;
+    removeGhost(s.ghost);
+    resetOriginal(s.item);
+  }
+
+  function forceEndDrag() {
+    if (!state) return;
+    cleanupDrag(state);
+    state = null;
+    suppressClickUntil = Date.now() + 220;
+  }
+  window.__endyForceEndDrag = forceEndDrag;
+
+  /* ---------------- FLIP 工具 ---------------- */
+
+  function flipTo(el, dx, dy) {
+    if (el.__flip) { try { el.__flip.cancel(); } catch (e) {} }
+    if (REDUCED) { el.style.transform = 'none'; return; }
+    var anim = el.animate(
+      [{ transform: 'translate3d(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px,0)' },
+       { transform: 'translate3d(0,0,0)' }],
+      { duration: FLIP_MS, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }
+    );
+    anim.onfinish = function () { if (el.__flip === anim) el.__flip = null; };
+    anim.oncancel = function () { if (el.__flip === anim) el.__flip = null; };
+    el.__flip = anim;
   }
 
   /* ---------------- 顺序持久化 ---------------- */
@@ -100,6 +164,7 @@
     if (!c) return;
     var urls = [], items = c.querySelectorAll(ITEM);
     for (var i = 0; i < items.length; i++) {
+      if (items[i].classList && items[i].classList.contains('endy-drag-ghost')) continue;
       var u = itemUrl(items[i]);
       if (u) urls.push(u);
     }
@@ -111,26 +176,38 @@
     if (!c) return;
     var saved;
     try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch (e) { saved = []; }
-    if (!Array.isArray(saved) || !saved.length) return;
+    if (Array.isArray(saved) && saved.length) {
+      var items = [];
+      var found = c.querySelectorAll(ITEM);
+      for (var i = 0; i < found.length; i++) {
+        if (found[i].classList && found[i].classList.contains('endy-drag-ghost')) continue;
+        items.push(found[i]);
+      }
+      if (items.length >= 2) {
+        var known = [], unknown = [];
+        items.forEach(function (el) {
+          (saved.indexOf(itemUrl(el)) !== -1 ? known : unknown).push(el);
+        });
+        known.sort(function (a, b) {
+          return saved.indexOf(itemUrl(a)) - saved.indexOf(itemUrl(b));
+        });
+        var sentinel = document.createComment('endy-sort');
+        c.insertBefore(sentinel, items[0]);
+        items.forEach(function (el) { el.parentNode.removeChild(el); });
+        unknown.concat(known).forEach(function (el) { c.insertBefore(el, sentinel); });
+        c.removeChild(sentinel);
+      }
+    }
+    bindKeyboard();
+  }
 
-    var items = [];
-    var found = c.querySelectorAll(ITEM);
-    for (var i = 0; i < found.length; i++) items.push(found[i]);
-    if (items.length < 2) return;
-
-    var known = [], unknown = [];
-    items.forEach(function (el) {
-      (saved.indexOf(itemUrl(el)) !== -1 ? known : unknown).push(el);
-    });
-    known.sort(function (a, b) {
-      return saved.indexOf(itemUrl(a)) - saved.indexOf(itemUrl(b));
-    });
-
-    var sentinel = document.createComment('endy-sort');
-    c.insertBefore(sentinel, items[0]);
-    items.forEach(function (el) { el.parentNode.removeChild(el); });
-    unknown.concat(known).forEach(function (el) { c.insertBefore(el, sentinel); });
-    c.removeChild(sentinel);
+  function bindKeyboard() {
+    var items = document.querySelectorAll(CONTAINER + ' ' + ITEM);
+    for (var i = 0; i < items.length; i++) {
+      var el = items[i];
+      if (el.classList && el.classList.contains('endy-drag-ghost')) continue;
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+    }
   }
 
   window.__endyResetPostOrder = function () {
@@ -138,48 +215,61 @@
     location.reload();
   };
 
-  /* ---------------- 实时重排：占位剪影随光标移动 ---------------- */
-
-  // 根据指针 Y 计算应插入的索引（vertical list）
-  function targetIndex(pointerY) {
-    var items = flowItems();
-    for (var i = 0; i < items.length; i++) {
-      var r = items[i].getBoundingClientRect();
-      if (pointerY < r.top + r.height / 2) return i;
-    }
-    return items.length;
-  }
-
-  // 把占位剪影移到目标位置；仅当目标索引变化时才重排并 FLIP，避免每帧抖动
-  function setTarget(pointerY) {
+  /* ---------------- P1 重排：2D 最近格子命中 ----------------
+     移动的是隐形原卡（洞），flex 自然重排，邻居做 FLIP。 */
+  function reorder2D(px, py) {
     var s = state;
     var items = flowItems();
-    var idx = targetIndex(pointerY);
-    var pag = s.container.querySelector('#pagination');
-    var ref = (idx >= items.length) ? (pag || null) : items[idx];
-    if (s.slot.nextSibling === ref) return; // 没变化，不动
+    if (!items.length) return;
+
+    // 死区：指针还在原卡（洞）附近时不重排。
+    // 否则刚拖起时指针可能命中远处卡片，导致卡片「一跳到顶」。
+    var hole = s.item.getBoundingClientRect();
+    var hcx = hole.left + hole.width / 2, hcy = hole.top + hole.height / 2;
+    var threshold = Math.max(hole.width, hole.height) * 0.35;
+    if (Math.hypot(px - hcx, py - hcy) < threshold) return;
+
+    // 邻居卡片正在 FLIP 动画中 → 等落定再重排。
+    // 否则用动画 intermediate 位置做命中会反复改变落点，导致卡片疯狂弹跳。
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].__flip) return;
+    }
+
+    // 最小重排间隔，进一步抑制高频抖动
+    var now = Date.now();
+    if (s.lastReorder && now - s.lastReorder < 80) return;
+
+    var best = -1, bestDist = Infinity;
+    for (var i = 0; i < items.length; i++) {
+      var r = items[i].getBoundingClientRect();
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      var d = Math.hypot(px - cx, py - cy);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    if (best < 0) return;
+
+    var rb = items[best].getBoundingClientRect();
+    var cx = rb.left + rb.width / 2;
+    var after = px > cx;
+    var ref = after ? items[best].nextElementSibling : items[best];
+    if (ref === s.item) return;                  // 目标位置就是当前洞位置
+    if (s.item.nextSibling === ref) return;      // 无变化
 
     var before = items.map(function (el) { return el.getBoundingClientRect(); });
-    s.container.insertBefore(s.slot, ref);
+    s.container.insertBefore(s.item, ref);
+    // 洞已移动，更新参考矩形，让死区跟随新位置
+    s.originRect = s.item.getBoundingClientRect();
     items.forEach(function (el, i) {
-      var after = el.getBoundingClientRect();
-      var dx = before[i].left - after.left;
-      var dy = before[i].top - after.top;
+      var a = before[i], b = el.getBoundingClientRect();
+      var dx = a.left - b.left, dy = a.top - b.top;
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
-      if (el.__flip) { try { el.__flip.cancel(); } catch (e) {} }
-      // flex 双列布局中，slot 移动会让邻居卡片左右换列，因此 FLIP 必须同时 animate X/Y
-      el.__flip = el.animate(
-        [{ transform: 'translate3d(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px,0)' },
-         { transform: 'translate3d(0,0,0)' }],
-        { duration: FLIP_MS, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }
-      );
+      flipTo(el, dx, dy);
     });
+
+    s.lastReorder = now;
   }
 
-  /* ---------------- 跟手帧循环（弹簧迟滞，translate 模型） ----------------
-     卡片固定定位于「原点」(originLeft/originTop)，只通过 transform: translate3d 跟手，
-     这样落位动画也能用同一套 translate 表达，不会和 left/top 叠加出错。
-     抓取点偏移 grabX/grabY 在差值中自然抵消：desiredDx = pointerX - startX。 */
+  /* ---------------- 跟手帧循环 ---------------- */
   function frame() {
     var s = state;
     if (!s || !s.active) return;
@@ -188,21 +278,27 @@
     s.curDx += (desiredDx - s.curDx) * FOLLOW;
     s.curDy += (desiredDy - s.curDy) * FOLLOW;
 
-    // —— P2(a) 速度形变 ——
-    // 以指针「真实速度」(px/ms) 驱动：拖得越快，卡片越朝运动方向倾倒、并轻微放大，
-    // 像被甩出去的纸片带着惯性；指针一停，速度每帧衰减 → 倾斜/放大平滑回正。
     var speed = Math.hypot(s.velX, s.velY);
     var tiltY = REDUCED ? 0 : clamp(s.velX * SPEED_GAIN, -SPEED_TILT, SPEED_TILT);
     var tiltX = REDUCED ? 0 : clamp(-s.velY * SPEED_GAIN, -SPEED_TILT, SPEED_TILT);
     var dynScale = REDUCED ? LIFT_SCALE : (LIFT_SCALE + clamp(speed * 3, 0, SPEED_SCALE));
-    s.item.style.transform =
+    s.ghost.style.transform =
       'perspective(900px) translate3d(' + s.curDx.toFixed(1) + 'px,' + s.curDy.toFixed(1) + 'px,0) ' +
       'rotateX(' + tiltX.toFixed(2) + 'deg) rotateY(' + tiltY.toFixed(2) + 'deg) scale(' + dynScale.toFixed(4) + ')';
 
-    // 指针静止（不再产生 onMove）时，速度自身衰减回 0 → 形变自然归位，不依赖位移
     s.velX *= SPEED_DECAY; s.velY *= SPEED_DECAY;
 
-    if (s.needSlot) { s.needSlot = false; setTarget(s.pointerY); }
+    if (s.needSlot) { s.needSlot = false; reorder2D(s.pointerX, s.pointerY); }
+
+    // P2 边缘自动滚动
+    if (!REDUCED) {
+      if (s.pointerY < EDGE) {
+        window.scrollBy(0, -Math.max(4, MAX_SCROLL * (1 - s.pointerY / EDGE)));
+      } else if (s.pointerY > window.innerHeight - EDGE) {
+        window.scrollBy(0, Math.max(4, MAX_SCROLL * (1 - (window.innerHeight - s.pointerY) / EDGE)));
+      }
+    }
+
     s.raf = requestAnimationFrame(frame);
   }
 
@@ -221,43 +317,54 @@
     s.originTop = rect.top;
     s.grabX = e.clientX - rect.left;
     s.grabY = e.clientY - rect.top;
-    s.curDx = 0; s.curDy = 0;   // 以「固定定位原点」为基准的位移（translate 模型）
+    s.curDx = 0; s.curDy = 0;
     s.pointerX = e.clientX; s.pointerY = e.clientY;
 
-    // 收掉 press-gravity 可能残留的悬浮倾斜，避免两套管子打架
-    if (typeof window.__endyPressRelease === 'function') {
-      try { window.__endyPressRelease(item); } catch (e2) {}
-    }
-    item.classList.add('endy-drag-item');
+    // 保留 press-gravity 在 pointerdown 时给的按压效果，
+    // 但清空当前 transform/transition，让原卡以自然流内尺寸占位。
+    // __endyDragActive=true 后 press-gravity 自动让位，pointerup 时由它释放。
     item.style.transition = 'none';
     item.style.transform = '';
 
-    var cs = window.getComputedStyle(item);
-    var mb = parseFloat(cs.marginBottom) || 0;
-    var mt = parseFloat(cs.marginTop) || 0;
-    var slot = document.createElement('div');
-    slot.className = 'endy-drag-silhouette';
-    slot.style.height = rect.height + 'px';
-    // flex 双列布局：空 div 默认宽 0 会塌缩，但用固定像素宽 + flex-shrink:0 又会挤爆换行。
-    // 改用百分比宽（与 .recent-post-item 的 49% 一致），让 flex 容器自然分配空间。
-    slot.style.width = '49%';
-    slot.style.boxSizing = 'border-box';
-    slot.style.marginTop = mt + 'px';
-    slot.style.marginBottom = mb + 'px';
-    s.slot = slot;
-    item.parentNode.insertBefore(slot, item);
+    // 创建视觉 ghost：原卡的 fixed 浮层克隆，跟手移动
+    var ghost = item.cloneNode(true);
+    ghost.removeAttribute('id');
+    ghost.removeAttribute('tabindex');
+    ghost.removeAttribute('onclick');
+    ghost.classList.add('endy-drag-ghost', 'endy-drag-item');
+    ghost.style.position = 'fixed';
+    ghost.style.left = rect.left + 'px';
+    ghost.style.top = rect.top + 'px';
+    ghost.style.width = rect.width + 'px';
+    ghost.style.height = rect.height + 'px';
+    ghost.style.margin = '0';
+    ghost.style.padding = '';
+    ghost.style.zIndex = '99998';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.transition = 'none';
+    ghost.style.transform = 'perspective(900px) translate3d(0,0,0) scale(' + LIFT_SCALE + ')';
+    ghost.style.transformOrigin = 'center center';
+    ghost.style.boxSizing = 'border-box';
+    ghost.style.visibility = 'visible';
+    ghost.style.opacity = '1';
+    // 把 ghost 插回原容器 #recent-posts，让它继续命中主题 CSS 上下文。
+    // position:fixed 已让 ghost 脱离 flex 正常流，不会参与容器重排，
+    // 因此既保留原卡完整视觉，又避免被 FLIP 牵连跳闪。
+    s.container.appendChild(ghost);
+    s.ghost = ghost;
 
-    item.style.position = 'fixed';
-    item.style.margin = '0';
-    item.style.left = rect.left + 'px';
-    item.style.top = rect.top + 'px';
-    item.style.width = rect.width + 'px';
+    // 原卡留在 flex 流内占位，但不可见——它就是「洞」，尺寸天然正确。
+    // 给它固定高度 + overflow:hidden，避免重排/主题 CSS 导致洞高度变化。
+    item.classList.add('endy-drag-item');
+    item.style.visibility = 'hidden';
     item.style.height = rect.height + 'px';
-    item.style.zIndex = '99998';
-    item.style.pointerEvents = 'none';
-    document.body.classList.add('endy-dragging');
+    item.style.overflow = 'hidden';
 
-    try { item.setPointerCapture(s.pointerId); } catch (e3) {}
+    document.body.classList.add('endy-dragging');
+    // pointer capture 绑在 body 上而不是原卡上：
+    // 拖拽过程中原卡会被 insertBefore 移动，且 visibility:hidden，
+    // 某些浏览器对不可见/移动元素的 capture 会丢事件。body 稳定可靠。
+    try { document.body.setPointerCapture(s.pointerId); } catch (e3) {}
     s.raf = requestAnimationFrame(frame);
   }
 
@@ -273,21 +380,19 @@
     return { x: (last.x - arr[0].x) / dt, y: (last.y - arr[0].y) / dt };
   }
 
-  // 甩出列表 → 飞出并进入文章
   function throwOut(s, vx, vy) {
-    var item = s.item;
+    var ghost = s.ghost, item = s.item;
     var speed = Math.hypot(vx, vy) || 1;
     var dist = Math.min(560, 180 + speed * 380);
     var fx = (vx / speed) * dist;
     var fy = (vy / speed) * dist;
 
-    // 先停掉跟手帧循环：否则它会持续写 item.style.transform，覆盖下面的飞出动画
     if (s.raf) { try { cancelAnimationFrame(s.raf); } catch (e) {} }
     s.active = false;
 
-    var fromT = item.style.transform ||
+    var fromT = ghost.style.transform ||
       'perspective(900px) translate3d(0,0,0) rotateX(0) rotateY(0) scale(' + LIFT_SCALE + ')';
-    var fly = item.animate(
+    var fly = ghost.animate(
       [
         { transform: fromT, opacity: 1 },
         { transform: 'perspective(900px) translate3d(' + fx + 'px,' + fy + 'px,0) rotate(' + (fx > 0 ? 10 : -10) + 'deg) scale(0.9)', opacity: 0 }
@@ -298,11 +403,7 @@
     var go = function () {
       if (gone) return;
       gone = true;
-      if (s.slot && s.slot.parentNode) s.slot.parentNode.removeChild(s.slot);
-      document.body.classList.remove('endy-dragging');
-      window.__endyDragActive = false;
-      item.classList.remove('endy-drag-item');
-      clearDragStyles(item);
+      cleanupDrag(s);
       state = null;
       suppressClickUntil = Date.now() + 500;
       if (window.pjax && typeof window.pjax.loadUrl === 'function') window.pjax.loadUrl(s.url);
@@ -314,13 +415,14 @@
 
   function finishDrag() {
     var s = state;
-    if (!s || !s.active) { state = null; return; }
-    var item = s.item, slot = s.slot;
+    if (!s || !s.active) { forceEndDrag(); return; }
+    var item = s.item, ghost = s.ghost;
+    if (!ghost || !item) { forceEndDrag(); return; }
+
     var v = releaseVel();
 
-    // 甩出判定
     var cr = s.container.getBoundingClientRect();
-    var gc = item.getBoundingClientRect();
+    var gc = ghost.getBoundingClientRect();
     var cx = gc.left + gc.width / 2, cy = gc.top + gc.height / 2;
     var outside = cx < cr.left - 40 || cx > cr.right + 40 || cy < cr.top - 40 || cy > cr.bottom + 40;
     if (outside && Math.hypot(v.x, v.y) > THROW_SPEED) {
@@ -330,45 +432,39 @@
 
     suppressClickUntil = Date.now() + 600;
 
-    // 停掉跟手帧循环：否则它会持续写 item.style.transform，覆盖下面的落位动画
     if (s.raf) { try { cancelAnimationFrame(s.raf); } catch (e) {} }
     s.active = false;
 
-    var slotRect = slot.getBoundingClientRect();
-    var cur = item.getBoundingClientRect();
-    // 以「固定定位原点」为基准的偏移量
+    var hole = item.getBoundingClientRect();     // 隐形原卡当前位置 = 洞
+    var cur = ghost.getBoundingClientRect();
     var curDx = cur.left - s.originLeft;
     var curDy = cur.top - s.originTop;
-    var tgtDx = slotRect.left - s.originLeft;
-    var tgtDy = slotRect.top - s.originTop;
+    var tgtDx = hole.left - s.originLeft;
+    var tgtDy = hole.top - s.originTop;
 
     var done = function () {
-      if (s.settleAnim) { try { s.settleAnim.cancel(); } catch (e) {} }
-      item.classList.remove('endy-drag-item');
-      clearDragStyles(item);
-      if (slot.parentNode) {
-        slot.parentNode.insertBefore(item, slot);
-        slot.parentNode.removeChild(slot);
-      }
-      document.body.classList.remove('endy-dragging');
-      window.__endyDragActive = false;
+      cleanupDrag(s);
       state = null;
       saveOrder();
       suppressClickUntil = Date.now() + 220;
     };
 
-    if (REDUCED) {
-      // 降级：无位移动画，直接归位
+    // 1.2s 铁底：即便浏览器不触发 onfinish/oncancel，也强制清掉
+    var safetyTimer = setTimeout(function () {
+      if (state === s) { cleanupDrag(s); state = null; }
+    }, 1200);
+
+    if (REDUCED || typeof ghost.animate !== 'function') {
+      clearTimeout(safetyTimer);
       done();
       return;
     }
 
-    // 弹簧落位：过冲 + 收敛到目标
     var pts = (window.EndySpring && window.EndySpring.samples)
       ? window.EndySpring.samples(SPRING)
       : [0, 0.5, 1];
     var frames = pts.map(function (p) {
-      var e = p; // 允许 >1 的过冲
+      var e = p;
       var dx = curDx + (tgtDx - curDx) * e;
       var dy = curDy + (tgtDy - curDy) * e;
       var sc = LIFT_SCALE + (1 - LIFT_SCALE) * Math.max(0, Math.min(1, e));
@@ -376,24 +472,20 @@
         transform: 'perspective(900px) translate3d(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px,0) rotateX(0deg) rotateY(0deg) scale(' + sc.toFixed(4) + ')'
       };
     });
-    var anim = item.animate(frames, {
-      duration: frames.length * 1000 / 60,
-      easing: 'linear',
-      fill: 'forwards'
-    });
+    var anim = ghost.animate(frames, { duration: frames.length * 1000 / 60, easing: 'linear', fill: 'forwards' });
     s.settleAnim = anim;
-    anim.onfinish = done; anim.oncancel = done;
-    setTimeout(function () { if (state === s) done(); }, 800);
+    anim.onfinish = function () { clearTimeout(safetyTimer); done(); };
+    anim.oncancel = function () { clearTimeout(safetyTimer); done(); };
   }
 
   function cancelDrag() {
     if (!state) return;
+    if (state.active) { finishDrag(); return; }
     clearTimeout(state.holdTimer);
-    if (state.active) finishDrag();
-    else state = null;
+    state = null;
   }
 
-  /* ---------------- 事件 ---------------- */
+  /* ---------------- 指针事件 ---------------- */
 
   function onDown(e) {
     if (state) return;
@@ -446,7 +538,6 @@
     s.samples.push({ t: Date.now(), x: e.clientX, y: e.clientY });
     if (s.samples.length > 24) s.samples.shift();
 
-    // P2(a)：由最近两帧采样估算指针瞬时速度（px/ms），做指数平滑
     var sn = s.samples.length;
     if (sn >= 2) {
       var a = s.samples[sn - 2], b = s.samples[sn - 1];
@@ -468,11 +559,107 @@
     else { clearTimeout(state.holdTimer); state = null; }
   }
 
+  /* ---------------- P3 键盘重排 ---------------- */
+
+  function getLive() {
+    if (!liveRegion) {
+      liveRegion = document.createElement('div');
+      liveRegion.setAttribute('aria-live', 'assertive');
+      liveRegion.setAttribute('role', 'status');
+      liveRegion.className = 'sr-only';
+      document.body.appendChild(liveRegion);
+    }
+    return liveRegion;
+  }
+  function announce(msg) { getLive().textContent = msg; }
+
+  function listItems() {
+    return Array.prototype.slice.call(document.querySelectorAll(CONTAINER + ' ' + ITEM))
+      .filter(function (el) { return !(el.classList && el.classList.contains('endy-drag-ghost')); });
+  }
+
+  function dropKb() {
+    if (!kbDrag) return;
+    kbDrag.classList.remove('endy-kbd-dragging');
+    announce('已放下卡片。');
+    kbDrag = null;
+  }
+  function cancelKb() {
+    if (!kbDrag) return;
+    kbDrag.classList.remove('endy-kbd-dragging');
+    kbDrag = null;
+    restoreOrder();
+    announce('已取消移动，顺序已还原。');
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var ae = document.activeElement;
+    if (!ae || !ae.classList || !ae.classList.contains('recent-post-item')) return;
+
+    if (!kbDrag) {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        kbDrag = ae;
+        kbDrag.classList.add('endy-kbd-dragging');
+        var idx = listItems().indexOf(kbDrag);
+        announce('已拾起文章卡片，当前第 ' + (idx + 1) + ' 张。用方向键移动，回车或空格放下，Esc 取消。');
+      }
+      return;
+    }
+
+    var items = listItems();
+    var pos = items.indexOf(kbDrag);
+    if (pos === -1) { kbDrag = null; return; }
+
+    var target = pos;
+    if (e.key === 'ArrowUp') target = pos - 2;
+    else if (e.key === 'ArrowDown') target = pos + 2;
+    else if (e.key === 'ArrowLeft') target = pos - 1;
+    else if (e.key === 'ArrowRight') target = pos + 1;
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dropKb(); return; }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelKb(); return; }
+    else return;
+
+    e.preventDefault();
+    target = clamp(target, 0, items.length - 1);
+    if (target === pos) { announce('已在边界，无法继续移动。'); return; }
+
+    var before = items.map(function (el) { return el.getBoundingClientRect(); });
+    if (target > pos) {
+      var ref = items[target].nextElementSibling;
+      kbDrag.parentNode.insertBefore(kbDrag, ref);
+    } else {
+      kbDrag.parentNode.insertBefore(kbDrag, items[target]);
+    }
+    var newItems = listItems();
+    newItems.forEach(function (el) {
+      var i = items.indexOf(el);
+      if (i === -1) return;
+      var a = before[i], b = el.getBoundingClientRect();
+      var dx = a.left - b.left, dy = a.top - b.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+      flipTo(el, dx, dy);
+    });
+    saveOrder();
+    announce('已移动到第 ' + (newItems.indexOf(kbDrag) + 1) + ' 张，共 ' + newItems.length + ' 张。');
+  }, true);
+
+  /* ---------------- 全局事件绑定 ---------------- */
+
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('pointermove', onMove, true);
   document.addEventListener('pointerup', onUp, true);
   document.addEventListener('pointercancel', cancelDrag, true);
+  document.addEventListener('lostpointercapture', function (e) {
+    if (state && e.pointerId === state.pointerId) cancelDrag();
+  }, true);
   window.addEventListener('blur', cancelDrag);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden' && state) forceEndDrag();
+  });
+  window.addEventListener('pagehide', function () {
+    if (state) forceEndDrag();
+  });
 
   document.addEventListener('touchmove', function (e) {
     if (state && state.active && e.cancelable) e.preventDefault();
@@ -489,10 +676,18 @@
     e.stopPropagation();
   }, true);
 
+  /* ---------------- 初始化 ---------------- */
+
+  function init() { restoreOrder(); bindKeyboard(); }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', restoreOrder);
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    restoreOrder();
+    init();
   }
-  document.addEventListener('pjax:complete', restoreOrder);
+  document.addEventListener('pjax:complete', function () {
+    if (state) forceEndDrag();
+    if (kbDrag) { kbDrag.classList.remove('endy-kbd-dragging'); kbDrag = null; }
+    restoreOrder();
+    bindKeyboard();
+  });
 })();
