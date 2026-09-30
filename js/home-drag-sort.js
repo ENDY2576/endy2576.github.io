@@ -35,7 +35,11 @@
   var THROW_MS = 360;
   var LIFT_SCALE = 1.04;        // 浮空缩放
   var PRESS_SCALE = 0.97;       // 按下下沉（保留给将来统一按压用）
-  var DRAG_TILT = 3;            // 拖拽时随速度的微倾上限（度）
+  // —— P2(a) 速度形变：拖拽中按指针「真实速度」做形变的参数 ——
+  var SPEED_TILT = 12;          // 随速度的最大倾斜（度），朝运动方向倾倒
+  var SPEED_SCALE = 0.05;       // 随速度的最大额外放大（形变量，0~5%）
+  var SPEED_GAIN = 6;           // 速度→角度 增益（px/ms × 增益 = 度）
+  var SPEED_DECAY = 0.82;       // 每帧速度衰减：指针静止时倾斜/放大平滑回正
   var FOLLOW = 0.3;             // 跟手弹簧迟滞系数（越小越「重」）
   var SPRING = { stiffness: 260, damping: 22 }; // 落位弹簧（过冲 ~6%）
 
@@ -155,36 +159,49 @@
     var ref = (idx >= items.length) ? (pag || null) : items[idx];
     if (s.slot.nextSibling === ref) return; // 没变化，不动
 
-    var before = items.map(function (el) { return el.getBoundingClientRect().top; });
+    var before = items.map(function (el) { return el.getBoundingClientRect(); });
     s.container.insertBefore(s.slot, ref);
     items.forEach(function (el, i) {
-      var after = el.getBoundingClientRect().top;
-      var delta = before[i] - after;
-      if (Math.abs(delta) < 0.5) return;
+      var after = el.getBoundingClientRect();
+      var dx = before[i].left - after.left;
+      var dy = before[i].top - after.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
       if (el.__flip) { try { el.__flip.cancel(); } catch (e) {} }
+      // flex 双列布局中，slot 移动会让邻居卡片左右换列，因此 FLIP 必须同时 animate X/Y
       el.__flip = el.animate(
-        [{ transform: 'translateY(' + delta + 'px)' }, { transform: 'translateY(0)' }],
+        [{ transform: 'translate3d(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px,0)' },
+         { transform: 'translate3d(0,0,0)' }],
         { duration: FLIP_MS, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' }
       );
     });
   }
 
-  /* ---------------- 跟手帧循环（弹簧迟滞） ---------------- */
-
+  /* ---------------- 跟手帧循环（弹簧迟滞，translate 模型） ----------------
+     卡片固定定位于「原点」(originLeft/originTop)，只通过 transform: translate3d 跟手，
+     这样落位动画也能用同一套 translate 表达，不会和 left/top 叠加出错。
+     抓取点偏移 grabX/grabY 在差值中自然抵消：desiredDx = pointerX - startX。 */
   function frame() {
     var s = state;
     if (!s || !s.active) return;
-    var tx = s.pointerX - s.grabX;
-    var ty = s.pointerY - s.grabY;
-    s.curX += (tx - s.curX) * FOLLOW;
-    s.curY += (ty - s.curY) * FOLLOW;
-    var vx = tx - s.curX, vy = ty - s.curY;
-    var tiltY = clamp(vx / 40, -DRAG_TILT, DRAG_TILT);
-    var tiltX = clamp(-vy / 40, -DRAG_TILT, DRAG_TILT);
-    s.item.style.left = (s.originLeft + s.curX) + 'px';
-    s.item.style.top = (s.originTop + s.curY) + 'px';
+    var desiredDx = s.pointerX - s.startX;
+    var desiredDy = s.pointerY - s.startY;
+    s.curDx += (desiredDx - s.curDx) * FOLLOW;
+    s.curDy += (desiredDy - s.curDy) * FOLLOW;
+
+    // —— P2(a) 速度形变 ——
+    // 以指针「真实速度」(px/ms) 驱动：拖得越快，卡片越朝运动方向倾倒、并轻微放大，
+    // 像被甩出去的纸片带着惯性；指针一停，速度每帧衰减 → 倾斜/放大平滑回正。
+    var speed = Math.hypot(s.velX, s.velY);
+    var tiltY = REDUCED ? 0 : clamp(s.velX * SPEED_GAIN, -SPEED_TILT, SPEED_TILT);
+    var tiltX = REDUCED ? 0 : clamp(-s.velY * SPEED_GAIN, -SPEED_TILT, SPEED_TILT);
+    var dynScale = REDUCED ? LIFT_SCALE : (LIFT_SCALE + clamp(speed * 3, 0, SPEED_SCALE));
     s.item.style.transform =
-      'perspective(900px) rotateX(' + tiltX.toFixed(2) + 'deg) rotateY(' + tiltY.toFixed(2) + 'deg) scale(' + LIFT_SCALE + ')';
+      'perspective(900px) translate3d(' + s.curDx.toFixed(1) + 'px,' + s.curDy.toFixed(1) + 'px,0) ' +
+      'rotateX(' + tiltX.toFixed(2) + 'deg) rotateY(' + tiltY.toFixed(2) + 'deg) scale(' + dynScale.toFixed(4) + ')';
+
+    // 指针静止（不再产生 onMove）时，速度自身衰减回 0 → 形变自然归位，不依赖位移
+    s.velX *= SPEED_DECAY; s.velY *= SPEED_DECAY;
+
     if (s.needSlot) { s.needSlot = false; setTarget(s.pointerY); }
     s.raf = requestAnimationFrame(frame);
   }
@@ -204,7 +221,7 @@
     s.originTop = rect.top;
     s.grabX = e.clientX - rect.left;
     s.grabY = e.clientY - rect.top;
-    s.curX = 0; s.curY = 0;
+    s.curDx = 0; s.curDy = 0;   // 以「固定定位原点」为基准的位移（translate 模型）
     s.pointerX = e.clientX; s.pointerY = e.clientY;
 
     // 收掉 press-gravity 可能残留的悬浮倾斜，避免两套管子打架
@@ -215,10 +232,17 @@
     item.style.transition = 'none';
     item.style.transform = '';
 
-    var mb = parseFloat(window.getComputedStyle(item).marginBottom) || 0;
+    var cs = window.getComputedStyle(item);
+    var mb = parseFloat(cs.marginBottom) || 0;
+    var mt = parseFloat(cs.marginTop) || 0;
     var slot = document.createElement('div');
     slot.className = 'endy-drag-silhouette';
     slot.style.height = rect.height + 'px';
+    // flex 双列布局：空 div 默认宽 0 会塌缩，但用固定像素宽 + flex-shrink:0 又会挤爆换行。
+    // 改用百分比宽（与 .recent-post-item 的 49% 一致），让 flex 容器自然分配空间。
+    slot.style.width = '49%';
+    slot.style.boxSizing = 'border-box';
+    slot.style.marginTop = mt + 'px';
     slot.style.marginBottom = mb + 'px';
     s.slot = slot;
     item.parentNode.insertBefore(slot, item);
@@ -256,6 +280,10 @@
     var dist = Math.min(560, 180 + speed * 380);
     var fx = (vx / speed) * dist;
     var fy = (vy / speed) * dist;
+
+    // 先停掉跟手帧循环：否则它会持续写 item.style.transform，覆盖下面的飞出动画
+    if (s.raf) { try { cancelAnimationFrame(s.raf); } catch (e) {} }
+    s.active = false;
 
     var fromT = item.style.transform ||
       'perspective(900px) translate3d(0,0,0) rotateX(0) rotateY(0) scale(' + LIFT_SCALE + ')';
@@ -302,13 +330,17 @@
 
     suppressClickUntil = Date.now() + 600;
 
+    // 停掉跟手帧循环：否则它会持续写 item.style.transform，覆盖下面的落位动画
+    if (s.raf) { try { cancelAnimationFrame(s.raf); } catch (e) {} }
+    s.active = false;
+
     var slotRect = slot.getBoundingClientRect();
     var cur = item.getBoundingClientRect();
     // 以「固定定位原点」为基准的偏移量
-    var curOffX = cur.left - s.originLeft;
-    var curOffY = cur.top - s.originTop;
-    var tgtOffX = slotRect.left - s.originLeft;
-    var tgtOffY = slotRect.top - s.originTop;
+    var curDx = cur.left - s.originLeft;
+    var curDy = cur.top - s.originTop;
+    var tgtDx = slotRect.left - s.originLeft;
+    var tgtDy = slotRect.top - s.originTop;
 
     var done = function () {
       if (s.settleAnim) { try { s.settleAnim.cancel(); } catch (e) {} }
@@ -337,11 +369,11 @@
       : [0, 0.5, 1];
     var frames = pts.map(function (p) {
       var e = p; // 允许 >1 的过冲
-      var tx = curOffX + (tgtOffX - curOffX) * e;
-      var ty = curOffY + (tgtOffY - curOffY) * e;
+      var dx = curDx + (tgtDx - curDx) * e;
+      var dy = curDy + (tgtDy - curDy) * e;
       var sc = LIFT_SCALE + (1 - LIFT_SCALE) * Math.max(0, Math.min(1, e));
       return {
-        transform: 'perspective(900px) translate3d(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px,0) rotateX(0deg) rotateY(0deg) scale(' + sc.toFixed(4) + ')'
+        transform: 'perspective(900px) translate3d(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px,0) rotateX(0deg) rotateY(0deg) scale(' + sc.toFixed(4) + ')'
       };
     });
     var anim = item.animate(frames, {
@@ -385,6 +417,8 @@
       active: false,
       holdReady: false,
       samples: [],
+      velX: 0,
+      velY: 0,
       type: e.pointerType || 'mouse',
       needSlot: false,
       raf: 0
@@ -411,6 +445,19 @@
     s.pointerY = e.clientY;
     s.samples.push({ t: Date.now(), x: e.clientX, y: e.clientY });
     if (s.samples.length > 24) s.samples.shift();
+
+    // P2(a)：由最近两帧采样估算指针瞬时速度（px/ms），做指数平滑
+    var sn = s.samples.length;
+    if (sn >= 2) {
+      var a = s.samples[sn - 2], b = s.samples[sn - 1];
+      var dt = b.t - a.t;
+      if (dt > 0) {
+        var ivx = (b.x - a.x) / dt, ivy = (b.y - a.y) / dt;
+        s.velX = s.velX * 0.55 + ivx * 0.45;
+        s.velY = s.velY * 0.55 + ivy * 0.45;
+      }
+    }
+
     s.needSlot = true;
     if (e.cancelable) e.preventDefault();
   }

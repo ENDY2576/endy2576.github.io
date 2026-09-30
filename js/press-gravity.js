@@ -210,6 +210,7 @@
   }
 
   function paintHover(cx, cy) {
+    if (window.__endyDragActive) return;            // 拖拽排序进行中，绝不抢卡片 transform
     if (!hovered || !hoverRect) return;
     var r = hoverRect;
     var rx = clamp01((cx - r.left) / r.width);
@@ -237,6 +238,7 @@
   }
 
   function onHoverMove(e) {
+    if (window.__endyDragActive) return;            // 拖拽排序进行中，悬停跟随整体让位（避免和拖拽帧循环抢 transform 导致闪动）
     if (!hovered || current) return;
     if (e.pointerType && e.pointerType !== 'mouse') return;
     hoverPt = { x: e.clientX, y: e.clientY };

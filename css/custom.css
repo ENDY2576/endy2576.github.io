@@ -1378,6 +1378,40 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   transition: opacity 0.36s ease, visibility 0.36s ease;
 }
 
+/* P1(a)：看板娘舞台层级显式化 + “葱味物理舞台”景深辉光层。
+   舞台给显式 z-index:2，让辉光（z-index:1）稳定垫在舞台之下、页面内容之上，
+   形成“聚光舞台”的纵深感；辉光 pointer-events:none 不拦截任何点击。 */
+#oml2d-stage {
+  z-index: 2 !important;
+}
+#miku-depth-glow {
+  position: fixed;
+  right: -150px;
+  bottom: -210px;
+  width: 580px;
+  height: 720px;
+  /* 白天不显示辉光，避免主题色光斑干扰阅读；夜间在 [data-theme="dark"] 下启用 */
+  display: none;
+  background: none;
+  filter: blur(10px);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.5s ease, visibility 0.5s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+/* 夜间模式：启用辉光层 */
+[data-theme="dark"] #miku-depth-glow {
+  display: block;
+  background: radial-gradient(circle at 50% 46%, rgba(140, 160, 255, 0.40) 0%, rgba(140, 160, 255, 0) 66%);
+}
+[data-theme="dark"] #miku-depth-glow.on {
+  opacity: 1;
+  visibility: visible;
+}
+
+
 /* 右侧设置面板 + 中控台：Miku 开关图标居中 */
 #miku-rightside-toggle,
 #console-miku-toggle .miku-switch {
@@ -1421,6 +1455,11 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   min-width: 64px;
   min-height: 0 !important;
   max-width: 260px;
+  /* 长回复（如「你会什么」）不再把气泡撑出屏幕，改为限高 + 内部滚动，
+     保证底部「我知道啦」按钮始终在可视区内可点。 */
+  max-height: 56vh;
+  display: flex !important;
+  flex-direction: column;
   /* 一句话的气泡之前偏高：内边距 8/14 + 行高 1.5 撑出了很厚的空腔。
      这里收窄内边距、压低行高，短句额外走 .miku-tips-compact。 */
   padding: 6px 11px !important;
@@ -1429,7 +1468,7 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   line-height: 1.3 !important;
   font-size: 12px;
   box-sizing: border-box;
-  overflow: visible !important;
+  overflow: hidden !important;
   text-overflow: clip !important;
 }
 /* 一句话/短句：更薄的内边距，气泡明显变矮 */
@@ -1438,13 +1477,16 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 }
 #oml2d-tips-content {
   display: block !important;
-  overflow: visible !important;
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  max-height: calc(56vh - 14px);
+  overflow-y: auto !important;   /* 长回复可滚动，按钮（同为 content 子元素）始终可达 */
+  -webkit-overflow-scrolling: touch;
   text-overflow: clip !important;
   -webkit-line-clamp: unset !important;
   -webkit-box-orient: unset !important;
   white-space: normal !important;
   word-break: break-word !important;
-  min-height: 0 !important;
 }
 /* 「我已知晓」按钮离正文近一点，别把气泡撑高 */
 #miku-ack-btn {
@@ -1462,6 +1504,108 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 [data-theme='dark'] #oml2d-tips-content {
   color: #f0f0f0 !important;
 }
+
+/* 聊天对话框预设问题 chips（点击即发送对应问法） */
+#miku-chat-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+.miku-chip {
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--anzhiyu-main, #4b5cc4);
+  background: transparent;
+  color: var(--anzhiyu-main, #4b5cc4);
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, color .15s, transform .15s;
+}
+.miku-chip:hover {
+  background: var(--anzhiyu-main, #4b5cc4);
+  color: #fff;
+}
+.miku-chip:active {
+  transform: scale(0.95);
+}
+[data-theme='dark'] .miku-chip {
+  color: #cdd3f0;
+  border-color: #6b76c9;
+}
+[data-theme='dark'] .miku-chip:hover {
+  background: #6b76c9;
+  color: #fff;
+}
+
+/* 芯片按压涟漪（高级交互反馈）：扩散高亮，点击瞬间可见。
+   关键帧让不透明度在扩散期保持高位、末段才淡出，解决旧版「越扩散越透明」看不见的坑。 */
+.miku-chip-ripple {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+@keyframes miku-ripple {
+  0%   { transform: scale(0);   opacity: .55; }
+  55%  { opacity: .5; }
+  100% { transform: scale(1);   opacity: 0; }
+}
+.miku-followup-chip {
+  position: relative;
+  overflow: hidden;
+}
+.miku-followup-chip:active {
+  transform: scale(0.94);
+}
+
+/* ===== 看板娘世界级交互增强：上下文追问 / 径向菜单 / 微反馈 ===== */
+/* 注：状态丸（.miku-state-pill）已停用，用户要求去除可见状态标记（待机/思考中等）。 */
+
+/* 上下文追问 chips */
+.miku-followups .miku-followup-chip:hover {
+  background: var(--anzhiyu-main, #4b5cc4);
+  color: #fff;
+}
+[data-theme='dark'] .miku-followups {
+  background: rgba(42, 44, 53, .96);
+  border-color: #6b76c9;
+}
+[data-theme='dark'] .miku-followups .miku-followup-chip {
+  color: #cdd3f0;
+  border-color: #6b76c9;
+}
+[data-theme='dark'] .miku-followups .miku-followup-chip:hover {
+  background: #6b76c9;
+  color: #fff;
+}
+
+/* 气泡轻弹（发送成功）：仅用 box-shadow 脉冲，不碰 transform，避免位移覆盖定位 */
+@keyframes miku-pop {
+  0%   { box-shadow: 0 4px 12px rgba(75, 92, 196, .25); }
+  45%  { box-shadow: 0 0 0 4px rgba(75, 92, 196, .35); }
+  100% { box-shadow: 0 4px 12px rgba(75, 92, 196, .25); }
+}
+.miku-pop { animation: miku-pop .34s ease; }
+
+/* 舞台抖动（报错反馈） */
+@keyframes miku-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px) rotate(-1deg); }
+  40% { transform: translateX(6px) rotate(1deg); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.miku-shake { animation: miku-shake .4s ease; }
+
+/* 径向菜单项：聚焦可见（键盘可达） */
+.miku-radial-item:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 /* ==================================================================
    彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏。
@@ -2250,6 +2394,7 @@ img[data-lazy-src*="pZRXSc6"] {
   background: rgba(75, 92, 196, 0.14);
   box-shadow: inset 0 0 0 2px rgba(75, 92, 196, 0.32);
   pointer-events: none;
+  box-sizing: border-box;
   animation: endy-silhouette-pulse 1.6s ease-in-out infinite;
 }
 @keyframes endy-silhouette-pulse {
@@ -2269,6 +2414,14 @@ body.endy-dragging {
 @media (prefers-reduced-motion: reduce) {
   .endy-drag-silhouette { animation: none; }
 }
+
+/* 拖拽排序占位修正：主题用「非首项 margin-top:20px」做卡片间距，
+   占位剪影不是 .recent-post-item，顶替首项后会让紧跟其后的真实卡片
+   仍带 20px 顶部留白 → 顶部出现空白、看起来邻居没补位。
+   这里让「紧跟分类栏 / 占位剪影」的首张卡片去掉多余 margin-top。
+   正常态（非拖拽）首卡本就是 :first-child 无 margin-top，不影响原布局。 */
+#recent-posts > #categoryBar + .recent-post-item { margin-top: 0 !important; }
+#recent-posts > .endy-drag-silhouette + .recent-post-item { margin-top: 0 !important; }
 
 /* ==================================================================
    全站动效系统（A 动效语言 / B 滚动进场 / F 光影材质）
@@ -2327,4 +2480,144 @@ body.endy-dragging {
     transform: none;
   }
   .is-lit::after { content: none; }
+}
+
+/* ============================================================
+   图片共享展开灯箱（View Transition 共享元素）
+   —— 容器不透明度不动，遮罩单独淡入淡出，保证 morph 图片始终可见
+   ============================================================ */
+#endy-img-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+}
+.endy-img-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 18, 0.92);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+#endy-img-lightbox.show .endy-img-backdrop { opacity: 1; }
+
+.endy-img-lightbox-img {
+  position: relative;
+  z-index: 1;
+  max-width: 92vw;
+  max-height: 84vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  background: #111;
+  opacity: 1;
+  transition: opacity 0.12s ease;
+}
+
+.endy-img-btn {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+.endy-img-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.endy-img-btn:active { transform: scale(0.92); }
+.endy-img-close {
+  top: 18px;
+  right: 18px;
+  width: 42px;
+  height: 42px;
+  font-size: 26px;
+  line-height: 1;
+  border-radius: 50%;
+}
+.endy-img-prev,
+.endy-img-next {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 50px;
+  height: 50px;
+  font-size: 30px;
+  line-height: 1;
+  border-radius: 50%;
+}
+.endy-img-prev { left: 18px; }
+.endy-img-next { right: 18px; }
+.endy-img-prev:active,
+.endy-img-next:active { transform: translateY(-50%) scale(0.92); }
+
+.endy-img-caption {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  max-width: 86vw;
+  padding: 8px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.22s ease 0.1s;
+}
+#endy-img-lightbox.show .endy-img-caption { opacity: 1; }
+
+.endy-img-counter {
+  position: absolute;
+  z-index: 2;
+  top: 22px;
+  left: 22px;
+  padding: 4px 12px;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.22s ease 0.1s;
+}
+#endy-img-lightbox.show .endy-img-counter { opacity: 1; }
+
+/* 共享元素 morph：保持图片比例不被拉伸（不同长宽比之间插值用 contain） */
+::view-transition-group(endy-shared-img) {
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(endy-shared-img),
+::view-transition-new(endy-shared-img) {
+  object-fit: contain;
+  mix-blend-mode: normal;
+}
+
+@media (max-width: 600px) {
+  .endy-img-lightbox-img { max-width: 96vw; max-height: 80vh; }
+  .endy-img-prev { left: 8px; }
+  .endy-img-next { right: 8px; }
+  .endy-img-close { top: 12px; right: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .endy-img-backdrop,
+  .endy-img-lightbox-img,
+  .endy-img-caption,
+  .endy-img-counter,
+  .endy-img-btn { transition: none !important; }
 }

@@ -347,15 +347,18 @@
     });
   }
 
-  /* ---------- 彩蛋5：长文底部悄悄话 ---------- */
+  /* ---------- 彩蛋5：长文底部悄悄话（仅文章详情页） ---------- */
   function initWhisperEgg() {
-    // 只在「文章详情页」生效：首页 / 归档 / 分类 / 标签等列表页不触发
-    const isPostPage = !!document.querySelector('#article-container.post-content') &&
-      !!document.querySelector('#post .post-meta, #post-meta, .post-copyright, #post .post-footer');
-    if (!isPostPage) return;
-    // 50% 触发概率：这次没抽中就没了，下次再来
-    if (Math.random() >= 0.5) return;
-    const quotes = [
+    // 真正「文章详情页」判定：每次都现场查 DOM，避免 PJAX 切页后残留旧的首次判定结果
+    function isPostPageNow() {
+      return !!document.querySelector('#article-container.post-content') &&
+        !!document.querySelector('#post .post-meta, #post-meta, .post-copyright, #post .post-footer');
+    }
+    function removeWhisper() {
+      var el = document.getElementById('endy-whisper');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+    var quotes = [
       '万物皆有裂痕，那是光照进来的地方。',
       '慢下来，才能看见被速度忽略的风景。',
       '你读到的每一行，都是某个人深夜的独白。',
@@ -369,23 +372,11 @@
       '把简单的事做好，就是不简单。',
       '夜再长，也挡不住一颗想发光的心。'
     ];
-    let shown = false;
-    function check() {
-      if (shown) return;
-      const sh = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
-      const ch = document.documentElement.clientHeight || window.innerHeight || 0;
-      const st = window.scrollY || document.body.scrollTop || 0;
-      if (sh - ch <= 0) return; // 页面本身不够长，不触发
-      if (st + ch >= sh - 80) {
-        shown = true;
-        showWhisper(quotes[Math.floor(Math.random() * quotes.length)]);
-      }
-    }
     function showWhisper(q) {
       markEggFound('whisper');
-      const footer = document.getElementById('footer-wrap');
+      var footer = document.getElementById('footer-wrap');
       if (!footer) return;
-      let el = document.getElementById('endy-whisper');
+      var el = document.getElementById('endy-whisper');
       if (!el) {
         el = document.createElement('div');
         el.id = 'endy-whisper';
@@ -395,9 +386,35 @@
       el.innerHTML = '🐾 恭喜你读到了这里，送你一句：<span class="endy-whisper-q">' + q + '</span>';
       requestAnimationFrame(function () { el.classList.add('show'); });
     }
-    window.addEventListener('scroll', check, { passive: true });
-    window.addEventListener('resize', check);
-    check();
+
+    // 监听器只绑定一次（window 级），靠闭包内的实时判定处理所有页面，
+    // 避免「之前在文章页绑的监听器，切到首页仍认为自己在文章页」而误触发。
+    if (!window.__endyWhisperBound) {
+      window.__endyWhisperBound = true;
+      var shown = false;
+      function check() {
+        if (!isPostPageNow()) { removeWhisper(); return; } // 非文章页（含首页）一律清掉
+        if (shown) return;
+        var sh = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+        var ch = document.documentElement.clientHeight || window.innerHeight || 0;
+        var st = window.scrollY || document.body.scrollTop || 0;
+        if (sh - ch <= 0) return; // 页面本身不够长，不触发
+        if (st + ch >= sh - 80) {
+          shown = true;
+          showWhisper(quotes[Math.floor(Math.random() * quotes.length)]);
+        }
+      }
+      window.addEventListener('scroll', check, { passive: true });
+      window.addEventListener('resize', check);
+      document.addEventListener('pjax:send', removeWhisper);
+      window.__endyWhisperReset = function () { shown = false; };
+      window.__endyWhisperCheck = check;
+    }
+
+    if (!isPostPageNow()) { removeWhisper(); return; }
+    window.__endyWhisperReset();        // 进入（或切回）文章页：允许本次再触发一次
+    if (Math.random() >= 0.5) return;   // 50% 概率
+    window.__endyWhisperCheck();        // 立即检查一次（万一本就在底部）
   }
 
   /* ---------- 彩蛋7：彩蛋成就册页面（/life/eggs/） ---------- */

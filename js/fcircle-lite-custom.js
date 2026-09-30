@@ -251,6 +251,7 @@
     return `
       <div class="fc-lite-filter-bar">
         <div class="fc-lite-tabs">
+          <span class="fc-lite-tab-thumb" aria-hidden="true"></span>
           ${CATEGORIES.map(c => `
             <button class="fc-lite-tab${state.currentCategory === c.key ? ' active' : ''}" data-cat="${c.key}" type="button" style="--cat-color:${c.color}">
               ${c.label}<span class="fc-lite-tab-count">${counts[c.key] || 0}</span>
@@ -305,12 +306,37 @@
     });
   }
 
+  // 液态滑动指示器：把高亮块定位到当前 active tab，并在切换时短暂变水滴形
+  function positionTabThumb(root, animate) {
+    const tabs = root.querySelector('.fc-lite-tabs');
+    if (!tabs) return;
+    const thumb = tabs.querySelector('.fc-lite-tab-thumb');
+    if (!thumb) return;
+    const q = state.searchQuery.trim();
+    const activeKey = q ? 'all' : state.currentCategory;
+    const tab = tabs.querySelector('.fc-lite-tab[data-cat="' + activeKey + '"]');
+    if (!tab) return;
+    const color = getComputedStyle(tab).getPropertyValue('--cat-color').trim() || 'var(--fc-primary)';
+    thumb.style.backgroundColor = color;
+    thumb.style.boxShadow = '0 3px 10px ' + color + '66';
+    thumb.style.width = tab.offsetWidth + 'px';
+    thumb.style.height = tab.offsetHeight + 'px';
+    thumb.style.transform = 'translate3d(' + tab.offsetLeft + 'px,' + tab.offsetTop + 'px,0)';
+    thumb.classList.add('ready');
+    if (animate) {
+      thumb.classList.add('liquid');
+      clearTimeout(window.__fcTabThumbLiquidT);
+      window.__fcTabThumbLiquidT = setTimeout(function () { thumb.classList.remove('liquid'); }, 420);
+    }
+  }
+
   function updateTabVisuals(root) {
     const q = state.searchQuery.trim();
     root.querySelectorAll('.fc-lite-tab').forEach(b => {
       const activeKey = q ? 'all' : state.currentCategory;
       b.classList.toggle('active', b.dataset.cat === activeKey);
     });
+    positionTabThumb(root, false);
   }
 
   function updateVisibleCards(root) {
@@ -364,6 +390,7 @@
     cards.forEach((card, i) => { state.articles[i]._el = card; });
 
     bindEvents(root);
+    positionTabThumb(root, false); // 初始化液态指示器位置（无液体动画）
   }
 
   function bindEvents(root) {
@@ -373,6 +400,7 @@
         root.querySelectorAll('.fc-lite-tab').forEach(b => {
           b.classList.toggle('active', b.dataset.cat === state.currentCategory);
         });
+        positionTabThumb(root, true); // 液态滑动到新分类
         updateVisibleCards(root);
       });
     });

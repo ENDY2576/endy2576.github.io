@@ -332,42 +332,83 @@
 }
 
 .fc-lite-tabs {
+  position: relative;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
 .fc-lite-tab {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 6px 13px;
   border-radius: 18px;
   border: 1px solid var(--fc-card-border);
-  background: var(--fc-card-bg);
+  /* 关键修复：标签块默认透明，让背后的液态滑动指示器（.fc-lite-tab-thumb，分类主题色）
+     能透出形成“彩色药丸”；此前写死 var(--fc-card-bg) 白底会盖住指示器，
+     导致激活态白字白底不可见、且不随分类/主题变色。 */
+  background: transparent;
   color: var(--fc-text-sub);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.25s ease, border-color 0.25s ease, background-color 0.25s ease, transform 0.2s ease;
   backdrop-filter: blur(2px);
 }
 
 .fc-lite-tab:hover {
   color: var(--cat-color);
+  background: color-mix(in srgb, var(--cat-color) 12%, transparent);
   border-color: color-mix(in srgb, var(--cat-color) 40%, transparent);
   transform: translateY(-1px);
 }
 
 .fc-lite-tab.active {
   color: #fff;
-  background: var(--cat-color);
-  border-color: var(--cat-color);
-  box-shadow: 0 3px 8px color-mix(in srgb, var(--cat-color) 30%, transparent);
+  /* 激活态自身背景透明，露出背后分类色的液态指示器；
+     白字落在其上清晰可见，深浅主题均自适应（指示器=分类色，与主题无关）。 */
+  background: transparent;
+  border-color: transparent;
+}
+
+/* 朋友圈分类 Tab 液态滑动指示器 */
+.fc-lite-tab-thumb {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  border-radius: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+              width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+              height 0.25s ease,
+              border-radius 0.42s ease,
+              background-color 0.3s ease,
+              opacity 0.25s ease;
+  will-change: transform, width;
+}
+.fc-lite-tab-thumb.ready { opacity: 1; }
+/* 切换时短暂变水滴形，像液体一样“流”到下一个分类 */
+.fc-lite-tab-thumb.liquid {
+  border-radius: 46% 54% 58% 42% / 56% 44% 60% 40%;
 }
 
 .fc-lite-tab.active .fc-lite-tab-count {
   background: rgba(255, 255, 255, 0.25);
   color: #fff;
+}
+
+/* 夜间模式：非激活态计数药丸改用浅色底，避免 rgba(0,0,0,.06) 在深色背景上消失 */
+[data-theme="dark"] .fc-lite-tab-count {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--fc-text-sub);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-lite-tab-thumb { transition: none !important; }
 }
 
 .fc-lite-tab-count {
