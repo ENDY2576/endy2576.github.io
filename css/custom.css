@@ -329,20 +329,20 @@ html:not([data-theme="dark"]) #web_bg_next::before {
    ================================================================== */
 #welcome-info {
   --theme-color: #4f46e5;
-  background: #eef2ff;
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.12);
   border-radius: 12px;
   padding: 12px 16px;
   margin-top: 10px;
-  color: #4f46e5;
   text-align: center;
   line-height: 1.7;
 }
 
-/* 深色模式：背景稍深、文字用浅紫，保证可读 */
+/* 深色模式：淡紫底 + 浅紫字，保证可读 */
 [data-theme="dark"] #welcome-info {
   --theme-color: #a5b4fc;
-  background: rgba(99, 102, 241, 0.15);
-  color: #a5b4fc;
+  color: #c7d2fe;
+  background: rgba(99, 102, 241, 0.16);
 }
 
 /* ==================================================================
@@ -414,6 +414,10 @@ html:not([data-theme="dark"]) #web_bg_next::before {
   font-style: italic;
   opacity: 0.9;
 }
+
+/* （R18 加在欢迎卡的光斑/渐变已移至首页 aside 站长卡片，
+   作用域严格限定为 #aside-content .card-widget.card-info，
+   避免误伤 about 页同 class 的站长卡片形状） */
 
 /* ==================================================================
    右下角回顶按钮：
@@ -1380,9 +1384,14 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 
 /* P1(a)：看板娘舞台层级显式化 + “葱味物理舞台”景深辉光层。
    舞台给显式 z-index:2，让辉光（z-index:1）稳定垫在舞台之下、页面内容之上，
-   形成“聚光舞台”的纵深感；辉光 pointer-events:none 不拦截任何点击。 */
+   形成“聚光舞台”的纵深感；辉光 pointer-events:none 不拦截任何点击。
+   ⚠ 层级必须是高位（原写 2 是个严重 bug）：舞台 z-index 只有 2 时，文章页里
+   任何 z-index ≥ 3 的定位元素（卡片、代码块、目录、悬浮按钮…）都会整片盖住
+   看板娘，表现为「被文章页元素遮挡」。oml2d 库自身默认是 9999，这里取 9997：
+   既高于全部页面内容，又低于 hitbox(99998) / 气泡(99997) / 对话与面板(99999)，
+   保证命中框能接到点击、控制台与对话框能盖在模型之上。 */
 #oml2d-stage {
-  z-index: 2 !important;
+  z-index: 9997 !important;
 }
 #miku-depth-glow {
   position: fixed;
@@ -1395,7 +1404,8 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   background: none;
   filter: blur(10px);
   pointer-events: none;
-  z-index: 1;
+  /* 原 1：随舞台一起抬到高位，保持「垫在舞台之下、页面内容之上」的相对关系 */
+  z-index: 9996;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.5s ease, visibility 0.5s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
@@ -2330,6 +2340,120 @@ img[data-lazy-src*="pZRXSc6"] {
 }
 
 /* ==================================================================
+   关于页站长卡片
+   - 白天模式：正常蓝色主题色（静态蓝→浅蓝渐变），覆盖主题默认紫→青
+   - 夜间模式：蓝→黄流动渐变 + 两团漂浮光斑（电影史诗感）
+   ================================================================== */
+/* 白天：正常蓝主题色 */
+#about-page .myInfoAndSayHello {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  color: #fff;
+  background: linear-gradient(120deg, #1e6bff 0%, #36c6ff 100%);
+}
+
+/* 夜间：蓝黄流动 + 光斑 */
+[data-theme="dark"] #about-page .myInfoAndSayHello {
+  background: linear-gradient(120deg, #1e6bff 0%, #36c6ff 26%, #ffe45e 72%, #ffcf3a 100%);
+  background-size: 220% 220%;
+  animation: endy-card-flow 14s ease infinite;
+  box-shadow: 0 10px 40px -8px rgba(40, 120, 255, 0.35);
+}
+@keyframes endy-card-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+/* 光斑：两层柔光漂浮，制造“流动的星尘/光点”质感（仅夜间） */
+[data-theme="dark"] #about-page .myInfoAndSayHello::before,
+[data-theme="dark"] #about-page .myInfoAndSayHello::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  z-index: 0;
+}
+[data-theme="dark"] #about-page .myInfoAndSayHello::before {
+  width: 190px; height: 190px;
+  left: 6%; top: -34%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 70%);
+  animation: endy-card-spot1 11s ease-in-out infinite;
+}
+[data-theme="dark"] #about-page .myInfoAndSayHello::after {
+  width: 150px; height: 150px;
+  right: 10%; bottom: -28%;
+  background: radial-gradient(circle, rgba(180, 230, 255, 0.55) 0%, rgba(180, 230, 255, 0) 70%);
+  animation: endy-card-spot2 13s ease-in-out infinite;
+}
+@keyframes endy-card-spot1 {
+  0%, 100% { transform: translate(0, 0) scale(1);    opacity: 0.8; }
+  50%      { transform: translate(42px, 30px) scale(1.25); opacity: 0.4; }
+}
+@keyframes endy-card-spot2 {
+  0%, 100% { transform: translate(0, 0) scale(1.1);  opacity: 0.5; }
+  50%      { transform: translate(-30px, -24px) scale(0.85); opacity: 0.9; }
+}
+/* 文字内容压在光斑之上，保证可读性 */
+#about-page .myInfoAndSayHello > * { position: relative; z-index: 1; }
+
+/* ==================================================================
+   首页 aside 站长卡片（含“一日之计在于晨”问候 #author-info__sayhi）
+   - 白天模式：保留主题默认蓝白卡片（正常蓝色主题色）
+   - 夜间模式：与关于页站长卡片同款蓝黄流动渐变 + 漂浮光斑
+   （R18 原误加在 #welcome-info 欢迎卡，已移至此正确卡片；
+    作用域严格限定 #aside-content，避免误伤 about 页同 class 卡片）
+   ================================================================== */
+[data-theme="dark"] #aside-content .card-widget.card-info {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  color: #fff;
+  background: linear-gradient(120deg, #1e6bff 0%, #36c6ff 26%, #ffe45e 72%, #ffcf3a 100%);
+  background-size: 220% 220%;
+  animation: endy-card-flow 14s ease infinite;
+  box-shadow: 0 10px 40px -8px rgba(40, 120, 255, 0.35);
+}
+[data-theme="dark"] #aside-content .card-widget.card-info::before,
+[data-theme="dark"] #aside-content .card-widget.card-info::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  z-index: 0;
+}
+[data-theme="dark"] #aside-content .card-widget.card-info::before {
+  width: 190px; height: 190px;
+  left: 6%; top: -34%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0) 70%);
+  animation: endy-card-spot1 11s ease-in-out infinite;
+}
+[data-theme="dark"] #aside-content .card-widget.card-info::after {
+  width: 150px; height: 150px;
+  right: 10%; bottom: -28%;
+  background: radial-gradient(circle, rgba(180, 230, 255, 0.55) 0%, rgba(180, 230, 255, 0) 70%);
+  animation: endy-card-spot2 13s ease-in-out infinite;
+}
+/* 卡片内容压在光斑之上，保证可读性 */
+[data-theme="dark"] #aside-content .card-widget.card-info .card-content { position: relative; z-index: 1; }
+
+/* ==================================================================
+   昼夜切换配色平滑过渡：消除“切换时配色滞后/突兀”观感。
+   仅对大块面（背景层 + 关于页卡片）做颜色过渡，避开链接/按钮等高频 hover 元素，
+   避免 hover 变迟钝。
+   ================================================================== */
+html, body,
+#web_bg, #web_bg_next,
+#about-page .author-box,
+#about-page .author-content-item,
+.endy-scene-inner {
+  transition: background-color 0.42s ease, color 0.42s ease,
+              border-color 0.42s ease, box-shadow 0.42s ease;
+}
+
+/* ==================================================================
    首页分类卡（生活 / 学习 / 知识）：恢复并增强安知鱼原生的「挤压」动画
    主题规则是 .categoryItem:hover { width: 50% } —— 悬浮那张变宽、
    另外两张被挤压收窄；这里只把宽度过渡调得更顺滑，不额外加 transform，
@@ -2400,6 +2524,18 @@ body.endy-dragging * { cursor: grabbing !important; }
 
 /* 分类栏后的首张卡片去掉多余 margin-top（与正常态 :first-child 一致） */
 #recent-posts > #categoryBar + .recent-post-item { margin-top: 0 !important; }
+
+/* 桌面端 flex 双列卡片等高：主题默认给非首张卡片加 margin-top: 20px，
+   导致同排第二张卡片被 flex 行高压缩 20px，视觉上「突起」。
+   用 flex gap 替代 margin-top，让所有卡片 content box 等高。 */
+@media screen and (min-width: 1201px) {
+  #recent-posts {
+    gap: 20px !important;
+  }
+  #recent-posts > .recent-post-item {
+    margin-top: 0 !important;
+  }
+}
 
 /* P3 键盘可达：焦点环 + 键盘拖拽高亮 + 屏幕阅读器播报区 */
 .recent-post-item:focus-visible {
@@ -2622,3 +2758,1348 @@ body.endy-dragging * { cursor: grabbing !important; }
   .endy-img-counter,
   .endy-img-btn { transition: none !important; }
 }
+
+/* ==================================================================
+   夜间流星雨 · 长按蓄力环（配合 source/js/meteor-boost.js）
+   ------------------------------------------------------------------
+   环由 JS 动态插入 #endy-meteor-dial，这里只负责外观：
+   轨道圈 + 顺时针进度圈 + 12 格刻度 + 中心亮点 + 过载时的旋转短弧。
+   全程 pointer-events:none，只做视觉反馈，不接管任何点击。
+   ================================================================== */
+#endy-meteor-dial {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 52px;
+  height: 52px;
+  z-index: 9991;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  will-change: transform;
+}
+#endy-meteor-dial.is-on { opacity: 1; }
+#endy-meteor-dial svg {
+  width: 52px;
+  height: 52px;
+  display: block;
+  overflow: visible;
+}
+#endy-meteor-dial .track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 2.4;
+}
+#endy-meteor-dial .prog {
+  fill: none;
+  stroke: rgba(150, 220, 205, 0.95);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-90deg); /* 从 12 点方向起笔 → 顺时针填充 */
+}
+#endy-meteor-dial .tick {
+  stroke: rgba(150, 220, 205, 0.55);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  opacity: 0.18;
+  transition: opacity 0.12s linear;
+}
+#endy-meteor-dial .core {
+  fill: rgba(255, 255, 255, 0.9);
+  opacity: 0.35;
+}
+#endy-meteor-dial .spin {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+/* 拉满 → 星河过载：环变白、中心点亮、外圈跑一道旋转短弧 */
+#endy-meteor-dial.is-full .prog { stroke: #ffffff; }
+#endy-meteor-dial.is-full .core { fill: #ffffff; opacity: 1; }
+#endy-meteor-dial.is-full svg { filter: drop-shadow(0 0 7px rgba(150, 220, 205, 0.6)); }
+#endy-meteor-dial.is-full .spin {
+  opacity: 0.9;
+  animation: endy-dial-spin 1.1s linear infinite;
+}
+@keyframes endy-dial-spin {
+  from { transform: rotate(-90deg); }
+  to   { transform: rotate(270deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #endy-meteor-dial .spin { animation: none; }
+  #endy-meteor-dial .tick { transition: none; }
+}
+
+/* ==================================================================
+   夜间标题提亮 + 冷青辉光
+   ------------------------------------------------------------------
+   夜间模式下一批标题偏灰，这里统一抬到接近纯白，并叠两层柔光
+   （近距 10px + 远距 26px），与流星的葱青色呼应。
+   想调就改下面两个变量：--endy-glow-1 / --endy-glow-2。
+   ================================================================== */
+[data-theme="dark"] {
+  --endy-title-color: #f4f9ff;
+  --endy-glow-1: rgba(158, 224, 214, 0.36);
+  --endy-glow-2: rgba(158, 224, 214, 0.16);
+}
+/* 选择器要压过主题自带的两级 id 规则（#page-header #site-title / #post-info .post-title），
+   所以这里一律写成「[data-theme] + id + 标签」的形式。 */
+[data-theme="dark"] #page-header h1#site-title,
+[data-theme="dark"] #page-header h1.page-title,
+[data-theme="dark"] #post-info h1.post-title,
+[data-theme="dark"] #post h1.post-title,
+[data-theme="dark"] #recent-posts .recent-post-item .article-title,
+[data-theme="dark"] .topGroup .recent-post-item .article-title,
+[data-theme="dark"] .card-widget .item-headline,
+[data-theme="dark"] #article-container h1,
+[data-theme="dark"] #article-container h2,
+[data-theme="dark"] #article-container h3 {
+  color: var(--endy-title-color);
+  text-shadow: 0 0 10px var(--endy-glow-1), 0 0 26px var(--endy-glow-2);
+}
+/* 卡片 hover：辉光加强一档，呼应卡片的抬起反馈 */
+[data-theme="dark"] #recent-posts .recent-post-item:hover .article-title,
+[data-theme="dark"] .topGroup .recent-post-item:hover .article-title {
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(158, 224, 214, 0.55), 0 0 30px rgba(158, 224, 214, 0.28);
+}
+/* 压在头图上的标题（首页大标题 / 文章页大标题）额外保留一层投影，保证在亮图上仍然读得清 */
+[data-theme="dark"] #page-header h1#site-title,
+[data-theme="dark"] #page-header h1.page-title,
+[data-theme="dark"] #post-info h1.post-title,
+[data-theme="dark"] #post h1.post-title {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 0 10px var(--endy-glow-1), 0 0 26px var(--endy-glow-2);
+}
+
+/* ==================================================================
+   Lenis 平滑滚动：官方推荐的基础样式（自托管 /js/lenis.min.js）
+   ------------------------------------------------------------------
+   1) html.lenis / body 高度交回 auto，避免 100% 高度把滚动容器锁死；
+   2) .lenis-stopped 用 overflow:clip 冻结页面（弹层打开时）；
+   3) 带 data-lenis-prevent 的内嵌容器保留原生滚动（overscroll-behavior:contain）；
+   4) 平滑滚动期间 iframe 不接指针事件，防止拖动地图/视频时页面跟着滑。
+   ================================================================== */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+.lenis [data-lenis-prevent],
+.lenis [data-lenis-prevent-wheel],
+.lenis [data-lenis-prevent-touch],
+.lenis [data-lenis-prevent-vertical],
+.lenis [data-lenis-prevent-horizontal] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+.lenis.lenis-autoToggle {
+  transition-property: overflow;
+  transition-duration: 1ms;
+  transition-behavior: allow-discrete;
+}
+/* Lenis 自己接管了滚动曲线，原生 smooth 会和它叠加成「两段式」滚动 */
+html.lenis {
+  scroll-behavior: auto;
+}
+
+/* ==================================================================
+   首页卡片滚动缓动（source/js/home-card-scroll.js）
+   ------------------------------------------------------------------
+   变换值由 JS 写进自定义属性，这里负责应用。
+   ⚠️ 关键：用 :not(.endy-drag-ghost) 排除拖拽浮层——ghost 是整卡的克隆，
+      如果直接写内联 transform，克隆会把它一起带走，浮层就会「歪着被拖起」。
+   ================================================================== */
+#recent-posts > .recent-post-item:not(.endy-drag-ghost) > .post_cover > a {
+  transform: var(--endy-cover-tf, none);
+}
+#recent-posts > .recent-post-item:not(.endy-drag-ghost) .article-title {
+  transform: var(--endy-title-tf, none);
+}
+#recent-posts > .recent-post-item:not(.endy-drag-ghost) .article-meta-wrap {
+  transform: var(--endy-meta-tf, none);
+}
+
+/* ==================================================================
+   夜间模式「漏网之鱼」适配（v63）
+   ------------------------------------------------------------------
+   1) 首页页码跳转输入框：主题没给它写背景，夜间就是白底黑字；
+   2) 看板娘对话框 / 设置面板 / 输入框：样式是 _config.yml 里内联写的
+      background:#fff，内联优先级高于任何选择器，必须 !important 才压得住；
+   3) 追问条 #miku-followups 旧深色规则没带 !important，同样被内联压掉，补上。
+   ================================================================== */
+
+/* 1. 页码跳转输入框 */
+[data-theme='dark'] #pagination .pagination input {
+  background: var(--anzhiyu-card-bg, #1d1e22);
+  color: var(--endy-fix-text, #e3e3e8);
+  border: 1px solid #42444a;
+}
+[data-theme='dark'] #pagination .pagination .toPageGroup:hover input,
+[data-theme='dark'] #pagination .pagination .toPageGroup input:focus {
+  border: var(--style-border-hover-always);
+}
+
+/* 2. 看板娘聊天对话框（内联 background:#fff → 深色） */
+[data-theme='dark'] #miku-chat-dialog {
+  background: #242734 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+}
+[data-theme='dark'] #miku-chat-input {
+  background: #1b1d28 !important;
+  color: #e8eaf6 !important;
+}
+[data-theme='dark'] #miku-chat-input::placeholder {
+  color: #8a90b8 !important;
+}
+
+/* 3. 看板娘设置面板（内联 background:#fff; color:#333 → 深色） */
+[data-theme='dark'] #miku-settings-panel {
+  background: #242734 !important;
+  color: #e8eaf6 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+}
+[data-theme='dark'] #miku-settings-panel .miku-panel-btn {
+  background: #2e3140 !important;
+  color: #cdd3f0 !important;
+  border-color: #6b76c9 !important;
+}
+[data-theme='dark'] #miku-settings-panel .miku-panel-btn:hover {
+  background: #6b76c9 !important;
+  color: #fff !important;
+}
+
+/* 4. 追问条：旧规则被内联 background:rgba(255,255,255,.96) 压掉，这里补 !important */
+[data-theme='dark'] #miku-followups {
+  background: rgba(42, 44, 53, 0.96) !important;
+  border-color: #6b76c9 !important;
+}
+
+/* ==================================================================
+   夜间首页中心站名 · 辉光（source/js/site-title-glow.js）
+   ------------------------------------------------------------------
+   三层：底色冷白 / ::before 呼吸辉光（blur 副本，只动 opacity）/ 本体光斑跟随指针。
+   --endy-breathe 用 @property 注册成 <number>，才能被 keyframes 平滑插值
+   （未注册的自定义属性在动画里只会跳变；不支持 @property 的浏览器用 initial-value 静态兜底）。
+   ================================================================== */
+@property --endy-breathe {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0.47;
+}
+@keyframes endy-breathe {
+  0%, 100% { --endy-breathe: 0.32; }
+  50%      { --endy-breathe: 0.62; }
+}
+
+[data-theme='dark'] .endy-title-glow {
+  position: relative;
+  display: inline-block;
+  letter-spacing: 0.12em;
+  transition: letter-spacing 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-theme='dark'] .endy-title-glow.is-in {
+  letter-spacing: 0.02em;
+}
+
+/* ① 呼吸辉光层：负 z-index 沉在本体文字下面，模糊副本只动 opacity */
+[data-theme='dark'] .endy-title-glow::before {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  color: #9ee0d6;
+  filter: blur(13px);
+  letter-spacing: inherit;
+  white-space: pre;
+  pointer-events: none;
+  transform: scaleY(var(--endy-glow-scale, 1));
+  transform-origin: 50% 50%;
+  opacity: calc(var(--endy-breathe) * var(--endy-glow-mul, 1));
+  will-change: opacity;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme='dark'] .endy-title-glow::before {
+    animation: endy-breathe 7.5s ease-in-out infinite;
+  }
+}
+
+/* ② 光斑层：上层径向渐变（跟随指针）+ 下层纯色兜底，两层一起 clip 到文字。
+      没有兜底层的话，渐变透明处的字会整块消失。 */
+[data-theme='dark'] .endy-title-glow {
+  background-image: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%),
+      #ffffff 0%,
+      rgba(158, 224, 214, 0.75) 38%,
+      rgba(158, 224, 214, 0) 72%),
+    linear-gradient(var(--endy-title-color, #f4f9ff), var(--endy-title-color, #f4f9ff));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* 清掉 v60 继承来的静态青色双层外发光：它会和 ::before 呼吸层叠成一坨死光。
+     只保留压在头图上的那层暗投影，保证字口不发灰。 */
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+/* 不支持 background-clip:text 的浏览器：退回纯色 + 主题自带的 text-shadow */
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  [data-theme='dark'] .endy-title-glow {
+    color: var(--endy-title-color, #f4f9ff);
+    background-image: none;
+  }
+}
+
+/* ============================================================
+   404 星图迷航（error-star.js）—— 雷达 / 星点 / hover 卡 / 归航环
+   ============================================================ */
+#error-wrap .error-content {
+  position: relative;
+}
+#error-wrap .error-content #endy-radar {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(158, 224, 214, 0.10) 0%, rgba(158, 224, 214, 0.02) 62%, transparent 70%),
+    var(--anzhiyu-card-bg, #fff);
+  border: 1px solid rgba(158, 224, 214, 0.35);
+  box-shadow: 0 0 34px rgba(75, 92, 196, 0.18), inset 0 0 26px rgba(158, 224, 214, 0.08);
+  overflow: visible;
+}
+[data-theme='dark'] #error-wrap .error-content #endy-radar {
+  background:
+    radial-gradient(circle, rgba(158, 224, 214, 0.14) 0%, rgba(158, 224, 214, 0.03) 62%, transparent 70%),
+    rgba(24, 26, 36, 0.62);
+  border-color: rgba(158, 224, 214, 0.45);
+  backdrop-filter: blur(6px);
+}
+/* 同心圈 + 十字准线 */
+#error-wrap #endy-radar .endy-radar-ring {
+  position: absolute;
+  inset: 18%;
+  border: 1px dashed rgba(158, 224, 214, 0.28);
+  border-radius: 50%;
+  pointer-events: none;
+}
+#error-wrap #endy-radar .endy-radar-ring.r2 {
+  inset: 38%;
+  border-style: solid;
+  border-color: rgba(158, 224, 214, 0.2);
+}
+#error-wrap #endy-radar .endy-radar-cross {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(158, 224, 214, 0.16), rgba(158, 224, 214, 0.16)) 50% 0/1px 100% no-repeat,
+    linear-gradient(rgba(158, 224, 214, 0.16), rgba(158, 224, 214, 0.16)) 0 50%/100% 1px no-repeat;
+}
+/* 扫描扇形：顺时针旋转，2.2s 一圈（与 JS 点亮周期一致） */
+#error-wrap #endy-radar .endy-radar-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+#error-wrap #endy-radar .endy-radar-sweep::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(from 0deg at 50% 50%, rgba(158, 224, 214, 0.55) 0deg, rgba(158, 224, 214, 0.14) 42deg, transparent 80deg, transparent 360deg);
+  animation: endy-radar-sweep 2.2s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes endy-radar-sweep {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #error-wrap #endy-radar .endy-radar-sweep::before { animation: none; opacity: 0.25; }
+}
+/* 中心点 */
+#error-wrap #endy-radar .endy-radar-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: #9ee0d6;
+  box-shadow: 0 0 12px rgba(158, 224, 214, 0.9);
+  pointer-events: none;
+}
+/* 文章星点：平时微光，扫描线扫过 → --lit 抬亮 */
+#error-wrap #endy-radar .endy-radar-star {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: rgba(158, 224, 214, calc(0.35 + var(--lit, 0) * 0.65));
+  box-shadow: 0 0 calc(4px + var(--lit, 0) * 12px) rgba(158, 224, 214, calc(0.25 + var(--lit, 0) * 0.65));
+  transform: translate(var(--sx), var(--sy)) scale(calc(1 + var(--lit, 0) * 0.35));
+  transition: transform 0.25s ease;
+  z-index: 3;
+}
+#error-wrap #endy-radar .endy-radar-star:hover {
+  background: #fff;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.9), 0 0 34px rgba(158, 224, 214, 0.65);
+}
+/* hover 文章卡：从星点位置浮出，边缘自动收进雷达内 */
+#error-wrap #endy-radar #endy-radar-tip {
+  position: absolute;
+  left: calc(50% + var(--tx, 0px));
+  top: calc(50% + var(--ty, 0px));
+  transform: translate(-50%, calc(-100% - 14px)) scale(0.92);
+  transform-origin: 50% 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 230px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 12px;
+  background: var(--anzhiyu-card-bg, #fff);
+  border: 1px solid rgba(158, 224, 214, 0.5);
+  box-shadow: 0 8px 26px rgba(20, 24, 46, 0.28);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.22s;
+  z-index: 6;
+}
+[data-theme='dark'] #error-wrap #endy-radar #endy-radar-tip {
+  background: rgba(30, 33, 46, 0.94);
+  color: #e8eaf6;
+}
+#error-wrap #endy-radar.tip-on #endy-radar-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, calc(-100% - 14px)) scale(1);
+}
+#error-wrap #endy-radar #endy-radar-tip img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+}
+#error-wrap #endy-radar #endy-radar-tip .t { display: flex; flex-direction: column; min-width: 0; }
+#error-wrap #endy-radar #endy-radar-tip .ti {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#error-wrap #endy-radar #endy-radar-tip .td { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+/* 手机端雷达收窄 */
+@media (max-width: 768px) {
+  #error-wrap .error-content #endy-radar { width: 208px; height: 208px; }
+}
+
+/* 归航环：SVG 顺时针倒计时，hover 暂停 */
+#error-wrap #endy-home-ring {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  margin: 22px auto 0;
+  display: block;
+  cursor: pointer;
+  border-radius: 50%;
+  outline-offset: 4px;
+}
+#error-wrap #endy-home-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+#error-wrap #endy-home-ring .track {
+  fill: none;
+  stroke: rgba(158, 224, 214, 0.22);
+  stroke-width: 3;
+}
+#error-wrap #endy-home-ring .prog {
+  fill: none;
+  stroke: #9ee0d6;
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px rgba(158, 224, 214, 0.8));
+  transition: stroke 0.3s;
+}
+#error-wrap #endy-home-ring .num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--anzhiyu-fontcolor, #363636);
+}
+[data-theme='dark'] #error-wrap #endy-home-ring .num { color: #f4f9ff; }
+#error-wrap #endy-home-ring .lbl {
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  opacity: 0.55;
+  white-space: nowrap;
+  color: var(--anzhiyu-fontcolor, #363636);
+}
+[data-theme='dark'] #error-wrap #endy-home-ring .lbl { color: #cfd8ff; }
+#error-wrap #endy-home-ring:hover .prog { stroke: #fff; }
+#error-wrap #endy-home-ring.pause .num { opacity: 0.45; }
+#error-wrap #endy-home-ring.go { animation: endy-ring-go 0.18s ease; }
+@keyframes endy-ring-go {
+  to { transform: scale(1.25); opacity: 0.4; }
+}
+
+/* 404 页：主题的 aside-list 样式挂在 .error-box 下而实际结构是 #body-wrap.error，
+   选择器永不命中 → 封面图按原始尺寸裸排成「一堆图片」。
+   最近文章已由星图雷达接管，整块隐藏（error-star.js 读数据不受 display 影响）。 */
+#body-wrap.error .aside-list {
+  display: none !important;
+}
+
+/* ============================================================
+   404 艺术化升维（error-star.js v2）—— 玻璃卡片 / 声呐 / 视差 / 涟漪 / 光尘
+   主题叙事：木桥归航。整页是一场「雾海归航」。
+   ============================================================ */
+/* ⓪ hero 铺满首屏（卡片垂直居中），S1 从第二屏开始 */
+#error-wrap {
+  min-height: calc(100vh - 3rem);
+  align-items: center;
+  padding: 1.5rem 0;
+}
+/* ① 玻璃拟态卡片 + 入场（从水里浮起） */
+#error-wrap .error-content {
+  background: rgba(255, 255, 255, 0.58) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  overflow: visible;
+}
+[data-theme='dark'] #error-wrap .error-content {
+  background: rgba(22, 26, 38, 0.58) !important;
+}
+#error-wrap {
+  animation: endy-404-rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes endy-404-rise {
+  from { opacity: 0; transform: translateY(46px) scale(0.96); filter: blur(6px); }
+}
+
+/* ② 404 数字：玻璃渐变字 + 失焦聚焦入场 + 每 7s 一次「信号故障」RGB 撕裂 */
+#error-wrap .error_title {
+  background-image: linear-gradient(180deg, #2a3040 30%, #4b5cc4 135%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation:
+    endy-404-focus 1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both,
+    endy-404-glitch 7s steps(1, end) 3.5s infinite;
+}
+[data-theme='dark'] #error-wrap .error_title {
+  background-image: linear-gradient(180deg, #f4f9ff 30%, #9ee0d6 135%);
+}
+@keyframes endy-404-focus {
+  from { opacity: 0; filter: blur(10px); letter-spacing: 0.18em; }
+}
+@keyframes endy-404-glitch {
+  0%, 96.4%, 100% { text-shadow: none; transform: none; }
+  96.8% { text-shadow: 3px 0 rgba(255, 70, 100, 0.5), -3px 0 rgba(80, 170, 255, 0.5); transform: translateX(2px) skewX(-1.5deg); }
+  97.4% { text-shadow: -4px 0 rgba(255, 70, 100, 0.42), 4px 0 rgba(80, 170, 255, 0.42); transform: translateX(-2.5px); }
+  98% { text-shadow: 2px 0 rgba(255, 70, 100, 0.3), -2px 0 rgba(80, 170, 255, 0.3); transform: skewX(0.8deg); }
+}
+
+/* ③ 雷达 → 深海声呐：白天也用深色仪器盘，与暖色背景冷暖对撞 */
+#error-wrap .error-content #endy-radar,
+[data-theme='dark'] #error-wrap .error-content #endy-radar {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(94, 234, 212, 0.16) 0%, rgba(30, 60, 80, 0.05) 55%, transparent 72%),
+    linear-gradient(165deg, #10233c 0%, #0d2c40 58%, #0a1f30 100%);
+  border: 1px solid rgba(120, 220, 210, 0.4);
+  box-shadow:
+    0 0 0 6px rgba(120, 220, 210, 0.06),
+    0 18px 44px rgba(10, 24, 40, 0.35),
+    inset 0 0 30px rgba(94, 234, 212, 0.1);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+/* 外圈罗盘刻度环：46s 缓转 */
+#error-wrap #endy-radar::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px dashed rgba(140, 220, 210, 0.3);
+  animation: endy-radar-compass 46s linear infinite;
+  pointer-events: none;
+}
+@keyframes endy-radar-compass {
+  to { transform: rotate(360deg); }
+}
+/* 扫描光束：更亮的头部 + 长尾迹 */
+#error-wrap #endy-radar .endy-radar-sweep::before {
+  background: conic-gradient(from 0deg at 50% 50%,
+    rgba(140, 255, 240, 0.6) 0deg,
+    rgba(140, 255, 240, 0.2) 28deg,
+    rgba(140, 255, 240, 0.05) 58deg,
+    transparent 78deg, transparent 360deg);
+}
+/* 锐利扫描线（与扇形同步 2.2s） */
+#error-wrap #endy-radar .endy-radar-sweep::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 0.75px);
+  top: 0;
+  width: 1.5px;
+  height: 50%;
+  transform-origin: 50% 100%;
+  background: linear-gradient(rgba(185, 255, 245, 0.95), rgba(185, 255, 245, 0));
+  animation: endy-radar-sweep 2.2s linear infinite;
+}
+/* 中心声呐 ping：每圈一次波纹扩散 */
+#error-wrap #endy-radar .endy-radar-ping {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12%;
+  height: 12%;
+  margin: -6% 0 0 -6%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(140, 255, 240, 0.55);
+  animation: endy-radar-ping 2.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+  pointer-events: none;
+}
+@keyframes endy-radar-ping {
+  0% { transform: scale(0.4); opacity: 0.75; }
+  70% { opacity: 0.12; }
+  100% { transform: scale(7.6); opacity: 0; }
+}
+/* 星点在深海盘上更亮 */
+#error-wrap #endy-radar .endy-radar-star {
+  background: rgba(190, 255, 244, calc(0.45 + var(--lit, 0) * 0.55));
+  box-shadow: 0 0 calc(5px + var(--lit, 0) * 14px) rgba(140, 255, 240, calc(0.35 + var(--lit, 0) * 0.6));
+}
+@media (prefers-reduced-motion: reduce) {
+  #error-wrap #endy-radar .endy-radar-ping,
+  #error-wrap #endy-radar::before { animation: none; opacity: 0.3; }
+}
+
+/* ④ 归航环并入按钮组 */
+#error-wrap .error-info .endy-home-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 1.1rem;
+}
+#error-wrap .error-info .endy-home-row #endy-home-ring {
+  margin: 0;
+}
+#error-wrap #endy-home-ring.urgent .prog { stroke: #ffd9a0; }
+#error-wrap #endy-home-ring.urgent .num { color: #e8a35c; }
+
+/* ⑤ 点水涟漪 + 萤光升腾 */
+.endy-ripple {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.35), inset 0 0 12px rgba(255, 255, 255, 0.25);
+  animation: endy-ripple 1.25s cubic-bezier(0.2, 0.65, 0.35, 1) forwards;
+}
+[data-theme='dark'] .endy-ripple {
+  border-color: rgba(158, 224, 214, 0.8);
+  box-shadow: 0 0 20px rgba(158, 224, 214, 0.5);
+}
+.endy-ripple.r2 { animation-delay: 0.18s; }
+@keyframes endy-ripple {
+  from { transform: scale(0.6); opacity: 0.9; }
+  to { transform: scale(26); opacity: 0; }
+}
+.endy-spark {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 224, 160, 0.9);
+  box-shadow: 0 0 8px rgba(255, 208, 130, 0.9);
+  animation: endy-spark 1.4s ease-out forwards;
+}
+[data-theme='dark'] .endy-spark {
+  background: rgba(158, 224, 214, 0.9);
+  box-shadow: 0 0 8px rgba(158, 224, 214, 0.9);
+}
+@keyframes endy-spark {
+  from { transform: translate3d(0, 0, 0) scale(1); opacity: 0.95; }
+  to { transform: translate3d(var(--sdx, 0px), -90px, 0) scale(0.3); opacity: 0; }
+}
+
+/* ⑥ 金色光尘层（夜间自动变青绿萤火） */
+#endy-dust {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+#endy-dust i {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 208, 130, 0.55);
+  box-shadow: 0 0 8px rgba(255, 208, 130, 0.8);
+  animation: endy-dust-float linear infinite alternate;
+}
+[data-theme='dark'] #endy-dust i {
+  background: rgba(158, 224, 214, 0.5);
+  box-shadow: 0 0 10px rgba(158, 224, 214, 0.85);
+}
+@keyframes endy-dust-float {
+  from { transform: translate3d(0, 12px, 0); opacity: 0.15; }
+  to { transform: translate3d(var(--dx, 20px), -70px, 0); opacity: 0.65; }
+}
+
+/* ============================================================
+   404 长页滚动叙事（error-star.js v3 · Lenis 驱动）
+   S1 迷航 / S2 星图 / S3 归航 + 航程轴 + 全屏星野 canvas
+   ============================================================ */
+#endy-404-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.endy-scene {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 7rem 1.5rem;
+}
+.endy-scene-inner {
+  max-width: 760px;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(42px);
+  transition: opacity 0.95s ease, transform 0.95s cubic-bezier(0.22, 1, 0.36, 1);
+  background: rgba(255, 255, 255, 0.38);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(12px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 22px;
+  padding: 2.4rem 2.8rem;
+  box-shadow: 0 14px 44px rgba(30, 40, 90, 0.14);
+}
+[data-theme='dark'] .endy-scene-inner {
+  background: rgba(22, 26, 38, 0.52);
+  border-color: rgba(158, 224, 214, 0.18);
+}
+.endy-scene.is-in .endy-scene-inner {
+  opacity: 1;
+  transform: none;
+}
+.endy-scene-tag {
+  display: inline-block;
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  opacity: 0.45;
+  margin-bottom: 1rem;
+  color: var(--anzhiyu-fontcolor, #363636);
+}
+.endy-scene-h {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 1.1rem;
+  letter-spacing: 0.04em;
+  background-image: linear-gradient(180deg, var(--anzhiyu-fontcolor, #363636) 40%, #4b5cc4 140%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+[data-theme='dark'] .endy-scene-h {
+  background-image: linear-gradient(180deg, #f4f9ff 40%, #9ee0d6 140%);
+}
+.endy-scene-p {
+  font-size: 1.05rem;
+  line-height: 1.9;
+  opacity: 0.82;
+  margin: 0;
+  color: var(--anzhiyu-fontcolor, #363636);
+}
+.endy-scene-p b { opacity: 1; font-size: 1.2em; }
+.endy-coord {
+  margin-top: 1.4rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.22em;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--anzhiyu-fontcolor, #363636);
+}
+.endy-scene-hint {
+  margin-top: 1.6rem;
+  font-size: 0.85rem;
+  opacity: 0.5;
+  animation: endy-hint-breathe 2.6s ease-in-out infinite;
+  color: var(--anzhiyu-fontcolor, #363636);
+}
+@keyframes endy-hint-breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.75; }
+}
+
+/* ==================================================================
+   404 电影级后期层 #endy-grade（仅 404 页由 JS 注入）
+   暗角压暗四周聚焦中央星海；胶片颗粒缓慢漂移；上下暖/冷色散光晕。
+   ================================================================== */
+#endy-grade {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  /* 暗角（普通 alpha 叠加，安全可预测） */
+  background: radial-gradient(125% 125% at 50% 42%, rgba(0,0,0,0) 52%, rgba(0,0,0,0.55) 100%);
+}
+#endy-grade::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+  opacity: 0.05;
+  animation: endy-grain 1.2s steps(4) infinite;
+}
+#endy-grade::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 38% at 50% 6%, rgba(120,170,255,0.10), transparent 70%),
+    radial-gradient(60% 38% at 50% 96%, rgba(255,180,120,0.08), transparent 70%);
+}
+@keyframes endy-grain {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-6%, 4%); }
+  50%  { transform: translate(5%, -5%); }
+  75%  { transform: translate(-4%, -3%); }
+  100% { transform: translate(3%, 5%); }
+}
+
+/* 章节标题动态揭示：进入视口时从左到右擦除 + 一次性辉光脉冲 */
+.endy-scene.is-in .endy-scene-h {
+  animation: endy-h-reveal 1.1s cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes endy-h-reveal {
+  0%   { clip-path: inset(0 100% 0 0); filter: drop-shadow(0 0 0 rgba(158,224,214,0)); transform: translateY(8px); }
+  60%  { clip-path: inset(0 0 0 0);    filter: drop-shadow(0 0 22px rgba(158,224,214,0.65)); transform: translateY(0); }
+  100% { clip-path: inset(0 0 0 0);    filter: drop-shadow(0 0 10px rgba(158,224,214,0.25)); }
+}
+/* 章节标号：进入时字距收回 + 淡入上移，强化“标题卡”仪式感 */
+.endy-scene-tag {
+  letter-spacing: 0.72em;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.8s ease, letter-spacing 0.9s cubic-bezier(.2,.7,.2,1), transform 0.9s cubic-bezier(.2,.7,.2,1);
+}
+.endy-scene.is-in .endy-scene-tag {
+  opacity: 0.5;
+  letter-spacing: 0.4em;
+  transform: translateY(0);
+}
+/* S3 CTA */
+.endy-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 2rem;
+}
+.endy-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.65rem 1.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 140, 200, 0.35);
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--anzhiyu-fontcolor, #363636);
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s, background 0.25s;
+}
+[data-theme='dark'] .endy-cta {
+  background: rgba(30, 34, 48, 0.6);
+  color: #e8eaf6;
+  border-color: rgba(158, 224, 214, 0.3);
+}
+.endy-cta:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(30, 40, 90, 0.22);
+}
+.endy-cta.main {
+  background: linear-gradient(135deg, #4b5cc4, #6a7fd8);
+  color: #fff;
+  border: none;
+  box-shadow: 0 8px 24px rgba(75, 92, 196, 0.4);
+}
+.endy-cta.main:hover { box-shadow: 0 14px 34px rgba(75, 92, 196, 0.55); }
+/* 航程节点轴 */
+#endy-voyage {
+  position: fixed;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 90;
+}
+#endy-voyage a {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(130, 140, 170, 0.4);
+  cursor: pointer;
+  transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+}
+#endy-voyage a.on {
+  background: #4b5cc4;
+  transform: scale(1.35);
+  box-shadow: 0 0 12px rgba(75, 92, 196, 0.7);
+}
+[data-theme='dark'] #endy-voyage a.on {
+  background: #9ee0d6;
+  box-shadow: 0 0 12px rgba(158, 224, 214, 0.8);
+}
+#endy-voyage a span {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%) translateX(6px);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  color: var(--anzhiyu-fontcolor, #363636);
+}
+#endy-voyage a:hover span {
+  opacity: 0.85;
+  transform: translateY(-50%) translateX(0);
+}
+@media (max-width: 768px) {
+  #endy-voyage { right: 8px; gap: 14px; }
+}
+/* 星图悬停卡（S2 canvas 星座） */
+#endy-star-tip {
+  position: fixed;
+  z-index: 95;
+  transform: translate(-50%, -100%) scale(0.92);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 230px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(158, 224, 214, 0.5);
+  box-shadow: 0 8px 26px rgba(20, 24, 46, 0.28);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s;
+  color: #363636;
+}
+#endy-star-tip.on { opacity: 1; visibility: visible; }
+[data-theme='dark'] #endy-star-tip {
+  background: rgba(30, 33, 46, 0.94);
+  color: #e8eaf6;
+}
+#endy-star-tip img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: none; }
+#endy-star-tip .t { display: flex; flex-direction: column; min-width: 0; }
+#endy-star-tip .ti {
+  font-size: 13px; font-weight: 600; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+#endy-star-tip .td { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+/* 归航环取消态 */
+#error-wrap #endy-home-ring.cancelled .prog { stroke: rgba(140, 150, 170, 0.5); filter: none; }
+#error-wrap #endy-home-ring.cancelled .lbl { opacity: 0.35; }
+
+/* ============================================================
+   404 海报化（error-star.js v4）—— 去面板 / 幽灵字 / HUD / 星轨
+   ============================================================ */
+/* ① 全部去面板：文字直接压场景 */
+.endy-scene-inner {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  padding: 0 1.5rem !important;
+  border-radius: 0 !important;
+}
+/* 白天：椭圆柔光底（无边界光晕，不是矩形面板） */
+.endy-scene-inner::before {
+  content: '';
+  position: absolute;
+  inset: -18% -26%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.3) 48%, transparent 74%);
+  filter: blur(6px);
+  pointer-events: none;
+}
+[data-theme='dark'] .endy-scene-inner::before {
+  background: radial-gradient(ellipse at center, rgba(10, 18, 34, 0.55) 0%, rgba(10, 18, 34, 0.28) 48%, transparent 72%);
+}
+.endy-scene-inner { position: relative; }
+/* 文字可读性：辉光代替底衬 */
+.endy-scene-h, .endy-scene-p, .endy-scene-tag, .endy-coord, .endy-scene-hint {
+  text-shadow: 0 2px 16px rgba(8, 16, 32, 0.55), 0 0 34px rgba(8, 16, 32, 0.3);
+}
+[data-theme='dark'] .endy-scene-h, [data-theme='dark'] .endy-scene-p,
+[data-theme='dark'] .endy-scene-tag, [data-theme='dark'] .endy-coord {
+  text-shadow: 0 2px 18px rgba(4, 10, 22, 0.8), 0 0 40px rgba(94, 234, 212, 0.12);
+}
+/* 标题下划线：入场时从左划出 */
+.endy-scene-h {
+  position: relative;
+  display: inline-block;
+  padding-bottom: 0.55rem;
+}
+.endy-scene-h::after {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(158, 224, 214, 0.85), transparent);
+  transform: scaleX(0);
+  transform-origin: 50% 50%;
+  transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.35s;
+}
+.endy-scene.is-in .endy-scene-h::after { transform: scaleX(1); }
+
+/* ② 幽灵大字：描边空心，比景深更深一层 */
+.endy-scene {
+  overflow: hidden;
+}
+.endy-ghost {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(calc(-50% + var(--sh, 0px)), -50%);
+  font-size: clamp(9rem, 24vw, 22rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(158, 224, 214, 0.16);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  will-change: transform;
+}
+[data-theme='dark'] .endy-ghost { -webkit-text-stroke-color: rgba(158, 224, 214, 0.2); }
+[data-theme='light'] .endy-ghost, html:not([data-theme]) .endy-ghost {
+  -webkit-text-stroke-color: rgba(42, 62, 110, 0.22);
+}
+
+/* ③ HUD 制图准线（S2 重新定位） */
+#endy-hud {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+#endy-hud .hx, #endy-hud .hy { position: absolute; background: rgba(158, 224, 214, 0.35); }
+[data-theme='light'] #endy-hud .hx, [data-theme='light'] #endy-hud .hy,
+html:not([data-theme]) #endy-hud .hx, html:not([data-theme]) #endy-hud .hy {
+  background: rgba(30, 50, 90, 0.4);
+}
+#endy-hud .hx { left: 0; right: 0; top: var(--hy, 50%); height: 1px; }
+#endy-hud .hy { top: 0; bottom: 0; left: var(--hx, 50%); width: 1px; }
+#endy-hud .hc {
+  position: absolute;
+  left: var(--hx, 50%);
+  top: var(--hy, 50%);
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 1px solid rgba(158, 224, 214, 0.75);
+  border-radius: 50%;
+}
+[data-theme='light'] #endy-hud .hc, html:not([data-theme]) #endy-hud .hc {
+  border-color: rgba(30, 50, 90, 0.7);
+}
+[data-theme='light'] #endy-hud .hc::before, [data-theme='light'] #endy-hud .hc::after,
+html:not([data-theme]) #endy-hud .hc::before, html:not([data-theme]) #endy-hud .hc::after {
+  background: rgba(30, 50, 90, 0.85);
+}
+[data-theme='light'] #endy-hud .hr, html:not([data-theme]) #endy-hud .hr {
+  color: rgba(24, 40, 76, 0.95);
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.8);
+}
+#endy-hud .hc::before, #endy-hud .hc::after {
+  content: '';
+  position: absolute;
+  background: rgba(158, 224, 214, 0.9);
+}
+#endy-hud .hc::before { left: 50%; top: -7px; width: 1px; height: 5px; }
+#endy-hud .hc::after { top: 50%; left: -7px; height: 1px; width: 5px; }
+#endy-hud .hr {
+  position: absolute;
+  left: calc(var(--hx, 50%) + 24px);
+  top: calc(var(--hy, 50%) + 20px);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(190, 255, 244, 0.9);
+  text-shadow: 0 1px 8px rgba(4, 10, 22, 0.8);
+  white-space: nowrap;
+}
+[data-theme='light'] #endy-hud .hr, [data-theme='light'] #endy-hud .hc { }
+#endy-hud .hr { color: rgba(190, 255, 244, 0.95); }
+
+/* ④ 星轨幕：三维空间轨道（3D 轨道面 + 随滚动翻转 + 卫星真实绕行） */
+.endy-scene.s4 .endy-scene-inner { position: relative; perspective: 1100px; }
+.endy-orbit {
+  position: relative;
+  width: min(64vmin, 460px);
+  height: min(64vmin, 460px);
+  margin: 0 auto 2.2rem;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx, 52deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.05s linear;
+  will-change: transform;
+}
+.endy-orbit .o {
+  position: absolute;
+  border: 1.5px dashed rgba(158, 224, 214, 0.72);
+  border-radius: 50%;
+  box-shadow: 0 0 22px rgba(158, 224, 214, 0.22), 0 0 44px rgba(158, 224, 214, 0.12);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+[data-theme='light'] .endy-orbit .o, html:not([data-theme]) .endy-orbit .o {
+  border-color: rgba(38, 58, 108, 0.55);
+  box-shadow: 0 0 18px rgba(38, 58, 108, 0.22);
+}
+.endy-orbit .o1 { inset: 0; transform: rotateX(0deg); }
+.endy-orbit .o2 { inset: 16%; border-color: rgba(158, 224, 214, 0.56); transform: rotateX(60deg) rotateY(25deg); box-shadow: 0 0 24px rgba(158, 224, 214, 0.24); }
+.endy-orbit .o3 { inset: 34%; border-style: solid; border-color: rgba(158, 224, 214, 0.46); transform: rotateX(-52deg) rotateY(-36deg); box-shadow: 0 0 22px rgba(158, 224, 214, 0.28); }
+.endy-orbit .sat {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  animation: endy-sat-spin 14s linear infinite;
+}
+.endy-orbit .sat.s2 {
+  inset: 16%; animation-duration: 26s; animation-direction: reverse;
+  transform: rotateX(60deg) rotateY(25deg);
+}
+.endy-orbit .sat i {
+  position: absolute; left: 50%; top: -4px;
+  width: 8px; height: 8px; margin-left: -4px; border-radius: 50%;
+  background: #d8fff7;
+  box-shadow: 0 0 14px rgba(158, 224, 214, 1), 0 0 34px rgba(158, 224, 214, 0.55), 0 0 56px rgba(158, 224, 214, 0.22);
+  transform: translateZ(8px);
+}
+[data-theme='light'] .endy-orbit .sat i, html:not([data-theme]) .endy-orbit .sat i {
+  background: #4b67d4;
+  box-shadow: 0 0 12px rgba(61, 85, 184, 0.95), 0 0 28px rgba(255, 255, 255, 0.55);
+}
+[data-theme='light'] .endy-orbit .sat.s2 i, html:not([data-theme]) .endy-orbit .sat.s2 i {
+  background: #e8963c;
+  box-shadow: 0 0 10px rgba(232, 150, 60, 0.85);
+}
+.endy-orbit .sat.s2 i { width: 5px; height: 5px; background: #ffd9a0; box-shadow: 0 0 10px rgba(255, 217, 160, 0.9); transform: translateZ(12px); }
+@keyframes endy-sat-spin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+@keyframes endy-sat-spin2 {
+  from { transform: rotateX(60deg) rotateY(25deg) rotateY(0deg); }
+  to { transform: rotateX(60deg) rotateY(25deg) rotateY(360deg); }
+}
+.endy-orbit .sat.s2 { animation-name: endy-sat-spin2; animation-direction: normal; }
+@media (prefers-reduced-motion: reduce) {
+  .endy-orbit .sat { animation: none; }
+}
+/* 星轨幕：轨道系统改由 canvas 3D 绘制，隐藏原 DOM 圆盘；并让文案卡半透明透出星轨 */
+.endy-orbit { display: none !important; }
+.endy-scene.s4 .endy-scene-inner {
+  background: rgba(16, 18, 30, 0.20);
+  border-color: rgba(158, 224, 214, 0.14);
+  box-shadow: 0 10px 50px rgba(20, 24, 46, 0.35);
+}
+.endy-scene.s4 .endy-scene-h {
+  text-shadow: 0 2px 18px rgba(120, 170, 255, 0.35), 0 0 2px rgba(0, 0, 0, 0.6);
+}
+.endy-scene.s4 .endy-scene-p {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+}
+.endy-scene.s4 .endy-scene-tag,
+.endy-scene.s4 .endy-scene-h,
+.endy-scene.s4 .endy-scene-p { position: relative; z-index: 1; }
+
+/* ⑤ hero 去卡片化：自由构图 */
+#error-wrap .error-content {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+#error-wrap .error-info .error_title {
+  font-size: clamp(5rem, 10vw, 8.5rem);
+}
+[data-theme='dark'] #error-wrap .error-info .error_title {
+  background-image: linear-gradient(180deg, #f4f9ff 30%, #9ee0d6 135%);
+}
+[data-theme='light'] #error-wrap .error-info .error_title,
+html:not([data-theme]) #error-wrap .error-info .error_title {
+  background-image: linear-gradient(180deg, #2a3040 30%, #4b5cc4 135%);
+}
+/* hero 副文案在无底衬下的可读性 */
+#error-wrap .error_subtitle {
+  text-shadow: 0 2px 14px rgba(8, 16, 32, 0.6);
+}
+[data-theme='dark'] #error-wrap .error_subtitle { color: #dfe8ff; }
+/* hero 底部滚动提示 */
+#error-wrap .error-info::after {
+  content: 'SCROLL ↓';
+  display: block;
+  margin-top: 1.6rem;
+  font-size: 11px;
+  letter-spacing: 0.42em;
+  opacity: 0.5;
+  animation: endy-hint-breathe 2.6s ease-in-out infinite;
+}
+
+/* 404 页：主动淡出主题加载遮罩（error-star.js 600ms 后加 .endy-hide） */
+#loading-box.endy-hide {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.55s ease, visibility 0.55s;
+}
+
+/* ============================================================
+   404 v5（error-star.js v5）—— 锁夜间 + hero 大遮罩 + 火箭点火
+   ============================================================ */
+/* ① 锁夜间主题：404 是纯星空叙事页，强制 dark。隐藏全站明暗切换入口。
+   选择器靠 html[data-endy-404] 驱动（error-star.js 进入 404 即打此属性，离开 pjax 移除）。
+   覆盖右侧栏 #darkmode、导航 #menu-darkmode、中控台/右键菜单 .darkmode_switchbutton，
+   外加看板娘「切主题」按钮（then 块里加 data-miku-theme-btn 兜底）。 */
+html[data-endy-404] #darkmode,
+html[data-endy-404] #menu-darkmode,
+html[data-endy-404] .darkmode_switchbutton,
+html[data-endy-404] [data-miku-theme-btn] { display: none !important; }
+
+/* ② hero 大遮罩：用大面积柔边径向暗化（椭圆），比矩形面板更高级，
+   让中央雷达 / 404 字 / 按钮聚焦，且边缘羽化不露硬边。 */
+html[data-endy-404] #error-wrap .error-content {
+  background:
+    radial-gradient(ellipse 64% 58% at 50% 51%,
+      rgba(7, 11, 26, 0.68) 0%,
+      rgba(7, 11, 26, 0.46) 48%,
+      rgba(7, 11, 26, 0) 80%) !important;
+  border: none !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  padding: 72px 44px !important;
+  border-radius: 0;
+}
+
+/* ③ 全幕暗化：每幕上下压暗，文字更聚焦；S1（信号丢失）中央再叠椭圆加深。 */
+.endy-scene { position: relative; }
+.endy-scene::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(5, 8, 20, 0.42), rgba(5, 8, 20, 0.13) 28%,
+    rgba(5, 8, 20, 0.13) 70%, rgba(5, 8, 20, 0.5));
+}
+.endy-scene.s1::before {
+  background: radial-gradient(ellipse 74% 66% at 50% 52%,
+    rgba(5, 8, 20, 0.62), rgba(5, 8, 20, 0) 72%);
+}
+
+/* ④ 幽灵大字（LOST / STARS / BURN）：描边 + 微发光，提升在亮头图上的对比 */
+.endy-ghost {
+  text-shadow: 0 0 42px rgba(120, 175, 255, 0.5);
+  -webkit-text-stroke-width: 1.7px;
+}
+[data-theme='dark'] .endy-ghost {
+  -webkit-text-stroke-color: rgba(168, 228, 255, 0.85);
+  text-shadow: 0 0 46px rgba(120, 175, 255, 0.55);
+}
+html:not([data-theme]) .endy-ghost,
+[data-theme='light'] .endy-ghost { -webkit-text-stroke-color: rgba(42, 62, 110, 0.9); }
+
+/* ⑤ S5 火箭 HUD：VEL / G 实时读数 + 状态 */
+#endy-rocket-hud {
+  margin: 20px auto 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #9fd0e8;
+  text-shadow: 0 2px 14px rgba(4, 10, 22, 0.7);
+}
+#endy-rocket-hud #endy-rocket-vel { color: #bfe9ff; }
+#endy-rocket-hud .sep { opacity: 0.4; }
+#endy-rocket-hud em {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  opacity: 0.72;
+}
+#endy-rocket-hud.hot #endy-rocket-vel {
+  color: #ffd79a;
+  text-shadow: 0 0 14px rgba(255, 178, 90, 0.6);
+}
+#endy-rocket-hud.hot em { color: #ffd79a; opacity: 0.9; }
+/* 火箭幕支持：长按 / 空格点火的提示强调 */
+.endy-scene.s5 .endy-scene-hint { color: #cfe9ff; opacity: 0.85; }

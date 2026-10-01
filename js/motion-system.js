@@ -18,9 +18,12 @@
   var REDUCED = false;
   try { REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
-  /* ---------------- B：滚动进场编排 ---------------- */
+  /* ---------------- B：滚动进场编排 ----------------
+     ⚠️ .recent-post-item 已移出本列表：首页卡片的进场交给 home-card-scroll.js，
+        那里按滚动速度伸缩 stagger（滚快压缩、慢翻拉开），并和封面视差/速度形变共用
+        同一套坐标缓存。留在这里会两套一起写 transform，互相打架。 */
   var REVEAL = [
-    '.card-widget', '.recent-post-item', '.article-item', '.author-content-item',
+    '.card-widget', '.article-item', '.author-content-item',
     '.gallery-item', '.flink-list-item', '.categoryItem'
   ].join(',');
 

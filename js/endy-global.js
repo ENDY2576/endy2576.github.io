@@ -577,8 +577,12 @@
           playBtn.setAttribute('aria-label', '播放');
         });
         audio.addEventListener('ended', function () {
-          if (radioMode) playRandom();
-          else { loadAudio(index + 1); audio.play().catch(function () {}); }
+          // 仅当歌曲真实播放到结尾（duration>0）才自动续播，
+          // 避免 broken 源误触发 ended → 级联跳歌
+          if (audio.duration > 0) {
+            if (radioMode) playRandom();
+            else { loadAudio(index + 1); audio.play().catch(function () {}); }
+          }
         });
         audio.addEventListener('timeupdate', function () {
           if (!audio.duration) return;
@@ -586,7 +590,14 @@
           updateLRC(audio.currentTime);
         });
         audio.addEventListener('error', function () {
-          if (songs.length > 1) { loadAudio(index + 1); audio.play().catch(function () {}); }
+          // 关键修复：单曲加载/解码失败 → 暂停并停在当前曲，绝不自动跳下一首。
+          // 否则隐藏歌单里任一死链都会触发 error→下一首→error… 整张列表快速闪跳。
+          playing = false;
+          if (playBtn) { playBtn.textContent = '▶'; playBtn.setAttribute('aria-label', '播放'); }
+          nav.classList.remove('playing');
+          // 标记该曲不可用，提示用户手动切换（不再级联）
+          const cur = songs[index];
+          if (cur) cur.failed = true;
         });
         audio.addEventListener('loadedmetadata', function () {
           try {
@@ -631,7 +642,7 @@
        隐藏歌单数据来自同源静态文件 /json/secret-music.json（由 scripts/resolve_secret_music.py
        预解析 QQ音乐直链并写入，绕过 api.injahow.cn 对 tencent 的 302→http 混合内容拦截问题）。
        vkey 短期有效，过期后重跑解析脚本并重新部署即可刷新。 */
-    const SECRET_JSON = '/json/secret-music.json?v=2';
+    const SECRET_JSON = '/json/secret-music.json?v=3';
 
     // Meting API 各实例字段名不统一（title/author/pic/src/mp3 等），统一标准化后再使用
     function normalizeSongs(list) {

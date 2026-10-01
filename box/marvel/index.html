@@ -190,8 +190,8 @@
         }
       }
       detectApple()
-    })(window)</script><link rel="stylesheet" href="/css/custom.css?v=57" media="defer" onload="this.media='all'"><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="彖渊子" type="application/atom+xml">
-</head><body data-type="anzhiyu"><div id="web_bg"></div><div id="an_music_bg"></div><div id="loading-box" onclick="document.getElementById(&quot;loading-box&quot;).classList.add(&quot;loaded&quot;)"><div class="loading-bg"><img class="loading-img nolazyload" alt="加载头像" src="https://s41.ax1x.com/2026/01/27/pZRXSc6.jpg"/><div class="loading-image-dot"></div></div></div><script>const preloader = {
+    })(window)</script><link rel="stylesheet" href="/css/custom.css?v=80" media="defer" onload="this.media='all'"><meta name="generator" content="Hexo 7.3.0"><link rel="alternate" href="/atom.xml" title="彖渊子" type="application/atom+xml">
+</head><body data-type="anzhiyu"><div id="web_bg"></div><div id="an_music_bg"></div><div id="loading-box" onclick="document.getElementById(&quot;loading-box&quot;).classList.add(&quot;loaded&quot;)"><div class="loading-bg"><img class="loading-img nolazyload" alt="加载头像" src="/img/avatar.jpg"/><div class="loading-image-dot"></div></div></div><script>const preloader = {
   endLoading: () => {
     document.getElementById('loading-box').classList.add("loaded");
   },
@@ -483,7 +483,7 @@ queueMicrotask(() => {
   newestCommentInit()
   document.addEventListener('pjax:complete', newestCommentInit)
 })</script><script>var visitorMail = "";
-</script><script async data-pjax src="https://cdn.cbd.int/anzhiyu-theme-static@1.0.0/waterfall/waterfall.js"></script><script src="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/qrcodejs/1.0.0/qrcode.min.js"></script><script src="/js/anzhiyu/right_click_menu.js"></script><link rel="stylesheet" href="https://cdn.cbd.int/anzhiyu-theme-static@1.1.9/icon/ali_iconfont_css.css"><script src="/js/endy-global.js?v=21"></script><script src="/js/easter-eggs.js?v=20"></script><script src="/js/spring.js?v=1"></script><script src="/js/press-gravity.js?v=2"></script><script src="/js/circular-theme.js?v=2"></script><script src="/js/home-drag-sort.js?v=18"></script><script src="/js/slider-snap.js?v=1"></script><script src="/js/tag-push.js?v=1"></script><script src="/js/motion-system.js?v=1"></script><script src="/js/image-shared-expand.js?v=1"></script><script src="/js/meteor-boost.js?v=1"></script><link rel="stylesheet" href="https://cdn.cbd.int/anzhiyu-theme-static@1.0.0/aplayer/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.cbd.int/anzhiyu-blog-static@1.0.1/js/APlayer.min.js"></script><script src="https://npm.elemecdn.com/hexo-anzhiyu-music@1.0.1/assets/js/Meting2.min.js"></script><script src="https://cdn.cbd.int/pjax@0.2.8/pjax.min.js"></script><script>let pjaxSelectors = ["meta[property=\"og:image\"]","meta[property=\"og:title\"]","meta[property=\"og:url\"]","meta[property=\"og:type\"]","meta[property=\"og:site_name\"]","meta[property=\"og:description\"]","head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+</script><script async data-pjax src="https://cdn.cbd.int/anzhiyu-theme-static@1.0.0/waterfall/waterfall.js"></script><script src="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/qrcodejs/1.0.0/qrcode.min.js"></script><script src="/js/anzhiyu/right_click_menu.js"></script><link rel="stylesheet" href="https://cdn.cbd.int/anzhiyu-theme-static@1.1.9/icon/ali_iconfont_css.css"><script src="/js/endy-global.js?v=22"></script><script src="/js/easter-eggs.js?v=20"></script><script src="/js/spring.js?v=1"></script><script src="/js/press-gravity.js?v=2"></script><script src="/js/circular-theme.js?v=2"></script><script src="/js/home-drag-sort.js?v=23"></script><script src="/js/slider-snap.js?v=1"></script><script src="/js/tag-push.js?v=1"></script><script src="/js/motion-system.js?v=2"></script><script src="/js/image-shared-expand.js?v=1"></script><script src="/js/meteor-boost.js?v=4"></script><script src="/js/lenis.min.js?v=1"></script><script src="/js/lenis-smooth.js?v=2"></script><script src="/js/home-card-scroll.js?v=1"></script><script src="/js/site-title-glow.js?v=2"></script><script src="/js/error-star.js?v=9"></script><link rel="stylesheet" href="https://cdn.cbd.int/anzhiyu-theme-static@1.0.0/aplayer/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.cbd.int/anzhiyu-blog-static@1.0.1/js/APlayer.min.js"></script><script src="https://npm.elemecdn.com/hexo-anzhiyu-music@1.0.1/assets/js/Meting2.min.js"></script><script src="https://cdn.cbd.int/pjax@0.2.8/pjax.min.js"></script><script>let pjaxSelectors = ["meta[property=\"og:image\"]","meta[property=\"og:title\"]","meta[property=\"og:url\"]","meta[property=\"og:type\"]","meta[property=\"og:site_name\"]","meta[property=\"og:description\"]","head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
 var pjax = new Pjax({
   elements: 'a:not([target="_blank"])',
   selectors: pjaxSelectors,
@@ -996,11 +996,13 @@ document.addEventListener('pjax:error', e => {
   }
 
   // 主题切换预设按钮：按当前 data-theme 动态给出「夜间模式 / 日间模式」文案与指令
+  // 404 页（window.__endy404）锁夜间，禁止出现切换入口，直接返回 null
   function themeToggleChip() {
+    if (window.__endy404) return null;
     var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     return isDark
-      ? { label: '日间模式', q: '切换到日间模式' }
-      : { label: '夜间模式', q: '切换到夜间模式' };
+      ? { label: '日间模式', q: '切换到日间模式', theme: true }
+      : { label: '夜间模式', q: '切换到夜间模式', theme: true };
   }
 
   // 根据当前页面类型返回 6 个预设 chips（2 行 × 3 列，保持对称）
@@ -1022,7 +1024,7 @@ document.addEventListener('pjax:error', e => {
         { label: '新文章', q: '最近有什么新文章' },
         { label: '你会什么', q: '你会什么' },
         { label: '冷知识', q: '讲个冷知识' },
-        themeToggleChip()
+        ...(window.__endy404 ? [] : [themeToggleChip()])
       ];
     }
     // 归档/分类/标签/关于/生活/友链等其它页面
@@ -1031,7 +1033,7 @@ document.addEventListener('pjax:error', e => {
       { label: '推荐好文', q: '推荐一篇你写的文章给我' },
       { label: '你会什么', q: '你会什么' },
       { label: '冷知识', q: '讲个冷知识' },
-      themeToggleChip(),
+      ...(window.__endy404 ? [] : [themeToggleChip()]),
       { label: '清空对话', q: '清空对话' }
     ];
   }
@@ -1047,7 +1049,7 @@ document.addEventListener('pjax:error', e => {
   function renderChips(container, chips) {
     container.innerHTML = chips.map(function (c) {
       var q = (c.q || c.label).replace(/"/g, '&quot;');
-      return '<button type="button" class="miku-chip" data-q="' + q + '">' + c.label + '</button>';
+      return '<button type="button" class="miku-chip" data-q="' + q + '"' + (c.theme ? ' data-miku-theme-btn' : '') + '>' + c.label + '</button>';
     }).join('');
     Array.prototype.forEach.call(container.querySelectorAll('.miku-chip'), function (chip) {
       chip.addEventListener('click', function (e) {
@@ -1590,7 +1592,9 @@ document.addEventListener('pjax:error', e => {
     }
 
     // 主题切换：复用主题原生按钮（双向都能识别：夜间⇄日间⇄浅色⇄白天）
+    // 404 页锁夜间：直接回绝，配合 error-star 的 MutationObserver 兜底
     if (/(深色|夜间|dark|暗黑|日间|亮色|浅色|白天|light)/.test(text) && /(切换|打开|开启|换|调|成|到)/.test(text)) {
+      if (window.__endy404) return '这一页是永久星空夜哦～切换开关已经藏起来啦。';
       setTimeout(function () { toggleTheme(); }, 300);
       return '已切换显示模式～';
     }
@@ -2421,7 +2425,7 @@ document.addEventListener('pjax:error', e => {
       isArt
         ? { label: '总结文章', act: function () { if (window.__mikuSummarizeArticle) window.__mikuSummarizeArticle(); else { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '总结一下这篇文章'; i.focus(); } }, 30); } } }
         : { label: '推荐文章', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '推荐一篇你写的文章给我'; i.focus(); } }, 30); } },
-      { label: '切主题', act: function () { var b = document.getElementById('darkmode') || document.querySelector('.darkmode_switchbutton'); if (b) b.click(); } },
+      { label: '切主题', theme: true, act: function () { var b = document.getElementById('darkmode') || document.querySelector('.darkmode_switchbutton'); if (b) b.click(); } },
       // 「静音」仅切换一个无副作用的标记、无实际用途 → 替换为真正有用的「清空对话」
       { label: '清空对话', act: function () { if (window.__mikuChatDialogOpen) window.__mikuCloseChatDialog(); clearChatHistory(); mikuSay('对话已清空～我们聊点新的吧！', 2600, 2); setMikuState('idle'); } }
     ];
@@ -2436,6 +2440,7 @@ document.addEventListener('pjax:error', e => {
       b.type = 'button';
       b.className = 'miku-radial-item';
       b.textContent = it.label;
+      if (it.theme) b.setAttribute('data-miku-theme-btn', '');
       b.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;transform:translate(-50%,-50%);' +
         'width:54px;height:54px;border-radius:50%;border:none;background:' + THEME +
         ';color:#fff;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);' +

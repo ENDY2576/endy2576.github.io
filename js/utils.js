@@ -852,9 +852,9 @@ const anzhiyu = {
     if (urlParams.get("id") && urlParams.get("server")) {
       const id = urlParams.get("id");
       const server = urlParams.get("server");
-      anMusicPageMeting.innerHTML = `<meting-js id="${id}" server=${server} type="playlist" type="playlist" mutex="true" preload="auto" theme="var(--anzhiyu-main)" order="list" list-max-height="calc(100vh - 169px)!important"></meting-js>`;
+      anMusicPageMeting.innerHTML = `<meting-js id="${id}" server=${server} type="playlist" type="playlist" mutex="true" preload="none" theme="var(--anzhiyu-main)" order="list" list-max-height="calc(100vh - 169px)!important"></meting-js>`;
     } else {
-      anMusicPageMeting.innerHTML = `<meting-js id="${userId}" server="${userServer}" type="playlist" mutex="true" preload="auto" theme="var(--anzhiyu-main)" order="list" list-max-height="calc(100vh - 169px)!important"></meting-js>`;
+      anMusicPageMeting.innerHTML = `<meting-js id="${userId}" server="${userServer}" type="playlist" mutex="true" preload="none" theme="var(--anzhiyu-main)" order="list" list-max-height="calc(100vh - 169px)!important"></meting-js>`;
     }
     anzhiyu.changeMusicBg(false);
   },
@@ -882,6 +882,10 @@ const anzhiyu = {
     metingAplayer.volume(0.8, true);
     metingAplayer.on("loadeddata", function () {
       anzhiyu.changeMusicBg();
+    });
+    // 单曲加载/解码失败：暂停而非继续跳转，避免 order=list 下连锁闪跳整张歌单
+    metingAplayer.on("error", function () {
+      try { metingAplayer.pause(); } catch (e) {}
     });
 
     aplayerIconMenu.addEventListener("click", function () {
@@ -987,9 +991,18 @@ const anzhiyu = {
       }
     }
 
+    // 关键修复：重建歌单前先暂停。否则“播放中清空列表”会触发 audio 的 ended/emptied，
+    // 配合 order="list" 自动跳下一首，清空+新增的竞态下会连锁闪跳歌曲。
+    try { metingAplayer.pause(); } catch (e) {}
+
     // 清除当前播放列表并添加新的歌曲
     metingAplayer.list.clear();
     metingAplayer.list.add(songs);
+    // 重建后定位到第一首并暂停：避免索引越界/自动跳歌，用户手动播放即可
+    if (songs && songs.length) {
+      try { metingAplayer.list.switch(0); } catch (e) {}
+      try { metingAplayer.pause(); } catch (e) {}
+    }
 
     // 切换标志位
     changeMusicListFlag = !changeMusicListFlag;

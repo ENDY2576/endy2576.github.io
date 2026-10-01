@@ -16,7 +16,7 @@
  *
  * 交互规则：
  *   1) 悬浮：卡片朝光标微倾（press-gravity 负责）。
- *   2) 拖起：移动超过 6px（触摸需长按 200ms）激活；ghost scale 1.04 浮空、跟手。
+ *   2) 拖起：鼠标移动第一帧即视觉拾起（ghost 立即出现、原卡立即隐藏），移动超过 4px 后「提交」并开始重排/甩出；触摸需长按 200ms 后拾起。保持 LIFT_SCALE=1.0，原样浮起。
  *   3) 实时重排：2D 最近格子命中，横拖也准。
  *   4) 落位：磁吸到洞，过冲 ~6%、约 380ms 收敛。
  *   5) 边缘自动滚动：拖到视口边缘自动滚屏。
@@ -35,17 +35,17 @@
   var ITEM = '.recent-post-item';
   var STORE_KEY = 'endy-home-post-order';
 
-  var MOUSE_ACTIVATE = 6;       // 鼠标移动超过此像素才判定为拖拽（区分点击）
+  var MOUSE_ACTIVATE = 4;       // 鼠标移动超过此像素才「提交」拖拽（开始重排/甩出；视觉拾起在移动第一帧即发生）
   var TOUCH_HOLD = 200;         // 触摸长按激活
   var FLIP_MS = 260;            // 邻居让位 FLIP 时长
   var THROW_SPEED = 0.55;       // px/ms，超过才算「甩出去」
   var THROW_MS = 360;
-  var LIFT_SCALE = 1.0;         // 不缩放：保持 ghost 与原卡尺寸完全一致
-  var SPEED_TILT = 6;           // 随速度的轻微倾斜（度），保留一点跟手感
+  var LIFT_SCALE = 1.015;       // 极轻微放大：营造「被拿起」的物理感，同时仍接近原样
+  var SPEED_TILT = 4;           // 随速度的轻微倾斜（度），保留一点跟手感
   var SPEED_SCALE = 0.0;        // 不额外放大
   var SPEED_GAIN = 6;           // 速度→角度 增益（px/ms × 增益 = 度）
   var SPEED_DECAY = 0.82;       // 每帧速度衰减
-  var FOLLOW = 0.3;             // 跟手弹簧迟滞系数（越小越「重」）
+  var FOLLOW = 0.65;            // 跟手弹簧迟滞系数（越小越「重」，0.65 更贴手少脱节）
   var SPRING = { stiffness: 260, damping: 22 }; // 落位弹簧（过冲 ~6%）
   var EDGE = 80;                // 边缘自动滚动触发区（px）
   var MAX_SCROLL = 16;          // 边缘自动滚动最大单帧位移
@@ -98,6 +98,21 @@
     return ov;
   }
 
+  // 拖起瞬间强制封面图立即加载，消除「首帧 ghost 空白 → 复制感」。
+  // anzhiyu 的 lazyload 把真实地址放在 data-src / data-lazy-src，src 只是占位。
+  function forceImgEager(root) {
+    if (!root || !root.querySelectorAll) return;
+    var imgs = root.querySelectorAll('img');
+    for (var i = 0; i < imgs.length; i++) {
+      var img = imgs[i];
+      if (img.getAttribute('loading') === 'lazy') img.setAttribute('loading', 'eager');
+      var real = img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
+      if (real && img.getAttribute('src') !== real) {
+        img.setAttribute('src', real);
+      }
+    }
+  }
+
   function removeGhost(ghost) {
     if (!ghost || !ghost.parentNode) return false;
     var p = ghost.parentNode;
@@ -116,7 +131,9 @@
     item.style.transition = '';
     item.style.transform = '';
     item.style.height = '';
+    item.style.minHeight = '';
     item.style.overflow = '';
+    item.style.boxSizing = '';
     item.style.transformOrigin = '';
     item.style.willChange = '';
     item.style.boxShadow = '';
@@ -128,6 +145,7 @@
     if (s.raf) { try { cancelAnimationFrame(s.raf); } catch (e) {} s.raf = 0; }
     if (s.settleAnim) { try { s.settleAnim.cancel(); } catch (e) {} s.settleAnim = null; }
     if (s.holdTimer) { clearTimeout(s.holdTimer); s.holdTimer = null; }
+    if (s.liftTimer) { clearTimeout(s.liftTimer); s.liftTimer = null; }
     try { document.body.classList.remove('endy-dragging'); } catch (e) {}
     window.__endyDragActive = false;
     removeGhost(s.ghost);
@@ -306,59 +324,89 @@
 
   function startDrag(e) {
     var s = state;
+    if (s.active) return;          // 幂等：已拾起则忽略
     s.active = true;
     window.__endyDragActive = true;
-    clearTimeout(s.holdTimer);
+    clearTimeout(s.holdTimer); s.holdTimer = null;
+    clearTimeout(s.liftTimer); s.liftTimer = null;
 
     var item = s.item;
-    var rect = item.getBoundingClientRect();
-    s.originRect = rect;
-    s.originLeft = rect.left;
-    s.originTop = rect.top;
-    s.grabX = e.clientX - rect.left;
-    s.grabY = e.clientY - rect.top;
-    s.curDx = 0; s.curDy = 0;
-    s.pointerX = e.clientX; s.pointerY = e.clientY;
 
-    // 保留 press-gravity 在 pointerdown 时给的按压效果，
-    // 但清空当前 transform/transition，让原卡以自然流内尺寸占位。
-    // __endyDragActive=true 后 press-gravity 自动让位，pointerup 时由它释放。
+    // 关键修复：press-gravity 在 pointerdown 时可能给原卡写了 scale(0.985) 的 transform。
+    // getBoundingClientRect() 会包含这个缩放值；如果直接用它设置「洞」的高度，
+    // 洞会比正常卡片矮 1.5%，flex 容器重排 → 第一个卡片「高度突变」。
+    // 因此先记录视觉位置（给 ghost 定位），再清掉 transform 并 reflow，
+    // 用 offsetWidth/offsetHeight 取自然布局尺寸给 ghost 和洞。
+    var visualRect = item.getBoundingClientRect();
     item.style.transition = 'none';
     item.style.transform = '';
+    void item.offsetWidth;
+    var naturalW = item.offsetWidth;
+    var naturalH = item.offsetHeight;
 
-    // 创建视觉 ghost：原卡的 fixed 浮层克隆，跟手移动
+    s.originRect = visualRect;
+    s.originLeft = visualRect.left;
+    s.originTop = visualRect.top;
+    s.grabX = e.clientX - visualRect.left;
+    s.grabY = e.clientY - visualRect.top;
+    s.curDx = e.clientX - s.startX;
+    s.curDy = e.clientY - s.startY;
+    s.pointerX = e.clientX; s.pointerY = e.clientY;
+    s.snap = true;   // 首次移动时立即把 ghost 贴到光标，避免弹簧追入
+
+    // 原卡先隐藏，避免「原卡 + ghost 同帧可见」造成的复制感（首帧图片未解码尤甚）。
+    item.classList.add('endy-drag-item');
+    item.style.visibility = 'hidden';
+
+    // 隐藏后元素仍在 flex 流，align-items:stretch 会把它拉到与同排一致的高度，
+    // 这个真实高度可能高于内容自然高。ghost 必须匹配它，否则 ghost 比原卡位置矮一截。
+    var holeH = item.getBoundingClientRect().height;
+
+    // 创建视觉 ghost：原卡的 fixed 浮层克隆，跟手移动。
+    // ghost 脱离 flex 流（position:fixed），必须有明确宽高 → 宽用 naturalW、高用洞的真实高度 holeH。
     var ghost = item.cloneNode(true);
     ghost.removeAttribute('id');
     ghost.removeAttribute('tabindex');
     ghost.removeAttribute('onclick');
     ghost.classList.add('endy-drag-ghost', 'endy-drag-item');
     ghost.style.position = 'fixed';
-    ghost.style.left = rect.left + 'px';
-    ghost.style.top = rect.top + 'px';
-    ghost.style.width = rect.width + 'px';
-    ghost.style.height = rect.height + 'px';
+    ghost.style.left = visualRect.left + 'px';
+    ghost.style.top = visualRect.top + 'px';
+    ghost.style.width = naturalW + 'px';
+    // ghost 是 display:flex 的克隆卡（flex column 容器），在此类元素上显式 height 会被
+    // 内容高度覆盖（实测设 600px 仍 computed 401）。额外用 min-height 兜底，
+    // 确保 ghost 与原卡（被 flex stretch 后的真实高度 holeH）等高，拖起才「原样」。
+    ghost.style.height = holeH + 'px';
+    ghost.style.minHeight = holeH + 'px';
     ghost.style.margin = '0';
     ghost.style.padding = '';
     ghost.style.zIndex = '99998';
     ghost.style.pointerEvents = 'none';
     ghost.style.transition = 'none';
-    ghost.style.transform = 'perspective(900px) translate3d(0,0,0) scale(' + LIFT_SCALE + ')';
     ghost.style.transformOrigin = 'center center';
     ghost.style.boxSizing = 'border-box';
+    // 关键：覆盖 custom.css 的 .endy-drag-ghost { contain: layout style paint }。
+    // containment 会让这个克隆复杂子树在 Chromium 下忽略显式 height（实测 computed height
+    // 比设定值矮 ~20px），导致 ghost 比原卡（被 flex stretch 后的高度）矮一截。
+    // 这里用内联 contain:none 关闭隔离，让 height:holeH 真正生效，ghost 才能与原卡等高。
+    ghost.style.contain = 'none';
     ghost.style.visibility = 'visible';
     ghost.style.opacity = '1';
-    // 把 ghost 插回原容器 #recent-posts，让它继续命中主题 CSS 上下文。
-    // position:fixed 已让 ghost 脱离 flex 正常流，不会参与容器重排，
-    // 因此既保留原卡完整视觉，又避免被 FLIP 牵连跳闪。
+    ghost.style.willChange = 'transform';
+    // 克隆会带上 press-gravity 的内联 box-shadow，清掉让 .endy-drag-ghost 的阴影规则接管
+    ghost.style.boxShadow = '';
+    // 把 ghost 插回原容器 #recent-posts，保留主题 CSS 上下文。
+    // position:fixed 已让 ghost 脱离 flex 正常流，不会参与容器重排。
     s.container.appendChild(ghost);
     s.ghost = ghost;
 
-    // 原卡留在 flex 流内占位，但不可见——它就是「洞」，尺寸天然正确。
-    // 给它固定高度 + overflow:hidden，避免重排/主题 CSS 导致洞高度变化。
-    item.classList.add('endy-drag-item');
-    item.style.visibility = 'hidden';
-    item.style.height = rect.height + 'px';
-    item.style.overflow = 'hidden';
+    // 初始 transform 就带上抓取位移，避免首帧 ghost 渲染在原卡位置再跳到光标。
+    ghost.style.transform = 'perspective(900px) translate3d(' + s.curDx.toFixed(1) + 'px,' + s.curDy.toFixed(1) + 'px,0) scale(' + LIFT_SCALE + ')';
+
+    // 拖起瞬间确保封面图立即加载：首屏图片可能尚未 decode，会导致 ghost 首帧空白 → 复制感；
+    // 同时把 lazyload 占位图换成真实 data-src（anzhiyu 的 lazyload 把真 src 存在 data-src）。
+    forceImgEager(item);
+    forceImgEager(ghost);
 
     document.body.classList.add('endy-dragging');
     // pointer capture 绑在 body 上而不是原卡上：
@@ -480,8 +528,15 @@
 
   function cancelDrag() {
     if (!state) return;
-    if (state.active) { finishDrag(); return; }
+    if (state.active) {
+      if (state.committed) { finishDrag(); return; }
+      // 未提交 = 点击，立即还原，不拦 click
+      cleanupDrag(state);
+      state = null;
+      return;
+    }
     clearTimeout(state.holdTimer);
+    clearTimeout(state.liftTimer);
     state = null;
   }
 
@@ -507,17 +562,31 @@
       startX: e.clientX,
       startY: e.clientY,
       active: false,
+      committed: false,
       holdReady: false,
       samples: [],
       velX: 0,
       velY: 0,
       type: e.pointerType || 'mouse',
       needSlot: false,
-      raf: 0
+      raf: 0,
+      holdTimer: null,
+      liftTimer: null
     };
-    state.holdTimer = setTimeout(function () {
-      if (state) state.holdReady = true;
-    }, TOUCH_HOLD);
+
+    if (state.type !== 'mouse') {
+      state.holdTimer = setTimeout(function () {
+        if (state) {
+          state.holdReady = true;
+          // 触摸：长按后才视觉拾起
+          startDrag(e);
+          state.committed = false;
+        }
+      }, TOUCH_HOLD);
+    }
+    // 鼠标：不再设 liftTimer，任何移动都在 onMove 第一帧实时拾起。
+    // 避免按住不动 60ms 后自动创建 ghost，导致「复制感」。
+
   }
 
   function onMove(e) {
@@ -528,35 +597,69 @@
     var dist = Math.sqrt(dx * dx + dy * dy);
 
     if (!s.active) {
-      var canStart = s.type === 'mouse' ? dist > MOUSE_ACTIVATE : (s.holdReady && dist > 4);
+      // 鼠标：任何移动立即视觉拾起；触摸：长按就绪 + 微动
+      var canStart = s.type === 'mouse' ? (Math.abs(dx) > 0 || Math.abs(dy) > 0) : (s.holdReady && dist > 4);
       if (!canStart) return;
       startDrag(e);
+      if (s.type === 'mouse') s.committed = false;
+      else s.committed = true;
     }
 
     s.pointerX = e.clientX;
     s.pointerY = e.clientY;
-    s.samples.push({ t: Date.now(), x: e.clientX, y: e.clientY });
-    if (s.samples.length > 24) s.samples.shift();
 
-    var sn = s.samples.length;
-    if (sn >= 2) {
-      var a = s.samples[sn - 2], b = s.samples[sn - 1];
-      var dt = b.t - a.t;
-      if (dt > 0) {
-        var ivx = (b.x - a.x) / dt, ivy = (b.y - a.y) / dt;
-        s.velX = s.velX * 0.55 + ivx * 0.45;
-        s.velY = s.velY * 0.55 + ivy * 0.45;
+    // 首次移动立即把 ghost 贴到光标，避免从原卡位置弹簧飞入。
+    // 同步刷新 ghost transform，避免等到下一帧 rAF 才到位（减少「复制感」）。
+    if (s.snap) {
+      s.curDx = s.pointerX - s.startX;
+      s.curDy = s.pointerY - s.startY;
+      s.snap = false;
+      if (s.ghost) {
+        s.ghost.style.transform =
+          'perspective(900px) translate3d(' + s.curDx.toFixed(1) + 'px,' + s.curDy.toFixed(1) + 'px,0) scale(' + LIFT_SCALE + ')';
       }
     }
 
-    s.needSlot = true;
+    // 鼠标/触摸：移动超过阈值才「提交」拖拽（开始重排/甩出）
+    if (s.active && !s.committed && dist > MOUSE_ACTIVATE) {
+      s.committed = true;
+    }
+
+    if (s.committed) {
+      s.samples.push({ t: Date.now(), x: e.clientX, y: e.clientY });
+      if (s.samples.length > 24) s.samples.shift();
+
+      var sn = s.samples.length;
+      if (sn >= 2) {
+        var a = s.samples[sn - 2], b = s.samples[sn - 1];
+        var dt = b.t - a.t;
+        if (dt > 0) {
+          var ivx = (b.x - a.x) / dt, ivy = (b.y - a.y) / dt;
+          s.velX = s.velX * 0.55 + ivx * 0.45;
+          s.velY = s.velY * 0.55 + ivy * 0.45;
+        }
+      }
+
+      s.needSlot = true;
+    }
+
     if (e.cancelable) e.preventDefault();
   }
 
   function onUp(e) {
     if (!state || (e && e.pointerId !== state.pointerId)) return;
-    if (state.active) finishDrag();
-    else { clearTimeout(state.holdTimer); state = null; }
+    if (state.active) {
+      if (state.committed) finishDrag();
+      else {
+        // 未提交 = 点击，立即还原，不拦 click
+        cleanupDrag(state);
+        state = null;
+      }
+    } else {
+      clearTimeout(state.holdTimer);
+      clearTimeout(state.liftTimer);
+      state = null;
+    }
   }
 
   /* ---------------- P3 键盘重排 ---------------- */
