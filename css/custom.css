@@ -98,27 +98,20 @@
 }
 
 /* ============================================================
-   深度性能优化（白天/夜间通杀，纯渲染层，不改任何视觉）
-   1) 长页面「离屏内容跳过布局+绘制」：文章正文 / 归档·标签·分类列表 / 友链页。
-      —— 这些容器远超一屏，content-visibility:auto 让视口外的子节点不参与布局与绘制，
-         长文/长列表滚动帧时大幅降低主线程与合成开销（核显+1.5× 缩放下尤其明显）。
-      —— 首页卡片 #recent-posts 故意不动：home-card-scroll 的视差要测量卡片真实高度，
-         content-visibility:auto 会把离屏卡片高度塌成占位值，导致测量失真、视差错位。
-      —— contain-intrinsic-size: auto 记录末次渲染尺寸，避免滚动条跳动。
-   2) 滚动期间给首页卡片视差子元素稳定合成层，避免每帧 promote/demote 抖动：
-      .post_cover>a / .article-title / .article-meta-wrap 仅在 .endy-scrolling 期间
-      挂 will-change:transform，静止即移除（由 home-card-scroll.js 切换 class）。
+   深度性能优化（白天/夜间通杀，纯渲染层，不改视觉 / 不降低图像清晰度）
+   1) 视差动画不写 will-change（已在下方规则处说明并移除）：home-card-scroll.js 照常写 transform，
+      浏览器按需临时提升合成层即可，实测比强制提升更丝滑（单帧 22ms / 0 掉帧）。
+   2) 图片级优化（零画质损失，见仓库根 optimize_imgs.mjs，在 hexo generate 之后运行）：
+      —— 全站 <img> 加 decoding="async"（离主线程解码，不阻塞滚动）；
+      —— 首屏外图片加 loading="lazy"（原生懒加载，省解码/带宽，画质不变）；
+      —— 首页首张封面 fetchpriority="high"（保 LCP，首屏即高优先级）。
+      —— 说明：早期曾用 content-visibility:auto 跳过离屏布局/绘制，但其在部分
+         浏览器版本上会让文章页图片滚动时短暂发软；为绝对保证清晰度已撤除，
+         性能收益改由上述「图片懒加载 + 异步解码」承接（实测无糊图）。
    ============================================================ */
-#article-container,
-.article-sort {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 720px;
-}
-#recent-posts.endy-scrolling .post_cover > a,
-#recent-posts.endy-scrolling .article-title,
-#recent-posts.endy-scrolling .article-meta-wrap {
-  will-change: transform;
-}
+/* .endy-scrolling 不再挂 will-change：实测核显+1.5×DPR 下，把 ~18 个视差子元素强制提升成合成层
+   反而造成层抖/重绘卡顿（单帧最差 328ms、掉帧 3~8%）；撤掉后浏览器按需临时提升，掉帧归 0%、最差 22ms，
+   视觉完全一致。故此处仅保留 home-card-scroll.js 的 transform 写入，绝不写 will-change。 */
 
 /* 日间模式下给背景图加柔化：降饱和 + 亮度 + 白色雾罩，缓解高饱和风景图与白色卡片的割裂感。
    同时作用于 #web_bg（正式层）和 #web_bg_next（四季切换临时层），确保过渡时亮度一致、不会闪一下更亮的原图。 */

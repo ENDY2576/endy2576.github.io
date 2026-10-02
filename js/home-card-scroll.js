@@ -281,10 +281,35 @@
     else if (items.length) startLoop();
   });
 
+  /* ---------------- 空闲预解码封面：根除「首滚图片解码」卡顿 ----------------
+     主题用 data-lazy-src + JS 懒加载封面，首屏外的封面要等滚到才解码；弱核显(iGPU)上
+     一次性解码多张大图 = 明显卡顿。页面加载后趁主线程空闲，把首屏附近的封面提前
+     fetch+decode（img 上已挂 decoding=async，解码走非主线程），用户首次滚动即已就绪。
+     只针对仍是占位图(data:)的封面，已被主题/拖拽加载过的跳过，绝不与主题懒加载打架。 */
+  function preloadCoversIdle() {
+    var covers = document.querySelectorAll('#recent-posts .post_cover img[data-lazy-src]');
+    if (!covers.length) return;
+    var doLoad = function () {
+      for (var i = 0; i < covers.length; i++) {
+        var img = covers[i];
+        var real = img.getAttribute('data-lazy-src');
+        if (real && img.src && img.src.indexOf('data:') === 0) {
+          try { img.loading = 'eager'; } catch (e) {}
+          img.src = real;
+        }
+      }
+    };
+    if ('requestIdleCallback' in window) {
+      try { requestIdleCallback(doLoad, { timeout: 2500 }); return; } catch (e) {}
+    }
+    setTimeout(doLoad, 1200); // 兜底：不支持 ric 时延时加载
+  }
+
   function init() {
     if (!document.querySelector('#recent-posts > .recent-post-item')) return;
     collect();
     bind();
+    preloadCoversIdle();
     startLoop();
   }
 
