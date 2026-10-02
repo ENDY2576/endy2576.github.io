@@ -42,7 +42,7 @@
     { id: 'console',   icon: '🖥️', name: '控制台密语',   hint: '打开 DevTools，或连点首页大站名 5 下。' },
     { id: 'whisper',   icon: '🐾', name: '底部悄悄话',   hint: '把一篇长文读到最底部。' },
     { id: 'season',    icon: '🍂', name: '四季开关',     hint: '在中控台，发现四季背景切换入口。' },
-    { id: 'about',    icon: '🧑', name: '关于我',       hint: '在个人页，连击头像 5 次。' },
+    { id: 'about',    icon: '🧑', name: '关于我',       hint: '在个人页，连点头像 3 次，进入新个人主页。' },
     { id: 'miku',     icon: '🎤', name: 'Miku 看板娘', hint: '在留言板，打开那封信。' }
   ];
 
@@ -321,11 +321,105 @@
     });
   }
 
-  /* ---------- 彩蛋8：个人页头像 5 连击揭示私密信息 ----------
-     默认隐藏 .map（我现在住在…）和 .selfInfo（生于/学校/职业），
-     连击头像 5 次给 #about-page 加 endy-private-revealed，CSS 平滑展开。 */
+  /* ---------- 彩蛋8：个人页三连点头像 → 全屏浮层切换到新个人页（home-app） ----------
+     连点三下 #about-page .author-img 打开全屏 iframe 浮层加载 /about-home/（home-app 产物）；
+     浮层内（home-app）再三连点其头像 → window.parent.postMessage({type:'endy:revertAbout'})
+     通知本页关闭浮层，切回原个人页。浮层自带 × 与 ESC 关闭；pjax 切走时自动关闭。
+     原「连点揭示私密信息」彩蛋已移除，私密信息改为常显（下方永久加 endy-private-revealed）。 */
+
+  /* --- 浮层管理 + 跨窗口回切：模块级单例，避免 pjax 重跑重复绑定 --- */
+  let __endyAboutOverlay = null;
+  let __endyAboutKeyHandler = null;
+
+  function __endyCloseAboutOverlay() {
+    if (__endyAboutOverlay && __endyAboutOverlay.parentNode) {
+      __endyAboutOverlay.parentNode.removeChild(__endyAboutOverlay);
+    }
+    __endyAboutOverlay = null;
+    if (__endyAboutKeyHandler) {
+      document.removeEventListener('keydown', __endyAboutKeyHandler);
+      __endyAboutKeyHandler = null;
+    }
+    document.documentElement.classList.remove('endy-about-locked');
+  }
+
+  function __endyOpenAboutOverlay() {
+    if (__endyAboutOverlay) return; // 已打开，避免重复创建
+    const overlay = document.createElement('div');
+    overlay.className = 'endy-about-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', '新个人主页');
+
+    const frame = document.createElement('iframe');
+    frame.className = 'endy-about-frame';
+    frame.id = 'endy-about-home-frame';
+    frame.src = '/about-home/?v=1';
+    frame.setAttribute('title', '彖渊子的新个人主页');
+    frame.setAttribute('allow', 'autoplay; fullscreen');
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'endy-about-close';
+    closeBtn.type = 'button';
+    closeBtn.setAttribute('aria-label', '返回原个人页');
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', __endyCloseAboutOverlay);
+
+    // 点击遮罩空白区（iframe 外）关闭
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) __endyCloseAboutOverlay();
+    });
+
+    overlay.appendChild(frame);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
+
+    __endyAboutKeyHandler = function (e) {
+      if (e.key === 'Escape') __endyCloseAboutOverlay();
+    };
+    document.addEventListener('keydown', __endyAboutKeyHandler);
+    document.documentElement.classList.add('endy-about-locked');
+    __endyAboutOverlay = overlay;
+  }
+
+  // 跨窗口回切 + pjax 关闭：整个脚本生命周期只绑一次
+  if (!window.__endyAboutGlobalBound) {
+    window.__endyAboutGlobalBound = true;
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'endy:revertAbout') __endyCloseAboutOverlay();
+    });
+    document.addEventListener('pjax:send', __endyCloseAboutOverlay);
+  }
+
+  // 跨浮层音频互斥：博客 ↔ home-app(iframe) 同时只能有一边出声。
+  // 协议：谁先 play 谁广播 owner，对方收到后暂停自己的媒体；只在「播放」时广播，绝不级联，天然无环。
+  if (!window.__endyAudioFocusBound) {
+    window.__endyAudioFocusBound = true;
+    function __endyPauseBlogMedia() {
+      document.querySelectorAll('audio, video').forEach(function (a) {
+        try { if (!a.paused) a.pause(); } catch (e) {}
+      });
+    }
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'endy:audioFocus' && e.data.owner === 'home-app') __endyPauseBlogMedia();
+    });
+    // 博客自身媒体开始播放（导航音乐 / 音乐馆 / 任意 <audio><video>）→ 通知浮层里的 home-app 暂停。
+    // 注意：iframe 内部的 play 事件不会冒泡到博客 document，所以此监听只会捕获博客自己的媒体，不会误伤。
+    document.addEventListener('play', function (e) {
+      var t = e.target;
+      if (!t || (t.tagName !== 'AUDIO' && t.tagName !== 'VIDEO')) return;
+      var f = document.getElementById('endy-about-home-frame');
+      if (f && f.contentWindow) f.contentWindow.postMessage({ type: 'endy:audioFocus', owner: 'blog' }, '*');
+    }, true);
+  }
+
   function initAboutPageEgg() {
     if (!location.pathname.startsWith('/about/')) return;
+    const aboutPage = document.getElementById('about-page');
+    if (!aboutPage) return;
+    // 私密信息（地图 / 生于·学校·职业）改为常显，不再依赖点击揭示
+    aboutPage.classList.add('endy-private-revealed');
+
     whenReady('#about-page .author-img', function (avatarWrap) {
       if (avatarWrap.dataset.aboutEggBound) return;
       avatarWrap.dataset.aboutEggBound = '1';
@@ -333,15 +427,12 @@
       avatarWrap.addEventListener('click', function () {
         const now = Date.now();
         clicks.push(now);
-        clicks = clicks.filter(function (t) { return now - t <= 1800; });
-        if (clicks.length >= 5) {
+        clicks = clicks.filter(function (t) { return now - t <= 1600; });
+        if (clicks.length >= 3) {
           clicks = [];
-          const aboutPage = document.getElementById('about-page');
-          if (!aboutPage) return;
-          const willReveal = !aboutPage.classList.contains('endy-private-revealed');
-          aboutPage.classList.toggle('endy-private-revealed', willReveal);
-          if (willReveal) markEggFound('about');
-          showToast(willReveal ? '🧑 你发现了关于我的私人信息' : '🔒 私人信息已隐藏', { duration: 3200 });
+          __endyOpenAboutOverlay();
+          markEggFound('about');
+          showToast('🧑 已进入新个人主页，三连点头像返回', { duration: 3200 });
         }
       });
     });

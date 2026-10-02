@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>彖渊子 · 个人主页</title>
+    <script type="module" crossorigin src="./assets/index-BJIS3JcE.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BSTIS9NN.css">
+  </head>
+  <body>
+    <!-- Canvas 手绘全局背景（流动渐变 + 星尘 + 星座 + 柔光） -->
+    <canvas id="bg"></canvas>
+
+    <!-- 连接脊线（贯穿 20 屏的竖向流光，随滚动点亮节点） -->
+    <canvas id="spine"></canvas>
+
+    <!-- 百叶窗过场遮罩（JS 注入竖条） -->
+    <div id="blinds" class="blinds" aria-hidden="true"></div>
+
+    <!-- 顶部：主题切换 + 滚动进度 -->
+    <header class="topbar">
+      <div class="brand">彖渊子</div>
+      <button id="theme-toggle" class="theme-toggle" aria-label="切换明暗">◐</button>
+    </header>
+    <div id="progress" class="progress"><i></i></div>
+
+    <!-- 右侧分屏导航点 -->
+    <nav id="dots" class="dots" aria-label="分屏导航"></nav>
+
+    <main id="scroll">
+      <!-- S1 开场 -->
+      <section class="screen hero" data-screen="1">
+        <div class="hero-inner">
+          <h1 class="hero-name" data-reveal data-parallax="0.4" title="连点三下，看看隐藏的自己">彖渊子</h1>
+          <p class="hero-sign" data-reveal data-parallax="0.7">彖辞破暗，渊澄万象</p>
+        </div>
+      </section>
+
+      <!-- S2 关于我 -->
+      <section class="screen" data-screen="2">
+        <div class="panel profile">
+          <img class="avatar" data-reveal src="./img/selfhosted/pZRXSc6.jpg" alt="彖渊子" title="连点三下，返回原个人页" />
+          <p class="desc" data-reveal>是一名 供应链管理师、独立开发者、博主</p>
+          <div class="skills" data-reveal>
+            <ul class="skills-col">
+              <li>🤖️ 数码科技爱好者</li>
+              <li>🔍 分享与热心帮助</li>
+              <li>🏠 智能家居小能手</li>
+              <li>🔨 设计开发一条龙</li>
+            </ul>
+            <ul class="skills-col">
+              <li>专修交互与设计 🤝</li>
+              <li>脚踏实地行动派 🏃</li>
+              <li>团队小组发动机 🧱</li>
+              <li>壮汉人狠话不多 💢</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- S3 过场 -->
+      <section class="screen art" data-screen="3">
+        <div class="art-inner">
+          <p class="art-line" data-reveal>在代码的缝隙里，打捞光的形状</p>
+          <p class="art-sub" data-reveal>热爱、生活、程序 —— 三者本就同源</p>
+          <pre class="ascii" data-ascii="彖辞破暗 · 渊澄万象" aria-hidden="true"></pre>
+        </div>
+      </section>
+
+      <!-- S4 追番 -->
+      <section class="screen" data-screen="4">
+        <div class="panel">
+          <h2 data-reveal>追番</h2>
+          <p class="panel-sub" data-reveal>屏幕亮起的那一刻，时间是停摆的</p>
+          <div class="comic-stage">
+            <div id="comic-grid" class="comic-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- S7 生涯 -->
+      <section class="screen" data-screen="7">
+        <div class="panel">
+          <h2 data-reveal>无限进步</h2>
+          <ul class="careers" data-reveal>
+            <li><span class="career-dot" style="background:#357ef5"></span>EDU，物流管理专业</li>
+            <li><span class="career-dot" style="background:#357ef5"></span>事业立足</li>
+            <li><span class="career-dot" style="background:#357ef5"></span>为人类发展做出贡献</li>
+          </ul>
+          <div class="selfinfo" data-reveal>
+            <span><b>2004</b> 生于</span>
+            <span><b>武夷学院</b> 物流管理</span>
+            <span><b>大四学生</b> 现职</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- S8 数据星河：51la 访问数字空间化（Three CSS3D 数字层） -->
+      <section class="screen" data-screen="8">
+        <div class="panel data-panel" data-reveal>
+          <h2>数据星河</h2>
+          <p class="panel-sub">每一串数字，都是一次真实的相遇</p>
+        </div>
+      </section>
+
+      <!-- S9 居所：闽 · 全息投影（Three.js 3D 福建省，DataV 标准省界，拖拽旋转 + 滚动推近） -->
+      <section class="screen" data-screen="9">
+        <div class="panel map-panel" data-reveal>
+          <p class="map-title">我现在住在</p>
+          <p class="map-place">中国，宁德市</p>
+          <p class="map-src">底图数据：阿里云 DataV.GeoAtlas 标准行政区划</p>
+        </div>
+      </section>
+
+      <!-- S10 性格：人格星核（Three.js，抠图头像悬浮 + 四维轨道公转） -->
+      <section class="screen" data-screen="10">
+        <div class="panel personality" data-reveal>
+          <div class="persona-text">
+            <h2>INFJ-A</h2>
+            <p class="persona-label">提倡者</p>
+          </div>
+          <img class="persona-trait" src="./img/selfhosted/16personalities_trait_intuitive.svg" alt="直觉型" />
+        </div>
+      </section>
+
+      <!-- S11 座右铭 -->
+      <section class="screen art maxim-screen" data-screen="11">
+        <div class="maxim-inner">
+          <h2 class="maxim" data-reveal>彖辞破暗，渊澄万象</h2>
+          <svg class="sign" viewBox="0 0 660 140" data-reveal aria-hidden="true">
+            <path d="M 40 90 C 130 20, 210 150, 320 75 S 520 15, 620 95" fill="none" stroke="var(--accent2)" stroke-width="4" stroke-linecap="round" pathLength="1" />
+          </svg>
+        </div>
+      </section>
+
+      <!-- S12 特长 -->
+      <section class="screen" data-screen="12">
+        <!-- 弈 · 四方棋台：3D 星台（四座棋台漂浮）→ 点击进入 2D 对局；DOM 由 src/chess-room.js 注入 -->
+      </section>
+
+      <!-- S5 音乐（后移到兴趣三连：音乐→游戏→关注偏好） -->
+      <section class="screen" data-screen="5">
+        <div class="panel music-panel" data-reveal>
+          <div class="music-text" data-parallax="0.4">
+            <h2>音乐偏好</h2>
+            <p>电音、梵音、轻音乐</p>
+            <a class="ghost-link" href="/life/music/">去听歌单 →</a>
+            <button class="music-play" type="button" aria-pressed="false">▶ 试听</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- S13 游戏 -->
+      <!-- S13 游戏：铁锈战争「作战指挥室」（三路镜头回传 + CRT 监视器 + 战报打字机） -->
+      <section class="screen" data-screen="13">
+        <div class="panel game-panel" data-reveal>
+          <div class="cr-head">
+            <h2>铁锈战争</h2>
+            <p>RUSTED WARFARE · 作战指挥室</p>
+          </div>
+          <div class="cr-stage" id="cr-stage">
+            <div class="cr-monitor" id="cr-monitor">
+              <!-- 镜头、CRT 叠层、HUD 由 signatures.js 注入 -->
+            </div>
+          </div>
+          <div class="cr-console">
+            <p class="cr-brief" id="cr-brief" aria-live="off"></p>
+            <ul class="cr-stats" id="cr-stats"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- S14 关注偏好：真实模拟太阳系（Three.js 真 3D，滚动推近 + 鼠标倾斜视差） -->
+      <section class="screen" data-screen="14">
+        <div class="panel like-panel" data-reveal>
+          <div class="like-text">
+            <h2>我们的太阳系</h2>
+          </div>
+        </div>
+      </section>
+
+      <!-- S15 赞赏 -->
+      <!-- S15 感谢：「星火长明」—— 投喂星场（canvas）+ 充电电池按钮 + 艺术化收款码弹层 -->
+      <section class="screen" data-screen="15">
+        <div class="panel thanks-panel" data-reveal>
+          <div class="thanks-head">
+            <h2>感谢</h2>
+            <p>每一份善意，都被认真记着</p>
+          </div>
+          <div class="thanks-charge">
+            <button class="th-charge" id="th-charge" type="button">
+              <span class="th-charge-fill"></span>
+              <span class="th-charge-label"><kbd>⚡</kbd> 为我充电</span>
+            </button>
+            <div class="th-charge-note">电量来自每一颗星</div>
+            <ul class="th-wall" id="th-wall"></ul>
+          </div>
+        </div>
+
+        <!-- 悬停星星时浮出的投喂信息 -->
+        <div class="th-tip" id="th-tip" aria-hidden="true"></div>
+
+        <!-- 收款码弹层 -->
+        <div class="th-overlay" id="th-overlay" role="dialog" aria-modal="true" aria-label="打赏收款码">
+          <div class="th-sheet" id="th-sheet">
+            <div class="th-sheet-scan"></div>
+            <button class="th-close" id="th-close" type="button" aria-label="关闭">✕</button>
+            <h3 class="th-sheet-title">请彖渊子喝一杯</h3>
+            <div class="th-sheet-sub">THANKS FOR YOUR SUPPORT</div>
+            <div class="th-seg" id="th-seg">
+              <span class="th-seg-thumb wx" id="th-seg-thumb"></span>
+              <button class="wx on" type="button" data-pay="wx"><i></i>微信</button>
+              <button class="ali" type="button" data-pay="ali"><i></i>支付宝</button>
+            </div>
+            <div class="th-qr" id="th-qr">
+              <i class="qbk tl"></i><i class="qbk tr"></i><i class="qbk bl"></i><i class="qbk br"></i>
+              <div class="th-qr-scan" id="th-qr-scan"></div>
+            </div>
+            <p class="th-note">金额随意 · 心意最重要 ☕</p>
+            <div class="th-copy-row">
+              <button class="th-copy" id="th-copy" type="button">复制链接</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- S16 过场 -->
+      <section class="screen art" data-screen="16">
+        <div class="art-inner">
+          <p class="art-line" data-reveal>夜色落下来，屏幕成了窗</p>
+          <p class="art-sub" data-reveal>窗外是星，窗内是字</p>
+        </div>
+      </section>
+
+      <!-- S17 过场 -->
+      <section class="screen art" data-screen="17">
+        <div class="art-inner">
+          <p class="art-line" data-reveal>走过的路，都成了此刻的光</p>
+          <p class="art-sub" data-reveal>不必回头，风会替我们记得</p>
+        </div>
+      </section>
+
+      <!-- S18 过场 -->
+      <section class="screen art" data-screen="18">
+        <div class="art-inner">
+          <p class="art-line" data-reveal>若你也在某个深夜亮着灯</p>
+          <p class="art-sub" data-reveal>那我们，早已是同行的人</p>
+        </div>
+      </section>
+
+      <!-- S19 过场 -->
+      <section class="screen art" data-screen="19">
+        <div class="art-inner">
+          <p class="art-line" data-reveal>故事没有终章，只有下一页</p>
+          <p class="art-sub" data-reveal>而这一页，正由你翻开</p>
+        </div>
+      </section>
+
+      <!-- S20 归航 -->
+      <section class="screen" data-screen="20">
+        <div class="panel home-cta" data-reveal>
+          <h2>归航</h2>
+          <div class="cta-links">
+            <a href="/">回到博客</a>
+            <a href="/archives">归档</a>
+            <a href="/categories/">分类</a>
+            <a href="javascript:history.back()">随便逛逛</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 隐私彩蛋：连点三下站名展开「真实档案」 -->
+    <div id="egg" class="egg" aria-hidden="true">
+      <div class="egg-card" role="dialog" aria-label="真实档案">
+        <button class="egg-close" aria-label="关闭">×</button>
+        <h3>真实档案 · 仅你可见</h3>
+        <div class="egg-dl"></div>
+        <p class="egg-note">敏感信息默认隐藏，通过专属交互触发。补全请改 <code>data.js</code> 的 <code>profile.secret</code>。</p>
+      </div>
+    </div>
+
+  </body>
+</html>

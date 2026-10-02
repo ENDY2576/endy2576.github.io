@@ -59,6 +59,7 @@
   var dtAvg = 16.7;
   var quality = 2;       // 2=全效果 1=只留视差 0=全关
   var measureTimer = 0;
+  var lastIdleY = 0;     // 上一帧滚动位置：用于「没滚动就跳过」的空闲判定
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
   function num(v) { return (Math.round(v * 100) / 100).toFixed(2); }
@@ -164,7 +165,9 @@
     if (it.meta) it.meta.style.removeProperty('--endy-meta-tf');
   }
 
+  var running = false;
   function frame(ts) {
+    if (!running) return;            // 标签页隐藏时由 stopLoop 停掉 rAF，避免后台空转
     requestAnimationFrame(frame);
     var dt = lastT ? Math.min(ts - lastT, 60) : 16.7;
     lastT = ts;
@@ -185,6 +188,14 @@
       }
       return;
     }
+
+    // 空闲跳过：没在滚（速度已归零且页面位置没变）、无强制档时，跳过每帧 transform 写入。
+    // 解决「明明没滚动却持续重排/重绘」导致的日常卡顿；一旦滚动 y 变化或 sv 回升立刻恢复。
+    var forceOn = (typeof window.__endyCardScrollForce === 'number');
+    if (!forceOn && Math.abs(sv) < 0.05 && y === lastIdleY) {
+      return;
+    }
+    lastIdleY = y;
 
     var vh = window.innerHeight || 1;
     var q = (typeof window.__endyCardScrollForce === 'number') ? window.__endyCardScrollForce : quality;
@@ -245,11 +256,23 @@
     }
   }
 
+  function startLoop() {
+    if (running) return;
+    running = true;
+    requestAnimationFrame(frame);
+  }
+  function stopLoop() { running = false; }
+  // 标签页切到后台：直接停 rAF，避免无谓空转耗电/掉帧；切回前台且首页还在再启动
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stopLoop();
+    else if (items.length) startLoop();
+  });
+
   function init() {
     if (!document.querySelector('#recent-posts > .recent-post-item')) return;
     collect();
     bind();
-    requestAnimationFrame(frame);
+    startLoop();
   }
 
   if (document.readyState === 'loading') {

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>人格星核 · S10 性格页原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif; }
+  [data-theme='dark'] body { background: radial-gradient(1100px 800px at 50% 42%, #0c1430, #05070f 70%); color: #eaf0ff; }
+  [data-theme='light'] body { background: radial-gradient(1100px 800px at 50% 42%, #eaf2ff, #dfe9fa 70%); color: #16233f; }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; cursor: grab; }
+  #stage canvas:active { cursor: grabbing; }
+
+  /* 维度悬停卡 */
+  #tip {
+    position: fixed; left: 0; top: 0; z-index: 6; transform: translate(16px, -50%);
+    max-width: 300px; padding: 12px 16px; border-radius: 14px; pointer-events: none;
+    background: rgba(10, 18, 36, 0.85); border: 1px solid rgba(123, 224, 255, 0.4);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45); backdrop-filter: blur(8px);
+    opacity: 0; transition: opacity 0.18s ease;
+  }
+  [data-theme='light'] #tip { background: rgba(255, 255, 255, 0.92); border-color: rgba(43, 108, 255, 0.35); box-shadow: 0 10px 30px rgba(40, 80, 160, 0.25); }
+  #tip.show { opacity: 1; }
+  #tip b { display: block; font-size: 15px; letter-spacing: 0.06em; margin-bottom: 4px; }
+  [data-theme='dark'] #tip b { color: #7be0ff; } [data-theme='light'] #tip b { color: #2b6cff; }
+  #tip span { font-size: 12px; line-height: 1.7; opacity: 0.8; }
+  #tip em { display: block; margin-top: 6px; font-style: normal; font-size: 11px; opacity: 0.55; }
+
+  .head { position: fixed; left: 50%; top: 8vh; transform: translateX(-50%); text-align: center; z-index: 4; pointer-events: none; }
+  .head h1 { font-size: clamp(34px, 6vw, 58px); font-weight: 800; letter-spacing: 0.04em;
+    background: linear-gradient(120deg, #7be0ff, #4b8bff 55%, #b98bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  [data-theme='light'] .head h1 { background: linear-gradient(120deg, #2b6cff, #0090d4 55%, #7c3aed); -webkit-background-clip: text; background-clip: text; }
+  .head p { margin-top: 6px; font-size: 14px; letter-spacing: 0.35em; opacity: 0.65; }
+
+  .hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); font-size: 12px; letter-spacing: 0.1em; opacity: 0.45; z-index: 4; pointer-events: none; }
+  #theme-toggle { position: fixed; right: 18px; top: 16px; z-index: 6; width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid rgba(123, 224, 255, 0.4); background: rgba(20, 30, 56, 0.5); color: inherit; font-size: 16px; cursor: pointer; }
+  [data-theme='light'] #theme-toggle { background: rgba(255, 255, 255, 0.7); border-color: rgba(43, 108, 255, 0.4); }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div class="head"><h1>INFJ-A</h1><p>提 倡 者</p></div>
+  <div id="tip"><b></b><span></span><em></em></div>
+  <button id="theme-toggle" title="切换明暗">◐</button>
+  <div class="hint">拖拽旋转人格星核 · 悬停字母看维度含义 · 四条轨道公转</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three'
+
+// ---------- MBTI 四维度：a=本人端（亮） b=对立端（暗） ----------
+const DIMS = [
+  { a: 'I', b: 'E', name: '内向 · Introversion', desc: '能量在独处中恢复，深度大于广度', anti: '对立端 E 外向：能量在人际互动中获得' },
+  { a: 'N', b: 'S', name: '直觉 · iNtuition', desc: '关注可能性、联想与未来图景', anti: '对立端 S 实感：关注具体事实与当下细节' },
+  { a: 'F', b: 'T', name: '情感 · Feeling', desc: '以个人价值观与共情做决策', anti: '对立端 T 思考：以逻辑与客观分析做决策' },
+  { a: 'J', b: 'P', name: '判断 · Judging', desc: '偏好计划、结构与确定性', anti: '对立端 P 知觉：偏好灵活与保持开放' },
+]
+// 四条轨道各自的姿态与速度（不同倾角 + 转向，制造天体感）
+const ORBITS = [
+  { rx: 24, tiltX: 1.30, tiltY: 0.00, speed: 0.30 },
+  { rx: 29, tiltX: 1.02, tiltY: 0.55, speed: -0.22 },
+  { rx: 34, tiltX: 1.42, tiltY: -0.45, speed: 0.17 },
+  { rx: 39, tiltX: 1.16, tiltY: 0.30, speed: -0.13 },
+]
+
+const PALETTES = {
+  dark: { bgFog: 0x05070f, glow: 0x4b8bff, orbit: 0x5f9dff, letA: '#9fe8ff', letB: 'rgba(160,190,230,0.4)', ring2: 0x3d5f9e, avatarOp: 1 },
+  light: { bgFog: 0xdfe9fa, glow: 0x9cc0ff, orbit: 0x2b6cff, letA: '#1d4fc0', letB: 'rgba(60,90,140,0.4)', ring2: 0x8fb0e8, avatarOp: 1 },
+}
+let pal = PALETTES.dark
+
+// ---------- 场景 ----------
+const stage = document.getElementById('stage')
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2))
+renderer.setSize(innerWidth, innerHeight)
+stage.appendChild(renderer.domElement)
+const scene = new THREE.Scene()
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 500)
+camera.position.set(0, 0, 96)
+
+const core = new THREE.Group()   // 拖拽旋转的整体
+scene.add(core)
+
+// ---------- 抠图头像（中心悬浮） ----------
+const tex = new THREE.TextureLoader().load('/img/selfhosted/persona-cut.png')
+const avatarMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false })
+const avatar = new THREE.Mesh(new THREE.PlaneGeometry(21, 21 * 580 / 583), avatarMat)
+core.add(avatar)
+
+// 头像背后柔光
+function glowTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 256
+  const g = c.getContext('2d')
+  const grd = g.createRadialGradient(128, 128, 0, 128, 128, 128)
+  grd.addColorStop(0, inner); grd.addColorStop(1, outer)
+  g.fillStyle = grd; g.fillRect(0, 0, 256, 256)
+  return new THREE.CanvasTexture(c)
+}
+const glowMat = new THREE.SpriteMaterial({ map: glowTexture('rgba(120,170,255,0.5)', 'rgba(120,170,255,0)'), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
+const glow = new THREE.Sprite(glowMat)
+glow.position.z = -3
+glow.scale.set(52, 52, 1)
+core.add(glow)
+
+// ---------- 字母贴图（Canvas 生成，带辉光） ----------
+function letterTexture(ch, color, size = 220) {
+  const c = document.createElement('canvas'); c.width = c.height = size
+  const g = c.getContext('2d')
+  g.font = `800 ${size * 0.56}px -apple-system, 'Segoe UI', sans-serif`
+  g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.shadowColor = color; g.shadowBlur = size * 0.12
+  g.fillStyle = color
+  g.fillText(ch, size / 2, size / 2 + size * 0.03)
+  g.fillText(ch, size / 2, size / 2 + size * 0.03)   // 画两遍加浓辉光
+  return new THREE.CanvasTexture(c)
+}
+
+// ---------- 四条轨道 + 公转字母 ----------
+const orbitMats = []
+const letters = []   // { sprite, orbit, isA, dim }
+DIMS.forEach((d, i) => {
+  const cfg = ORBITS[i]
+  const group = new THREE.Group()
+  group.rotation.x = cfg.tiltX
+  group.rotation.y = cfg.tiltY
+  core.add(group)
+
+  // 椭圆轨道线
+  const pts = []
+  const ry = cfg.rx * 0.42
+  for (let k = 0; k <= 120; k++) {
+    const th = (k / 120) * Math.PI * 2
+    pts.push(new THREE.Vector3(cfg.rx * Math.cos(th), 0, ry * Math.sin(th)))
+  }
+  const om = new THREE.LineBasicMaterial({ color: pal.orbit, transparent: true, opacity: 0 })
+  orbitMats.push(om)
+  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), om))
+
+  // 本端字母（亮）+ 对立端字母（暗），同轨道对踵
+  const mk = (ch, isA) => {
+    const color = isA ? pal.letA : pal.letB
+    const m = new THREE.SpriteMaterial({ map: letterTexture(ch, color), transparent: true, opacity: 0, depthWrite: false })
+    const s = new THREE.Sprite(m)
+    s.scale.setScalar(isA ? 4.6 : 3.6)
+    s.userData = { dim: d, isA, orbit: i, phase: isA ? 0 : Math.PI }
+    group.add(s)
+    letters.push(s)
+  }
+  mk(d.a, true)
+  mk(d.b, false)
+})
+
+// ---------- 交互：拖拽 + 悬停 ----------
+const st = { drag: false, sx: 0, sy: 0, tilt0: 0, spin0: 0, tTilt: 0.1, tilt: 0.1, tSpin: 0, spin: 0, started: 0, mx: -2, my: -2 }
+const cv = renderer.domElement
+cv.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return
+  st.drag = true; st.sx = e.clientX; st.sy = e.clientY
+  st.tilt0 = st.tTilt; st.spin0 = st.tSpin
+  try { cv.setPointerCapture(e.pointerId) } catch (_) {}
+})
+cv.addEventListener('pointermove', (e) => {
+  st.mx = (e.clientX / innerWidth) * 2 - 1
+  st.my = -(e.clientY / innerHeight) * 2 + 1
+  tipXY.x = e.clientX; tipXY.y = e.clientY
+  if (!st.drag) return
+  st.tSpin = st.spin0 - (e.clientX - st.sx) * 0.005
+  st.tTilt = Math.max(-0.7, Math.min(0.7, st.tilt0 + (e.clientY - st.sy) * 0.004))
+})
+cv.addEventListener('pointerup', () => { st.drag = false })
+cv.addEventListener('pointerleave', () => { st.drag = false; st.mx = -2; st.my = -2 })
+
+// 悬停提示
+const tip = document.getElementById('tip')
+const tipXY = { x: 0, y: 0 }
+const ray = new THREE.Raycaster()
+const pv = new THREE.Vector2()
+let hovered = null
+function updateHover() {
+  if (st.drag || st.mx < -1.5) { tip.classList.remove('show'); hovered = null; return }
+  ray.setFromCamera(pv.set(st.mx, st.my), camera)
+  const hit = ray.intersectObjects(letters, false)[0]
+  const s = hit ? hit.object : null
+  if (s !== hovered) {
+    hovered = s
+    if (s) {
+      const d = s.userData.dim
+      tip.querySelector('b').textContent = s.userData.isA ? d.name : d.anti.split('：')[0]
+      tip.querySelector('span').textContent = s.userData.isA ? d.desc : d.anti.split('：')[1]
+      tip.querySelector('em').textContent = s.userData.isA ? `对立端 → ${d.anti}` : '你的 INFJ 选择了另一端'
+      tip.classList.add('show')
+    } else tip.classList.remove('show')
+  }
+  if (s) { tip.style.left = tipXY.x + 'px'; tip.style.top = tipXY.y + 'px' }
+}
+
+// ---------- 主题切换 ----------
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const html = document.documentElement
+  html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark'
+  pal = PALETTES[html.dataset.theme]
+  orbitMats.forEach((m) => m.color.setHex(pal.orbit))
+  letters.forEach((s) => {
+    const isA = s.userData.isA
+    s.material.map = letterTexture(isA ? s.userData.dim.a : s.userData.dim.b, isA ? pal.letA : pal.letB)
+  })
+  glowMat.color.setHex(pal.glow)
+})
+
+// ---------- 主循环 ----------
+const easeOut = (x) => 1 - Math.pow(1 - x, 3)
+function tick(t) {
+  if (!st.started) st.started = t
+  const e = easeOut(Math.min(1, (t - st.started) / 2000))
+
+  // 入场：头像浮现 + 轨道渐亮 + 字母错峰弹出
+  avatarMat.opacity = e
+  avatar.scale.setScalar(0.7 + 0.3 * e)
+  orbitMats.forEach((m) => m.opacity = 0.32 * e)
+  letters.forEach((s, i) => {
+    const li = easeOut(Math.max(0, Math.min(1, ((t - st.started) - 500 - i * 110) / 600)))
+    s.material.opacity = (s.userData.isA ? 1 : 0.5) * li
+  })
+  glowMat.opacity = 0.5 * e
+
+  // 头像呼吸 + 鼠标视差
+  avatar.position.y = Math.sin(t * 0.0011) * 0.7
+  avatar.rotation.y = st.mx > -1.5 ? st.mx * 0.16 : 0
+  avatar.rotation.x = st.mx > -1.5 ? -st.my * 0.08 : 0
+
+  // 公转
+  letters.forEach((s) => {
+    const cfg = ORBITS[s.userData.orbit]
+    const th = t * 0.001 * cfg.speed + s.userData.phase
+    s.position.set(cfg.rx * Math.cos(th), 0, cfg.rx * 0.42 * Math.sin(th))
+  })
+
+  // 拖拽旋转（lerp 手感）
+  st.spin = st.spin + (st.tSpin - st.spin) * 0.07
+  st.tilt = st.tilt + (st.tTilt - st.tilt) * 0.07
+  core.rotation.y = st.spin
+  core.rotation.x = st.tilt
+
+  updateHover()
+  renderer.render(scene, camera)
+  requestAnimationFrame(tick)
+}
+requestAnimationFrame(tick)
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight
+  camera.updateProjectionMatrix()
+  renderer.setSize(innerWidth, innerHeight)
+})
+</script>
+</body>
+</html>

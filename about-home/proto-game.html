@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>作战指挥室 · 铁锈战争 S13 原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { font-family: 'Consolas', 'Courier New', -apple-system, 'PingFang SC', monospace; }
+  [data-theme='dark'] body { background: radial-gradient(1000px 700px at 50% 40%, #0a1224, #04060d 75%); color: #cfe6ff; }
+  [data-theme='light'] body { background: radial-gradient(1000px 700px at 50% 40%, #e8effa, #d7e3f5 75%); color: #16233f; }
+
+  .head { position: fixed; left: 50%; top: 5.5vh; transform: translateX(-50%); text-align: center; z-index: 5; pointer-events: none; }
+  .head h1 { font-size: clamp(24px, 4vw, 38px); font-weight: 800; letter-spacing: 0.18em; }
+  .head p { margin-top: 4px; font-size: 11px; letter-spacing: 0.5em; opacity: 0.55; }
+
+  /* ===== 主监视器 ===== */
+  .monitor {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -52%);
+    width: min(860px, 86vw); aspect-ratio: 16 / 10;
+    border-radius: 10px; overflow: hidden;
+    background: #0a0f14;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(123, 224, 255, 0.25), 0 0 60px rgba(60, 140, 255, 0.12);
+    z-index: 2;
+  }
+  /* 两路镜头交叉淡化 */
+  .feed { position: absolute; inset: 0; opacity: 0; transition: opacity 0.9s ease; overflow: hidden; }
+  .feed.on { opacity: 1; }
+  .feed img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* 镜头缓慢推轨（Ken Burns），三路方向各异，静止画面也有呼吸 */
+  .feed.on img { animation-duration: 9s; animation-timing-function: ease-in-out; animation-fill-mode: forwards; }
+  .feed:nth-child(1).on img { animation-name: kb1; }
+  .feed:nth-child(2).on img { animation-name: kb2; }
+  .feed:nth-child(3).on img { animation-name: kb3; }
+  @keyframes kb1 { from { transform: scale(1.04) translate(-1.5%, -1%); } to { transform: scale(1.12) translate(1.5%, 1%); } }
+  @keyframes kb2 { from { transform: scale(1.12) translate(2%, 0.5%); } to { transform: scale(1.03) translate(-1.5%, -0.5%); } }
+  @keyframes kb3 { from { transform: scale(1.05) translate(1%, 1.5%); } to { transform: scale(1.13) translate(-1.5%, -1.5%); } }
+
+  /* CRT 质感：扫描线 + 移动亮带 + 暗角 */
+  .crt-lines { position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px); }
+  .crt-sweep { position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background: linear-gradient(180deg, transparent 0%, rgba(160, 220, 255, 0.06) 48%, rgba(160, 220, 255, 0.14) 50%, transparent 52%);
+    background-size: 100% 260%; animation: sweep 7s linear infinite; }
+  @keyframes sweep { from { background-position: 0 -130%; } to { background-position: 0 130%; } }
+  .crt-vignette { position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55); }
+
+  /* HUD：四角框 + REC + 时间码 + 镜头标签 */
+  .hud { position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    font-size: 11px; letter-spacing: 0.12em; color: #9fe8ff; }
+  [data-theme='light'] .hud { color: #1d4fc0; }
+  .corner { position: absolute; width: 26px; height: 26px; border: 2px solid currentColor; opacity: 0.75; }
+  .corner.tl { left: 10px; top: 10px; border-right: none; border-bottom: none; }
+  .corner.tr { right: 10px; top: 10px; border-left: none; border-bottom: none; }
+  .corner.bl { left: 10px; bottom: 10px; border-right: none; border-top: none; }
+  .corner.br { right: 10px; bottom: 10px; border-left: none; border-top: none; }
+  .rec { position: absolute; left: 46px; top: 14px; display: flex; align-items: center; gap: 7px; opacity: 0.9; }
+  .rec i { width: 9px; height: 9px; border-radius: 50%; background: #ff4d4d; animation: blink 1.1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.15; } }
+  .cam-tag { position: absolute; right: 46px; top: 14px; opacity: 0.9; }
+  .timecode { position: absolute; right: 46px; bottom: 14px; opacity: 0.85; }
+  .coords { position: absolute; left: 46px; bottom: 14px; opacity: 0.7; }
+
+  .cam-bar { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto; }
+  .cam-bar button { width: 22px; height: 6px; border: none; border-radius: 3px; cursor: pointer; padding: 0;
+    background: currentColor; opacity: 0.3; transition: opacity 0.25s, width 0.25s; }
+  .cam-bar button.on { opacity: 1; width: 34px; }
+
+  /* 目标锁定框 */
+  .lock {
+    position: absolute; z-index: 4; pointer-events: none;
+    width: 74px; height: 56px; opacity: 0; color: #ffd166;
+    animation: lock 1.9s ease forwards;
+  }
+  .lock::before, .lock::after, .lock i::before, .lock i::after {
+    content: ''; position: absolute; width: 12px; height: 12px; border: 2px solid currentColor;
+  }
+  .lock::before { left: 0; top: 0; border-right: none; border-bottom: none; }
+  .lock::after { right: 0; top: 0; border-left: none; border-bottom: none; }
+  .lock i::before { left: 0; bottom: 0; border-right: none; border-top: none; }
+  .lock i::after { right: 0; bottom: 0; border-left: none; border-top: none; }
+  .lock b { position: absolute; left: 0; top: -18px; font-size: 10px; letter-spacing: 0.1em; white-space: nowrap; }
+  @keyframes lock {
+    0% { opacity: 0; transform: scale(1.6); }
+    14% { opacity: 1; transform: scale(1); }
+    78% { opacity: 1; }
+    100% { opacity: 0; transform: scale(0.94); }
+  }
+
+  /* 切换 glitch：色差 + 抖动 */
+  .monitor.glitching .feed.on img { animation: glitch 0.32s steps(3); }
+  @keyframes glitch {
+    0% { filter: none; transform: none; }
+    30% { filter: hue-rotate(24deg) saturate(1.6); transform: translateX(-5px) skewX(-1.2deg); clip-path: inset(12% 0 34% 0); }
+    60% { filter: hue-rotate(-18deg); transform: translateX(4px); clip-path: inset(48% 0 8% 0); }
+    100% { filter: none; transform: none; clip-path: none; }
+  }
+
+  /* ===== 底部：战报打字机 + 数据 HUD ===== */
+  .console {
+    position: fixed; left: 50%; bottom: 4.5vh; transform: translateX(-50%);
+    width: min(860px, 86vw); z-index: 5; pointer-events: none;
+  }
+  .brief { font-size: 13px; line-height: 1.7; letter-spacing: 0.05em; min-height: 44px; opacity: 0.9; }
+  .brief::after { content: '▌'; animation: blink 0.9s steps(2) infinite; margin-left: 2px; }
+  [data-theme='dark'] .brief { color: #8fe8b0; }
+  [data-theme='light'] .brief { color: #0a7a4a; }
+  .stats { display: flex; gap: 26px; margin-top: 10px; font-size: 11px; letter-spacing: 0.14em; opacity: 0.7; flex-wrap: wrap; }
+  .stats b { color: #ffd166; font-weight: 700; }
+
+  .hint { position: fixed; left: 50%; bottom: 1.2vh; transform: translateX(-50%); font-size: 10px; letter-spacing: 0.14em; opacity: 0.4; z-index: 5; }
+  #theme-toggle { position: fixed; right: 18px; top: 16px; z-index: 6; width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid rgba(123, 224, 255, 0.4); background: rgba(20, 30, 56, 0.5); color: inherit; font-size: 16px; cursor: pointer; }
+  [data-theme='light'] #theme-toggle { background: rgba(255, 255, 255, 0.7); border-color: rgba(43, 108, 255, 0.4); }
+</style>
+</head>
+<body>
+  <div class="head"><h1>铁锈战争</h1><p>RUSTED WARFARE · 作战指挥室</p></div>
+
+  <div class="monitor" id="monitor">
+    <div class="feed" data-cam="CAM-01 · 主战场"><img src="./img/selfhosted/rw-battle-01.jpg" alt="铁锈战争实机画面一" /></div>
+    <div class="feed" data-cam="CAM-02 · 前线推进"><img src="./img/selfhosted/rw-battle-02.jpg" alt="铁锈战争实机画面二" /></div>
+    <div class="feed" data-cam="CAM-03 · 阵地攻防"><img src="./img/selfhosted/rw-battle-03.jpg" alt="铁锈战争实机画面三" /></div>
+    <div class="crt-lines"></div>
+    <div class="crt-sweep"></div>
+    <div class="crt-vignette"></div>
+    <div class="hud">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div class="rec"><i></i><span id="rec-label">REC · CAM-01</span></div>
+      <div class="cam-tag">SIGNAL ▮▮▮▯</div>
+      <div class="coords">GRID 41.08°N · 122.06°E</div>
+      <div class="timecode" id="timecode">00:00:00:00</div>
+      <div class="cam-bar" id="cam-bar"></div>
+    </div>
+  </div>
+
+  <div class="console">
+    <div class="brief" id="brief"></div>
+    <div class="stats">
+      <span>指挥官 <b>Unnamed677</b></span>
+      <span>资金 <b>$4,851</b></span>
+      <span>帧率 <b>121 FPS</b></span>
+      <span>战线 <b>2</b> 条</span>
+    </div>
+  </div>
+  <div class="hint">悬停监视器加快目标锁定 · 切换明暗看环境光反应</div>
+  <button id="theme-toggle" title="切换明暗">◐</button>
+
+<script>
+(() => {
+  const monitor = document.getElementById('monitor')
+  const feeds = Array.from(document.querySelectorAll('.feed'))
+  const recLabel = document.getElementById('rec-label')
+  const timecode = document.getElementById('timecode')
+  const brief = document.getElementById('brief')
+  let cam = 0
+
+  // ---------- 镜头轮播：切换瞬间 glitch + REC / 镜头条联动 ----------
+  let timer = null
+  function show(i) {
+    feeds.forEach((f, k) => f.classList.toggle('on', k === i))
+    dots.forEach((d, k) => d.classList.toggle('on', k === i))
+    cam = i
+    recLabel.textContent = 'REC · ' + feeds[i].dataset.cam.slice(0, 6)
+    monitor.classList.remove('glitching')
+    void monitor.offsetWidth            // 重触发动画
+    monitor.classList.add('glitching')
+    clearTimeout(glitchT)
+    glitchT = setTimeout(() => monitor.classList.remove('glitching'), 340)   // 让 Ken Burns 继续接管
+  }
+  let glitchT = null
+  function autoNext() { show((cam + 1) % feeds.length) }
+  function restartAuto() { clearInterval(timer); timer = setInterval(autoNext, 7000) }
+
+  const bar = document.getElementById('cam-bar')
+  const dots = feeds.map((f, i) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.title = f.dataset.cam
+    b.setAttribute('aria-label', '切换到' + f.dataset.cam)
+    b.addEventListener('click', () => { show(i); restartAuto() })
+    bar.appendChild(b)
+    return b
+  })
+  feeds[0].classList.add('on')
+  restartAuto()
+
+  // ---------- 目标锁定框：随机出现，悬停时频率翻倍 ----------
+  const CAM_W = () => monitor.clientWidth
+  const CAM_H = () => monitor.clientHeight
+  function spawnLock(hovering) {
+    const el = document.createElement('div')
+    el.className = 'lock'
+    el.innerHTML = '<i></i><b>TARGET · ' + (1000 + Math.floor(Math.random() * 9000)) + '</b>'
+    const w = 74, h = 56
+    el.style.left = Math.random() * (CAM_W() - w - 24) + 12 + 'px'
+    el.style.top = Math.random() * (CAM_H() - h - 24) + 12 + 'px'
+    monitor.appendChild(el)
+    setTimeout(() => el.remove(), 1900)
+    // 悬停加快：1.4s 间隔；平时 2.6~4s
+    const next = hovering ? 1400 : 2600 + Math.random() * 1400
+    setTimeout(() => spawnLock(hoveringRef), next)
+  }
+  let hoveringRef = false
+  monitor.addEventListener('pointerenter', () => { hoveringRef = true })
+  monitor.addEventListener('pointerleave', () => { hoveringRef = false })
+  spawnLock(false)
+
+  // ---------- 时间码（帧级跳动） ----------
+  let frames = 0
+  setInterval(() => {
+    frames += 3   // 模拟 ~25fps 时间码
+    const f = frames % 25
+    const s = Math.floor(frames / 25) % 60
+    const m = Math.floor(frames / (25 * 60)) % 60
+    const hh = Math.floor(frames / (25 * 3600))
+    timecode.textContent = [hh, m, s, f].map((n) => String(n).padStart(2, '0')).join(':')
+  }, 120)
+
+  // ---------- 战报打字机（循环） ----------
+  const LINES = [
+    '>> SCOUT 报告：东线装甲集群正在推进，请求空中支援',
+    '>> 防空火力网已就位，航线清空，迫击炮阵地展开',
+    '>> 资金充裕，指挥官。第二梯队增援已在路上',
+    '>> 星云会战进入白热化，双方指挥点持续攀升',
+    '>> 前线阵地交火中，工程单位正在抢修防御工事',
+  ]
+  let li = 0, ci = 0, deleting = false
+  function typeLoop() {
+    const line = LINES[li]
+    brief.textContent = line.slice(0, ci)
+    if (!deleting) {
+      ci++
+      if (ci > line.length) { deleting = true; setTimeout(typeLoop, 2600); return }
+    } else {
+      ci--
+      if (ci <= 0) { deleting = false; li = (li + 1) % LINES.length }
+    }
+    setTimeout(typeLoop, deleting ? 14 : 52)
+  }
+  typeLoop()
+
+  // ---------- 主题 ----------
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const html = document.documentElement
+    html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark'
+  })
+})()
+</script>
+</body>
+</html>

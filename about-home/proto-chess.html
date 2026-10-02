@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>弈 · 四方棋局 — 特长页原型</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+    font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    background: #0b1226; color: #dbe7ff; overflow: hidden;
+  }
+  body[data-theme='light'] { background: #e8effb; color: #17233d; }
+
+  .wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 24px; }
+  .head { text-align: center; }
+  .head h2 { font-size: clamp(26px, 4vw, 38px); letter-spacing: 0.22em; }
+  .head p { margin-top: 8px; font-size: 12px; letter-spacing: 0.3em; opacity: 0.55; }
+
+  .stage {
+    position: relative; width: min(600px, 92vw, 74dvh); aspect-ratio: 1;
+    border-radius: 18px;
+    box-shadow: 0 30px 90px rgba(0,0,0,.5), 0 0 0 1px rgba(148,190,255,.18), 0 0 70px rgba(70,130,255,.12);
+    overflow: hidden;
+  }
+  body[data-theme='light'] .stage { box-shadow: 0 24px 70px rgba(40,70,140,.25), 0 0 0 1px rgba(43,84,160,.22); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: manipulation; }
+
+  .hud {
+    position: absolute; font-size: 11px; letter-spacing: 0.22em; opacity: 0.72;
+    padding: 6px 12px; border-radius: 8px; pointer-events: none;
+    background: rgba(8, 14, 30, 0.45); backdrop-filter: blur(6px);
+  }
+  body[data-theme='light'] .hud { background: rgba(255,255,255,.55); }
+  .hud-tl { left: 12px; top: 12px; }
+  .hud-tr { right: 12px; top: 12px; font-variant-numeric: tabular-nums; }
+  .hud-bl { left: 12px; bottom: 12px; font-size: 10px; opacity: 0.5; letter-spacing: 0.14em; }
+  #btnReset {
+    position: absolute; right: 12px; bottom: 12px; width: 30px; height: 30px; border-radius: 8px;
+    border: 1px solid rgba(148,190,255,.3); background: rgba(8,14,30,.45); color: inherit;
+    font-size: 14px; cursor: pointer; transition: transform .2s ease, background .2s ease;
+  }
+  #btnReset:hover { background: rgba(148,190,255,.18); transform: rotate(-60deg); }
+  body[data-theme='light'] #btnReset { background: rgba(255,255,255,.6); }
+
+  .tabs { display: flex; gap: 10px; }
+  .tabs button {
+    padding: 9px 20px; border-radius: 999px; cursor: pointer; font-size: 13px; letter-spacing: 0.18em;
+    border: 1px solid rgba(148,190,255,.28); background: rgba(148,190,255,.06); color: inherit;
+    opacity: 0.6; transition: all .25s ease;
+  }
+  .tabs button:hover { opacity: 0.9; }
+  .tabs button.on {
+    opacity: 1; color: #fff; border-color: rgba(143,217,255,.65);
+    background: linear-gradient(135deg, rgba(47,124,255,.5), rgba(123,92,255,.45));
+    box-shadow: 0 6px 24px rgba(60,110,230,.4);
+  }
+  body[data-theme='light'] .tabs button.on { color: #fff; }
+  .tabs button:focus-visible { outline: 2px solid #8fd9ff; outline-offset: 2px; }
+
+  #themeBtn {
+    position: fixed; right: 16px; top: 16px; width: 34px; height: 34px; border-radius: 50%;
+    border: 1px solid rgba(148,190,255,.3); background: rgba(8,14,30,.45); color: inherit;
+    font-size: 15px; cursor: pointer;
+  }
+  body[data-theme='light'] #themeBtn { background: rgba(255,255,255,.6); }
+</style>
+</head>
+<body data-theme="dark">
+<main class="wrap">
+  <header class="head">
+    <h2>弈 · 四方棋局</h2>
+    <p>特长 · 脑回路新奇的 酸菜鱼 —— 二次元指数 MAX</p>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="hud hud-tl" id="hudMode">围棋</div>
+    <div class="hud hud-tr" id="hudMove">第 0 手</div>
+    <div class="hud hud-bl">双 AI 自动对弈 · 点击棋盘可代当前一方落子</div>
+    <button id="btnReset" title="重开此局" aria-label="重开此局">↺</button>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-m="go" class="on">围棋</button>
+    <button data-m="wuzi">五子棋</button>
+    <button data-m="xq">中国象棋</button>
+    <button data-m="chess">国际象棋</button>
+  </nav>
+</main>
+<button id="themeBtn" title="明暗切换">☾</button>
+
+<script>
+'use strict'
+/* ================================================================
+   弈 · 四方棋局 —— 单文件原型
+   四个轻量引擎：围棋(提子/禁自杀)、五子棋(启发式AI)、
+   中国象棋(马腿/象眼/九宫/炮架/过河兵)、国际象棋(标准走法,升变)。
+   双 AI 自动对弈；点击 = 替当前行棋方走一手。
+   ================================================================ */
+const $ = (s) => document.querySelector(s)
+const cv = $('#cv'), ctx = cv.getContext('2d')
+const stage = $('#stage')
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+const TAU = Math.PI * 2
+const lerp = (a, b, t) => a + (b - a) * t
+const easeOut = (t) => 1 - Math.pow(1 - t, 3)
+const easeBack = (t) => { const s = 1.7; t -= 1; return t * t * ((s + 1) * t + s) + 1 }
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+
+const PAL = {
+  dark: {
+    bg: '#0b1226', board: '#101a36', boardEdge: 'rgba(143,217,255,.10)',
+    line: 'rgba(150,192,255,.55)', lineDim: 'rgba(150,192,255,.30)',
+    text: 'rgba(150,192,255,.65)', accent: '#8fd9ff', gold: '#ffd166',
+    bTop: '#333c49', bBot: '#0c1016', wTop: '#f7faff', wBot: '#b7c4d9',
+    red: '#e0524d', blk: '#223', wood: '#e3c894', woodRim: '#8f6b3d',
+    glyphW: '#edf3fd', glyphB: '#182234', sel: '#8fd9ff', danger: '#ff6b6b',
+    sqA: 'rgba(150,192,255,.05)', sqB: 'rgba(150,192,255,.13)',
+  },
+  light: {
+    bg: '#e8effb', board: '#f8fbff', boardEdge: 'rgba(43,84,160,.12)',
+    line: 'rgba(43,84,160,.6)', lineDim: 'rgba(43,84,160,.32)',
+    text: 'rgba(43,84,160,.7)', accent: '#2b6cff', gold: '#c8901a',
+    bTop: '#3a4658', bBot: '#0e1420', wTop: '#ffffff', wBot: '#b9c6da',
+    red: '#c93a35', blk: '#1c2740', wood: '#e8cf9e', woodRim: '#8f6b3d',
+    glyphW: '#ffffff', glyphB: '#182234', sel: '#2b6cff', danger: '#d84b4b',
+    sqA: 'rgba(43,84,160,.06)', sqB: 'rgba(43,84,160,.16)',
+  },
+}
+let theme = 'dark'
+const pal = () => PAL[theme]
+
+/* ---------------- 画布尺寸 ---------------- */
+let W = 0, H = 0, DPR = 1
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1)
+  W = stage.clientWidth; H = stage.clientHeight
+  cv.width = W * DPR; cv.height = H * DPR
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+}
+window.addEventListener('resize', resize)
+
+/* ---------------- 通用动画容器 ---------------- */
+let anims = []      // {p, fx,fy,tx,ty, t, dur, done}  格坐标插值位移
+let parts = []      // 粒子
+let reveal = null   // 模式切换圆形揭示 {t}
+let moveNo = 0, lastMoveAt = -9, lastUser = -9, over = 0, overLine = null
+let sel = null      // {p, targets:[[x,y],...]}
+let mouse = { x: -1, y: -1, in: false }
+
+function burst(px, py, color, n = 10, sp = 90) {
+  if (reduce) return
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, v = sp * (0.4 + Math.random() * 0.8)
+    parts.push({ x: px, y: py, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: 1, r: 1.5 + Math.random() * 2.5, c: color })
+  }
+}
+
+/* ================================================================
+   引擎 1 · 围棋 19 路
+   ================================================================ */
+function GameGo() {
+  const N = 19
+  const st = new Map() // 'x,y' -> 0/1
+  let passes = 0
+  const key = (x, y) => x + ',' + y
+  const inside = (x, y) => x >= 0 && y >= 0 && x < N && y < N
+  const neighbors = (x, y) => [[x+1,y],[x-1,y],[x,y+1],[x,y-1]].filter(([a,b]) => inside(a,b))
+  function groupLibs(x, y) {
+    const c = st.get(key(x, y)), seen = new Set([key(x,y)]), libs = new Set(), q = [[x,y]]
+    while (q.length) {
+      const [a,b] = q.pop()
+      for (const [nx,ny] of neighbors(a,b)) {
+        const k = key(nx,ny), v = st.get(k)
+        if (v === undefined) libs.add(k)
+        else if (v === c && !seen.has(k)) { seen.add(k); q.push([nx,ny]) }
+      }
+    }
+    return { group: seen, libs }
+  }
+  function tryPlay(x, y, c) {
+    if (!inside(x,y) || st.has(key(x,y))) return false
+    st.set(key(x,y), c)
+    let captured = []
+    for (const [nx,ny] of neighbors(x,y)) {
+      if (st.get(key(nx,ny)) === (1-c)) {
+        const g = groupLibs(nx,ny)
+        if (g.libs.size === 0) for (const k of g.group) { st.delete(k); captured.push(k) }
+      }
+    }
+    if (captured.length === 0 && groupLibs(x,y).libs.size === 0) { st.delete(key(x,y)); return false } // 禁自杀
+    return captured
+  }
+  const g = {
+    name: '围棋', cols: N, rows: N, turn: 0,
+    pieces: [], // 视觉层，由 st 派生
+    build() { st.clear(); passes = 0; },
+    sync() {
+      g.pieces = []
+      for (const [k, c] of st) { const [x,y] = k.split(',').map(Number); g.pieces.push({ gx: x, gy: y, c, id: 's' + k }) }
+    },
+    g2p(x, y, R) { return [R.x0 + x * R.cell, R.y0 + y * R.cell] },
+    p2g(px, py, R) {
+      const x = Math.round((px - R.x0) / R.cell), y = Math.round((py - R.y0) / R.cell)
+      return inside(x, y) ? [x, y] : null
+    },
+    drawBoard(R) {
+      const p = pal(); ctx.strokeStyle = p.lineDim; ctx.lineWidth = 1
+      ctx.beginPath()
+      for (let i = 0; i < N; i++) {
+        const t = R.x0 + i * R.cell
+        ctx.moveTo(t, R.y0); ctx.lineTo(t, R.y0 + (N-1) * R.cell)
+        ctx.moveTo(R.x0, t); ctx.lineTo(R.x0 + (N-1) * R.cell, t)
+      }
+      ctx.stroke()
+      ctx.fillStyle = p.line
+      for (const [sx, sy] of [[3,3],[9,3],[15,3],[3,9],[9,9],[15,9],[3,15],[9,15],[15,15]]) {
+        const [px, py] = g.g2p(sx, sy, R)
+        ctx.beginPath(); ctx.arc(px, py, Math.max(2, R.cell * 0.09), 0, TAU); ctx.fill()
+      }
+    },
+    tryHuman(x, y) {
+      const cap = tryPlay(x, y, g.turn)
+      if (!cap) return false
+      g.afterPlace(x, y, cap); return true
+    },
+    afterPlace(x, y, cap) {
+      g.sync()
+      const np = g.pieces.find((q) => q.gx === x && q.gy === y)
+      if (np) np.born = NOW
+      const [px, py] = g.g2p(x, y, R0)
+      if (Array.isArray(cap)) for (const k of cap) { const [cx,cy] = k.split(',').map(Number); burst(...g.g2p(cx,cy,R0), pal().accent, 8, 70) }
+      g.turn = 1 - g.turn; moveNo++; lastMoveAt = NOW
+      g.last = [x, y]
+      passes = 0
+    },
+    stepAI() {
+      // 候选：已有棋子距离 2 以内的空点，评分=气数+提子，取加权随机
+      const cand = new Set()
+      for (const k of st.keys()) {
+        const [x,y] = k.split(',').map(Number)
+        for (let dx=-2; dx<=2; dx++) for (let dy=-2; dy<=2; dy++) {
+          if (Math.abs(dx)+Math.abs(dy) > 2) continue
+          const nx=x+dx, ny=y+dy
+          if (inside(nx,ny) && !st.has(key(nx,ny))) cand.add(key(nx,ny))
+        }
+      }
+      if (cand.size === 0) {
+        // 空盘/开局：在星位附近随机开局
+        for (const [sx, sy] of [[3,3],[9,3],[15,3],[3,9],[9,9],[15,9],[3,15],[9,15],[15,15],[7,7],[11,11]])
+          if (!st.has(key(sx, sy))) cand.add(key(sx, sy))
+      }
+      if (cand.size === 0 || moveNo > 240) { over = NOW + 1.2; return }
+      let best = [], bestScore = -1
+      for (const k of cand) {
+        const [x,y] = k.split(',').map(Number)
+        st.set(k, g.turn)
+        let score = 0
+        for (const [nx,ny] of neighbors(x,y)) {
+          if (st.get(key(nx,ny)) === (1-g.turn)) {
+            const gl = groupLibs(nx,ny)
+            if (gl.libs.size === 0) score += 10 + gl.group.size
+            else if (gl.libs.size === 1) score += 5
+          }
+        }
+        const own = groupLibs(x,y)
+        score += Math.min(own.libs.size, 4)
+        if (own.libs.size === 1) score -= 6
+        // 三线四线加分
+        const edge = Math.min(x, y, N-1-x, N-1-y)
+        if (edge === 2 || edge === 3) score += 1.5
+        st.delete(k)
+        score += Math.random() * 2
+        if (score > bestScore) { bestScore = score; best = [[x,y]] }
+        else if (score > bestScore - 0.6) best.push([x,y])
+      }
+      const [x, y] = best[(Math.random() * best.length) | 0]
+      const cap = tryPlay(x, y, g.turn)
+      if (cap) g.afterPlace(x, y, cap)
+    },
+    last: null,
+  }
+  return g
+}
+
+/* ================================================================
+   引擎 2 · 五子棋 15 路（启发式 AI）
+   ================================================================ */
+function GameWuzi() {
+  const N = 15
+  const st = new Map()
+  const key = (x, y) => x + ',' + y
+  const inside = (x, y) => x >= 0 && y >= 0 && x < N && y < N
+  const DIRS = [[1,0],[0,1],[1,1],[1,-1]]
+  function lineScore(x, y, c) {
+    let total = 0
+    for (const [dx, dy] of DIRS) {
+      let run = 1, openA = 0, openB = 0
+      let i = 1
+      while (inside(x+dx*i, y+dy*i) && st.get(key(x+dx*i, y+dy*i)) === c) { run++; i++ }
+      openA = inside(x+dx*i, y+dy*i) && !st.has(key(x+dx*i, y+dy*i)) ? 1 : 0
+      i = 1
+      while (inside(x-dx*i, y-dy*i) && st.get(key(x-dx*i, y-dy*i)) === c) { run++; i++ }
+      openB = inside(x-dx*i, y-dy*i) && !st.has(key(x-dx*i, y-dy*i)) ? 1 : 0
+      const open = openA + openB
+      if (run >= 5) total += 1e6
+      else if (run === 4) total += open >= 2 ? 5e4 : open === 1 ? 8e3 : 0
+      else if (run === 3) total += open >= 2 ? 6e3 : open === 1 ? 500 : 0
+      else if (run === 2) total += open >= 2 ? 120 : 15
+      else total += open * 6
+    }
+    return total
+  }
+  function winAt(x, y) {
+    const c = st.get(key(x,y))
+    for (const [dx, dy] of DIRS) {
+      let n = 1
+      while (st.get(key(x+dx*n, y+dy*n)) === c) n++
+      let m = 1
+      while (st.get(key(x-dx*m, y-dy*m)) === c) m++
+      if (n + m - 1 >= 5) return [[x-dx*(m-1), y-dy*(m-1)], [x+dx*(n-1), y+dy*(n-1)]]
+    }
+    return null
+  }
+  const g = {
+    name: '五子棋', cols: N, rows: N, turn: 0,
+    pieces: [],
+    build() { st.clear(); },
+    sync() {
+      g.pieces = []
+      for (const [k, c] of st) { const [x,y] = k.split(',').map(Number); g.pieces.push({ gx: x, gy: y, c, id: 's' + k }) }
+    },
+    g2p(x, y, R) { return [R.x0 + x * R.cell, R.y0 + y * R.cell] },
+    p2g(px, py, R) {
+      const x = Math.round((px - R.x0) / R.cell), y = Math.round((py - R.y0) / R.cell)
+      return inside(x, y) && !st.has(key(x,y)) ? [x, y] : null
+    },
+    drawBoard(R) {
+      const p = pal(); ctx.strokeStyle = p.lineDim; ctx.lineWidth = 1
+      ctx.beginPath()
+      for (let i = 0; i < N; i++) {
+        const t = R.x0 + i * R.cell
+        ctx.moveTo(t, R.y0); ctx.lineTo(t, R.y0 + (N-1)*R.cell)
+        ctx.moveTo(R.x0, t); ctx.lineTo(R.x0 + (N-1)*R.cell, t)
+      }
+      ctx.stroke()
+      ctx.fillStyle = p.line
+      for (const [sx, sy] of [[3,3],[11,3],[7,7],[3,11],[11,11]]) {
+        const [px, py] = g.g2p(sx, sy, R)
+        ctx.beginPath(); ctx.arc(px, py, Math.max(2.5, R.cell * 0.1), 0, TAU); ctx.fill()
+      }
+    },
+    tryHuman(x, y) { g.place(x, y, g.turn); return true },
+    place(x, y, c) {
+      st.set(key(x,y), c); g.sync()
+      const np = g.pieces.find((q) => q.gx === x && q.gy === y)
+      if (np) np.born = NOW
+      g.last = [x, y]; g.turn = 1 - c; moveNo++; lastMoveAt = NOW
+      const w = winAt(x, y)
+      if (w) { over = NOW + 2.4; overLine = w }
+    },
+    stepAI() {
+      if (st.size === 0) { g.place(7, 7, 0); return }
+      let best = [], bs = -1
+      for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) {
+        if (st.has(key(x,y))) continue
+        const atk = lineScore(x, y, g.turn), def = lineScore(x, y, 1 - g.turn)
+        const s = atk * 1.05 + def * 0.9 + Math.random() * 40
+        if (s > bs) { bs = s; best = [[x,y]] } else if (s > bs - 60) best.push([x,y])
+      }
+      const [x, y] = best[(Math.random() * best.length) | 0]
+      g.place(x, y, g.turn)
+    },
+    last: null,
+  }
+  return g
+}
+
+/* ================================================================
+   引擎 3 · 中国象棋 9×10
+   ================================================================ */
+function GameXQ() {
+  const C = 9, Rw = 10
+  const K = (x, y) => x + ',' + y
+  const inside = (x, y) => x >= 0 && y >= 0 && x < C && y < Rw
+  const inPalace = (x, y, c) => x >= 3 && x <= 5 && (c === 0 ? y >= 7 : y <= 2)
+  const homeSide = (c) => c === 0 ? 1 : -1 // red at bottom (y大), black top
+  const crossed = (y, c) => c === 0 ? y <= 4 : y >= 5
+  const st = new Map() // K -> {t, c}
+  const SETUP = [
+    ['R','N','B','A','K','A','B','N','R'],
+  ]
+  function build() {
+    st.clear()
+    SETUP[0].forEach((t, x) => { st.set(K(x,0), {t, c:1}); st.set(K(x,9), {t, c:0}) })
+    st.set(K(1,2), {t:'C', c:1}); st.set(K(7,2), {t:'C', c:1})
+    st.set(K(1,7), {t:'C', c:0}); st.set(K(7,7), {t:'C', c:0})
+    for (const x of [0,2,4,6,8]) { st.set(K(x,3), {t:'P', c:1}); st.set(K(x,6), {t:'P', c:0}) }
+  }
+  function gen(x, y) {
+    const p = st.get(K(x,y)), out = []
+    const add = (nx, ny) => {
+      if (!inside(nx,ny)) return
+      const t = st.get(K(nx,ny))
+      if (!t || t.c !== p.c) out.push([nx,ny])
+    }
+    const slideRook = (dx, dy) => { // 车
+      let nx = x+dx, ny = y+dy
+      while (inside(nx,ny)) {
+        const t = st.get(K(nx,ny))
+        if (!t) out.push([nx,ny])
+        else { if (t.c !== p.c) out.push([nx,ny]); break }
+        nx += dx; ny += dy
+      }
+    }
+    const slideCannon = (dx, dy) => { // 炮：走空吃架
+      let nx = x+dx, ny = y+dy, screened = false
+      while (inside(nx,ny)) {
+        const t = st.get(K(nx,ny))
+        if (!screened) { if (!t) out.push([nx,ny]); else screened = true }
+        else if (t) { if (t.c !== p.c) out.push([nx,ny]); break }
+        nx += dx; ny += dy
+      }
+    }
+    const t = p.t
+    if (t === 'R') { slideRook(1,0); slideRook(-1,0); slideRook(0,1); slideRook(0,-1) }
+    else if (t === 'C') { slideCannon(1,0); slideCannon(-1,0); slideCannon(0,1); slideCannon(0,-1) }
+    else if (t === 'N') {
+      for (const [dx,dy] of [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]) {
+        const legX = Math.abs(dx) === 2 ? x+dx/2 : x, legY = Math.abs(dy) === 2 ? y+dy/2 : y
+        if (inside(legX,legY) && !st.get(K(legX,legY))) add(x+dx, y+dy)
+      }
+    }
+    else if (t === 'B') {
+      for (const [dx,dy] of [[2,2],[2,-2],[-2,2],[-2,-2]]) {
+        const ex = x+dx/2, ey = y+dy/2
+        if (!inside(ex,ey) || st.get(K(ex,ey))) continue
+        if (!crossed(y+dy, p.c)) add(x+dx, y+dy) // 不过河
+      }
+    }
+    else if (t === 'A') { for (const [dx,dy] of [[1,1],[1,-1],[-1,1],[-1,-1]]) { const nx=x+dx, ny=y+dy; if (inPalace(nx,ny,p.c)) add(nx,ny) } }
+    else if (t === 'K') { for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) { const nx=x+dx, ny=y+dy; if (inPalace(nx,ny,p.c)) add(nx,ny) } }
+    else if (t === 'P') {
+      const f = p.c === 0 ? -1 : 1
+      add(x, y+f)
+      if (crossed(y, p.c)) { add(x+1, y); add(x-1, y) }
+    }
+    return out
+  }
+  const VAL = { K: 1e6, R: 90, C: 85, N: 40, B: 20, A: 20, P: 10 }
+  const g = {
+    name: '中国象棋', cols: C, rows: Rw, turn: 0, pieces: [],
+    build() { build(); g.sync() },
+    sync() {
+      g.pieces = []
+      for (const [k, p] of st) { const [x,y] = k.split(',').map(Number); g.pieces.push({ gx: x, gy: y, ...p, id: k }) }
+    },
+    g2p(x, y, R) { return [R.x0 + x * R.cell, R.y0 + y * R.cell] },
+    p2g(px, py, R) {
+      const x = Math.round((px - R.x0) / R.cell), y = Math.round((py - R.y0) / R.cell)
+      return inside(x, y) ? [x, y] : null
+    },
+    drawBoard(R) {
+      const p = pal(); ctx.strokeStyle = p.lineDim; ctx.lineWidth = 1
+      const px = (x) => R.x0 + x * R.cell, py = (y) => R.y0 + y * R.cell
+      ctx.beginPath()
+      for (let y = 0; y < Rw; y++) { ctx.moveTo(px(0), py(y)); ctx.lineTo(px(8), py(y)) }
+      for (let x = 0; x < C; x++) {
+        if (x === 0 || x === 8) { ctx.moveTo(px(x), py(0)); ctx.lineTo(px(x), py(9)) }
+        else { ctx.moveTo(px(x), py(0)); ctx.lineTo(px(x), py(4)); ctx.moveTo(px(x), py(5)); ctx.lineTo(px(x), py(9)) }
+      }
+      // 九宫斜线
+      ctx.moveTo(px(3),py(0)); ctx.lineTo(px(5),py(2)); ctx.moveTo(px(5),py(0)); ctx.lineTo(px(3),py(2))
+      ctx.moveTo(px(3),py(7)); ctx.lineTo(px(5),py(9)); ctx.moveTo(px(5),py(7)); ctx.lineTo(px(3),py(9))
+      ctx.stroke()
+      // 楚河汉界
+      ctx.fillStyle = p.text; ctx.font = `${Math.max(12, R.cell * 0.52)}px 'KaiTi','STKaiti','SimSun',serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      const ry = py(4.5)
+      ctx.fillText('楚  河', px(2), ry); ctx.fillText('漢  界', px(6), ry)
+    },
+    legalFrom(p) { return p.c === g.turn ? gen(p.gx, p.gy) : [] },
+    tryHuman(x, y) {
+      const k = K(x,y), t = st.get(k)
+      if (t && t.c === g.turn) { return { select: g.pieces.find((q) => q.gx === x && q.gy === y) } }
+      if (sel && sel.targets.some(([a,b]) => a===x && b===y)) { g.doMove(sel.p, x, y); return true }
+      return false
+    },
+    doMove(p, tx, ty) {
+      const tk = K(tx,ty), cap = st.get(tk)
+      const fk = K(p.gx, p.gy)
+      st.delete(fk)
+      if (cap) st.delete(tk)
+      st.set(tk, p)
+      const [fx, fy] = g.g2p(p.gx, p.gy, R0), [ax, ay] = g.g2p(tx, ty, R0)
+      if (cap) burst(ax, ay, pal().danger, 14, 110)
+      if (reduce) { p.gx = tx; p.gy = ty; g.sync(); g.post(tx, ty, cap) }
+      else {
+        p.moving = true
+        anims.push({ p, fx, fy, tx, ty, t: 0, dur: 0.34, arc: R0.cell * 0.5,
+          done() { p.gx = tx; p.gy = ty; p.moving = false; g.sync(); g.post(tx, ty, cap) } })
+      }
+    },
+    post(tx, ty, cap) {
+      moveNo++; lastMoveAt = NOW; g.last = [tx, ty]
+      if (cap && cap.t === 'K') { over = NOW + 2.2; return }
+      g.turn = 1 - g.turn
+    },
+    stepAI() {
+      const all = []
+      for (const [k, p] of st) if (p.c === g.turn) {
+        const [x, y] = k.split(',').map(Number)
+        for (const [tx, ty] of gen(x, y)) {
+          const t = st.get(K(tx,ty))
+          let s = (t ? VAL[t.t] : 0) + Math.random() * 8
+          if (t && t.t === 'K') s += 1e5
+          // 离开原位若被将军线…简化：兵过河+2
+          const f = p.c === 0 ? -1 : 1
+          if (p.t === 'P' && crossed(ty, p.c) && !crossed(y, p.c)) s += 3
+          all.push({ p, x, y, tx, ty, s })
+        }
+      }
+      if (!all.length) { over = NOW + 1.5; return }
+      all.sort((a, b) => b.s - a.s)
+      const pick = all[Math.random() < 0.75 ? 0 : Math.min(all.length - 1, 1 + ((Math.random() * 3) | 0))]
+      const pp = g.pieces.find((q) => q.gx === pick.x && q.gy === pick.y && !q.moving)
+      if (pp) g.doMove(pp, pick.tx, pick.ty)
+    },
+    last: null,
+  }
+  return g
+}
+
+/* ================================================================
+   引擎 4 · 国际象棋 8×8
+   ================================================================ */
+function GameChess() {
+  const N = 8
+  const K = (x, y) => x + ',' + y
+  const inside = (x, y) => x >= 0 && y >= 0 && x < N && y < N
+  const st = new Map()
+  function build() {
+    st.clear()
+    const back = ['R','N','B','Q','K','B','N','R']
+    back.forEach((t, x) => { st.set(K(x,0), {t, c:1}); st.set(K(x,7), {t, c:0}) })
+    for (let x = 0; x < N; x++) { st.set(K(x,1), {t:'P', c:1}); st.set(K(x,6), {t:'P', c:0}) }
+  }
+  function gen(x, y) {
+    const p = st.get(K(x,y)), out = []
+    const add = (nx, ny) => { if (inside(nx,ny)) { const t = st.get(K(nx,ny)); if (!t || t.c !== p.c) out.push([nx,ny]) } }
+    const slide = (dx, dy) => {
+      let nx = x+dx, ny = y+dy
+      while (inside(nx,ny)) {
+        const t = st.get(K(nx,ny))
+        if (!t) out.push([nx,ny])
+        else { if (t.c !== p.c) out.push([nx,ny]); break }
+        nx += dx; ny += dy
+      }
+    }
+    const t = p.t
+    if (t === 'R') { slide(1,0); slide(-1,0); slide(0,1); slide(0,-1) }
+    else if (t === 'B') { slide(1,1); slide(1,-1); slide(-1,1); slide(-1,-1) }
+    else if (t === 'Q') { slide(1,0); slide(-1,0); slide(0,1); slide(0,-1); slide(1,1); slide(1,-1); slide(-1,1); slide(-1,-1) }
+    else if (t === 'N') { for (const [dx,dy] of [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]) add(x+dx, y+dy) }
+    else if (t === 'K') { for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) if (dx||dy) add(x+dx, y+dy) }
+    else if (t === 'P') {
+      const f = p.c === 0 ? -1 : 1
+      if (inside(x, y+f) && !st.has(K(x,y+f))) {
+        out.push([x, y+f])
+        const start = p.c === 0 ? 6 : 1
+        if (y === start && !st.has(K(x, y+2*f))) out.push([x, y+2*f])
+      }
+      for (const dx of [-1, 1]) if (inside(x+dx, y+f)) { const t = st.get(K(x+dx,y+f)); if (t && t.c !== p.c) out.push([x+dx, y+f]) }
+    }
+    return out
+  }
+  const VAL = { K: 1e6, Q: 90, R: 50, B: 32, N: 30, P: 10 }
+  const g = {
+    name: '国际象棋', cols: N, rows: N, turn: 0, pieces: [],
+    build() { build(); g.sync() },
+    sync() {
+      g.pieces = []
+      for (const [k, p] of st) { const [x,y] = k.split(',').map(Number); g.pieces.push({ gx: x, gy: y, ...p, id: k }) }
+    },
+    g2p(x, y, R) { return [R.x0 + (x + 0.5) * R.cell, R.y0 + (y + 0.5) * R.cell] },
+    p2g(px, py, R) {
+      const x = Math.floor((px - R.x0) / R.cell), y = Math.floor((py - R.y0) / R.cell)
+      return inside(x, y) ? [x, y] : null
+    },
+    drawBoard(R) {
+      const p = pal()
+      for (let x = 0; x < N; x++) for (let y = 0; y < N; y++) {
+        ctx.fillStyle = (x + y) % 2 ? p.sqB : p.sqA
+        ctx.fillRect(R.x0 + x * R.cell, R.y0 + y * R.cell, R.cell + 0.5, R.cell + 0.5)
+      }
+      ctx.strokeStyle = p.lineDim; ctx.strokeRect(R.x0, R.y0, N * R.cell, N * R.cell)
+      ctx.fillStyle = p.text; ctx.font = `${Math.max(9, R.cell * 0.2)}px system-ui`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      for (let i = 0; i < N; i++) {
+        ctx.fillText('abcdefgh'[i], R.x0 + (i + 0.5) * R.cell, R.y0 + N * R.cell + R.cell * 0.3)
+        ctx.fillText(String(N - i), R.x0 - R.cell * 0.3, R.y0 + (i + 0.5) * R.cell)
+      }
+    },
+    tryHuman(x, y) {
+      const t = st.get(K(x,y))
+      if (t && t.c === g.turn) return { select: g.pieces.find((q) => q.gx === x && q.gy === y) }
+      if (sel && sel.targets.some(([a,b]) => a===x && b===y)) { g.doMove(sel.p, x, y); return true }
+      return false
+    },
+    doMove(p, tx, ty) {
+      const tk = K(tx,ty), cap = st.get(tk)
+      st.delete(K(p.gx, p.gy))
+      if (cap) st.delete(tk)
+      // 升变
+      if (p.t === 'P' && (ty === 0 || ty === 7)) p.t = 'Q'
+      st.set(tk, p)
+      const [fx, fy] = g.g2p(p.gx, p.gy, R0), [ax, ay] = g.g2p(tx, ty, R0)
+      if (cap) burst(ax, ay, pal().danger, 14, 110)
+      if (reduce) { p.gx = tx; p.gy = ty; g.sync(); g.post(tx, ty, cap) }
+      else {
+        p.moving = true
+        anims.push({ p, fx, fy, tx, ty, t: 0, dur: 0.34, arc: R0.cell * 0.4,
+          done() { p.gx = tx; p.gy = ty; p.moving = false; g.sync(); g.post(tx, ty, cap) } })
+      }
+    },
+    post(tx, ty, cap) {
+      moveNo++; lastMoveAt = NOW; g.last = [tx, ty]
+      if (cap && cap.t === 'K') { over = NOW + 2.2; return }
+      g.turn = 1 - g.turn
+    },
+    stepAI() {
+      const all = []
+      for (const [k, p] of st) if (p.c === g.turn) {
+        const [x, y] = k.split(',').map(Number)
+        for (const [tx, ty] of gen(x, y)) {
+          const t = st.get(K(tx,ty))
+          let s = (t ? VAL[t.t] : 0) + Math.random() * 6
+          if (t && t.t === 'K') s += 1e5
+          const f = p.c === 0 ? -1 : 1
+          if (p.t === 'P') s += (p.c === 0 ? ty : N - 1 - ty) * 0.8 // 兵推进
+          const ce = Math.abs(tx - 3.5) + Math.abs(ty - 3.5)
+          if (p.t !== 'K' && p.t !== 'P') s += (6 - ce) * 0.3
+          all.push({ p, x, y, tx, ty, s })
+        }
+      }
+      if (!all.length) { over = NOW + 1.5; return }
+      all.sort((a, b) => b.s - a.s)
+      const pick = all[Math.random() < 0.75 ? 0 : Math.min(all.length - 1, 1 + ((Math.random() * 3) | 0))]
+      const pp = g.pieces.find((q) => q.gx === pick.x && q.gy === pick.y && !q.moving)
+      g.doMove(pp || pick.p, pick.tx, pick.ty)
+    },
+    last: null,
+  }
+  return g
+}
+
+/* ---------------- 模式管理 ---------------- */
+const MAKE = { go: GameGo, wuzi: GameWuzi, xq: GameXQ, chess: GameChess }
+const ORDER = ['go', 'wuzi', 'xq', 'chess']
+let mode = 'go'
+let game = null
+let R0 = null // 最近一帧的棋盘几何，供逻辑层换算
+
+function newGame(m, withReveal) {
+  mode = m
+  game = MAKE[m]()
+  game.build()
+  game.sync()
+  moveNo = 0; over = 0; overLine = null; sel = null
+  lastMoveAt = NOW + 1.2
+  if (withReveal && !reduce) reveal = { t: 0 }
+  $('#hudMode').textContent = game.name
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.m === m))
+}
+function switchTo(m) {
+  if (m === mode || reveal) return
+  lastUser = NOW
+  // 旧子爆散
+  if (!reduce) for (const p of game.pieces) {
+    if (p.moving) continue
+    const [px, py] = game.g2p(p.gx, p.gy, R0 || { x0: W/2, y0: H/2, cell: 20 })
+    burst(px, py, p.c === 0 ? pal().wTop : pal().accent, 6, 60)
+  }
+  newGame(m, true)
+}
+
+/* ---------------- 布局几何 ---------------- */
+function layout() {
+  const isCH = mode === 'chess' // 国象按「格」数，其余按「交叉点间隔」数
+  const intX = game.cols - (isCH ? 0 : 1)
+  const intY = game.rows - (isCH ? 0 : 1)
+  const m = Math.min(W, H) * 0.06
+  const availW = W - m * 2 - (isCH ? W * 0.035 : 0)   // 国象左侧/下侧留坐标标签
+  const availH = H - m * 2 - (isCH ? H * 0.035 : 0)
+  const cell = isCH || mode === 'xq'
+    ? (mode === 'xq' ? Math.min(availW / 8, availH / 9) : Math.min(availW / 8, availH / 8))
+    : Math.min(availW / intX, availH / intY)
+  const gridW = intX * cell, gridH = intY * cell
+  return { x0: (W - gridW) / 2, y0: (H - gridH) / 2, cell, cw: cell, ch: cell }
+}
+
+/* ---------------- 主循环 ---------------- */
+let NOW = performance.now() / 1000, lastT = NOW
+let think = null
+
+function frame() {
+  NOW = performance.now() / 1000
+  const dt = Math.min(0.1, NOW - lastT); lastT = NOW
+  try { update(dt); render() } catch (e) { console.error('FRAME', e.stack || e.message) }
+  window.__fc = (window.__fc || 0) + 1
+  requestAnimationFrame(frame) // 即使某帧出错也保持循环，避免整个棋盘冻死
+}
+
+function update(dt) {
+  // 粒子
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const q = parts[i]
+    q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 140 * dt; q.life -= dt * 1.6
+    if (q.life <= 0) parts.splice(i, 1)
+  }
+  // 位移动画
+  for (let i = anims.length - 1; i >= 0; i--) {
+    const a = anims[i]
+    a.t += dt / a.dur
+    if (a.t >= 1) { anims.splice(i, 1); a.done() }
+  }
+  if (reveal) { reveal.t += dt / 0.55; if (reveal.t >= 1) reveal = null }
+  // 终局重开
+  if (over && NOW > over) { newGame(mode, true); over = 0 }
+  // 自动对弈
+  if (!over && !reduce && !reveal && anims.length === 0 && NOW - lastMoveAt > (think ??= 0.55 + Math.random() * 0.55)) {
+    game.stepAI(); think = null
+  }
+  // 自动轮换棋种
+  if (!reduce && NOW - lastUser > 24 && !reveal && !over) {
+    switchTo(ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length])
+  }
+}
+
+function render() {
+  const p = pal()
+  ctx.clearRect(0, 0, W, H)
+  // 背景
+  const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.75)
+  bg.addColorStop(0, p.board); bg.addColorStop(1, p.bg)
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
+
+  const R = layout(); R0 = R
+  const k = reveal ? easeOut(clamp(reveal.t, 0, 1)) : 1
+
+  ctx.save()
+  if (k < 1) { // 圆形揭示
+    ctx.beginPath(); ctx.arc(W/2, H/2, k * Math.max(W, H) * 0.75, 0, TAU); ctx.clip()
+    ctx.globalAlpha = k
+  }
+  game.drawBoard(R)
+
+  // 落子点（棋盘交叉/格心）
+  const bornDur = 0.32
+  let idx = 0
+  for (const q of game.pieces) {
+    if (q.moving) continue
+    const [px, py] = game.g2p(q.gx, q.gy, R)
+    let sc = 1
+    if (!reduce) {
+      const bt = (NOW - q.born) / bornDur
+      if (q.born && bt < 1) sc = easeBack(clamp(bt, 0, 1))
+      if (reveal && idx / Math.max(1, game.pieces.length) > k) continue // 揭示波前
+    }
+    drawPiece(q, px, py, R.cell, sc)
+    // 最后一手标记
+    if (game.last && game.last[0] === q.gx && game.last[1] === q.gy) {
+      ctx.strokeStyle = p.gold; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85
+      ctx.beginPath(); ctx.arc(px, py, R.cell * (mode === 'go' || mode === 'wuzi' ? 0.52 : 0.5), 0, TAU); ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+    idx++
+  }
+
+  // 位移中的棋子（弧线）
+  for (const a of anims) {
+    const t = easeOut(clamp(a.t, 0, 1))
+    const px = lerp(a.fx, a.tx, t)
+    const py = lerp(a.fy, a.ty, t) - Math.sin(Math.PI * t) * a.arc
+    // 拖尾
+    ctx.strokeStyle = p.gold; ctx.globalAlpha = 0.25 * (1 - t); ctx.lineWidth = 2
+    ctx.beginPath(); ctx.moveTo(a.fx, a.fy); ctx.quadraticCurveTo((a.fx+a.tx)/2, (a.fy+a.ty)/2 - a.arc, px, py); ctx.stroke()
+    ctx.globalAlpha = 1
+    drawPiece(a.p, px, py, R.cell, 1.06)
+  }
+
+  // 五子棋连线
+  if (overLine) {
+    const [[ax, ay], [bx, by]] = overLine
+    const [x1, y1] = game.g2p(ax, ay, R), [x2, y2] = game.g2p(bx, by, R)
+    ctx.strokeStyle = p.gold; ctx.lineWidth = 3; ctx.globalAlpha = 0.55 + Math.sin(NOW * 5) * 0.2
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.globalAlpha = 1
+  }
+
+  // 选中 / 悬停
+  drawHover(R)
+
+  // 粒子
+  for (const q of parts) {
+    ctx.globalAlpha = Math.max(0, q.life)
+    ctx.fillStyle = q.c
+    ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, TAU); ctx.fill()
+  }
+  ctx.globalAlpha = 1
+  ctx.restore()
+
+  // HUD
+  $('#hudMove').textContent = '第 ' + moveNo + ' 手'
+}
+
+function drawPiece(q, px, py, cell, sc) {
+  const p = pal()
+  let r = cell * ((mode === 'go' || mode === 'wuzi') ? 0.47 : mode === 'xq' ? 0.44 : 0.5) * sc
+  r = Math.max(0.5, r) // easeBack(0) 是 -2.2e-16，浮点误差会让半径变负 → createRadialGradient 抛异常
+  ctx.save(); ctx.translate(px, py)
+  if (mode === 'go' || mode === 'wuzi') {
+    const g = ctx.createRadialGradient(-r*0.35, -r*0.35, r*0.1, 0, 0, r)
+    if (q.c === 0) { g.addColorStop(0, p.bTop); g.addColorStop(1, p.bBot) }
+    else { g.addColorStop(0, p.wTop); g.addColorStop(1, p.wBot) }
+    ctx.fillStyle = g
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = r * 0.5; ctx.shadowOffsetY = r * 0.18
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill()
+    ctx.shadowColor = 'transparent'
+  } else if (mode === 'xq') {
+    ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = r * 0.5; ctx.shadowOffsetY = r * 0.16
+    ctx.fillStyle = p.wood
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill()
+    ctx.shadowColor = 'transparent'
+    ctx.strokeStyle = p.woodRim; ctx.lineWidth = Math.max(1, r * 0.08)
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.86, 0, TAU); ctx.stroke()
+    const ch = { K: q.c ? '將' : '帥', A: q.c ? '士' : '仕', B: q.c ? '象' : '相', N: '馬', R: '車', C: q.c ? '砲' : '炮', P: q.c ? '卒' : '兵' }[q.t]
+    ctx.fillStyle = q.c ? p.blk : p.red
+    ctx.font = `${r * 1.15}px 'KaiTi','STKaiti','SimSun',serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(ch, 0, r * 0.06)
+  } else {
+    const glyph = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' }[q.t]
+    ctx.font = `${r * 1.45}px system-ui, 'Segoe UI Symbol'`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.lineWidth = Math.max(1.2, r * 0.14)
+    ctx.strokeStyle = q.c ? 'rgba(230,240,255,.85)' : 'rgba(10,16,30,.85)'
+    ctx.fillStyle = q.c ? p.glyphB : p.glyphW
+    ctx.strokeText(glyph, 0, r * 0.08)
+    ctx.fillText(glyph, 0, r * 0.08)
+  }
+  ctx.restore()
+}
+
+function drawHover(R) {
+  if (!mouse.in || over || reveal || anims.length) return
+  const gp = game.p2g(mouse.x, mouse.y, R)
+  if (!gp) return
+  const p = pal()
+  const [x, y] = gp
+  if (mode === 'go' || mode === 'wuzi') {
+    const occ = game.pieces.some((q) => q.gx === x && q.gy === y)
+    if (occ) return
+    const [px, py] = game.g2p(x, y, R)
+    ctx.globalAlpha = 0.4
+    drawPiece({ c: game.turn, t: 'P', gx: x, gy: y, id: '_g' }, px, py, R.cell, 1)
+    ctx.globalAlpha = 1
+  } else {
+    const q = game.pieces.find((q) => q.gx === x && q.gy === y && !q.moving)
+    // 合法落点提示
+    if (sel) {
+      ctx.fillStyle = p.sel
+      for (const [tx, ty] of sel.targets) {
+        const [px, py] = game.g2p(tx, ty, R)
+        ctx.globalAlpha = 0.5 + Math.sin(NOW * 6) * 0.25
+        ctx.beginPath(); ctx.arc(px, py, R.cell * 0.12, 0, TAU); ctx.fill()
+      }
+      ctx.globalAlpha = 1
+      // 选中棋子高亮圈
+      if (sel.p) {
+        const [px, py] = game.g2p(sel.p.gx, sel.p.gy, R)
+        ctx.strokeStyle = p.sel; ctx.lineWidth = 2; ctx.globalAlpha = 0.9
+        ctx.beginPath(); ctx.arc(px, py, R.cell * 0.52, 0, TAU); ctx.stroke()
+        ctx.globalAlpha = 1
+      }
+    }
+    if (q && q.c === game.turn && !sel) {
+      const [px, py] = game.g2p(x, y, R)
+      ctx.strokeStyle = p.sel; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.5
+      ctx.beginPath(); ctx.arc(px, py, R.cell * 0.5, 0, TAU); ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+  }
+}
+
+/* ---------------- 输入 ---------------- */
+function ptr(e) {
+  const r = cv.getBoundingClientRect()
+  return [e.clientX - r.left, e.clientY - r.top]
+}
+cv.addEventListener('pointermove', (e) => { [mouse.x, mouse.y] = ptr(e); mouse.in = true })
+cv.addEventListener('pointerleave', () => { mouse.in = false })
+cv.addEventListener('pointerdown', (e) => {
+  const [px, py] = ptr(e)
+  mouse.x = px; mouse.y = py; mouse.in = true
+  lastUser = NOW
+  if (over || reveal) return
+  const gp = game.p2g(px, py, R0)
+  if (!gp) return
+  if (mode === 'go' || mode === 'wuzi') {
+    const ok = game.tryHuman(gp[0], gp[1])
+    if (ok) game.pieces.length && (game.pieces[game.pieces.length-1].born = NOW)
+    else { const [bx, by] = game.g2p(gp[0], gp[1], R0); burst(bx, by, pal().danger, 4, 40) }
+  } else {
+    const res = game.tryHuman(gp[0], gp[1])
+    if (res && res.select) { sel = { p: res.select, targets: game.legalFrom(res.select) } }
+    else { sel = null }
+    if (res === true) sel = null
+  }
+})
+$('#btnReset').addEventListener('click', () => { lastUser = NOW; newGame(mode, true) })
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button')
+  if (b) switchTo(b.dataset.m)
+})
+$('#themeBtn').addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark'
+  document.body.dataset.theme = theme
+  $('#themeBtn').textContent = theme === 'dark' ? '☾' : '☀'
+})
+
+/* ---------------- 启动 ---------------- */
+resize()
+newGame('go', false)
+lastUser = performance.now() / 1000 // 避免启动瞬间就触发自动轮换
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

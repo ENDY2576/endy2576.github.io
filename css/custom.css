@@ -7,7 +7,8 @@
            夜间 = pE0OoGt.jpg （1407×3045 竖屏，亮度 40.2）
            两套图按 ≤768px 自动切换，别拿横屏图当手机版用，cover 会裁得只剩中间一条。
    --endy-dark-dim：夜间在图上方额外压暗的强度 0~1。
-           0 = 完全不压暗（直接看原图），嫌背景太亮就调到 0.2~0.35。 */
+           0 = 完全不压暗（直接看原图）。此前 0.15 偏闷，已降到 0.06；
+           另在暗色 #web_bg 上加了 brightness(1.15) saturate(1.05) 直接提亮夜景。 */
 :root {
   --endy-bg-light-desktop: url("/img/seasons/bg-winter.jpg");
   --endy-bg-dark-desktop: url("/img/selfhosted/pE0yMWt.jpg");
@@ -30,10 +31,10 @@
   --endy-bg-autumn-mobile: url("/img/selfhosted/pE0y3y8.jpg");
   --endy-bg-winter-mobile: var(--endy-bg-light-mobile);
 
-  --endy-dark-dim: 0.15;
+  --endy-dark-dim: 0.06;
 
   /* 首页顶部头图在夜间额外压暗的强度（头图上有白色站名，要比背景压得更狠一点才看得清） */
-  --endy-header-dim: 0.28;
+  --endy-header-dim: 0.14;
 
   /* 日间背景柔化：降低饱和度 + 亮度，让高饱和 AI 风景图退后，不跟白色内容卡片抢戏 */
   --endy-bg-saturate: 0.88;
@@ -119,6 +120,9 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 [data-theme="dark"] #web_bg {
   background-image: linear-gradient(rgba(0, 0, 0, var(--endy-dark-dim)), rgba(0, 0, 0, var(--endy-dark-dim))),
     var(--endy-bg-dark);
+  /* 直接提亮夜景：夜图本身偏暗(亮度~55)，叠 6% 黑后仍闷，这里再提亮 + 微增饱和，
+     让暗色背景不再「死黑」，与活夜空星野(#endy-stars)的冷调星云呼应。 */
+  filter: brightness(1.15) saturate(1.05);
 }
 
 [data-theme="dark"] #web_bg:before {
@@ -1683,6 +1687,47 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
     width: 100% !important;
   }
 }
+
+/* ========== 彩蛋8：新个人页全屏浮层（iframe 承载 home-app） ========== */
+/* 浮层 z-index 高于看板娘(99998)，整屏覆盖；iframe 内 home-app 独立运行，
+   不污染博客自身的 Lenis / Miku / 滚动 / PJAX。关闭最干净（直接移除节点）。 */
+.endy-about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: #0a0e18;
+}
+.endy-about-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+.endy-about-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 24, 38, 0.66);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.endy-about-close:hover { background: rgba(40, 46, 70, 0.85); transform: scale(1.08); }
+.endy-about-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* 打开浮层时锁住博客背景滚动（Lenis 接管下作为视觉兜底，避免背后穿透滚动） */
+html.endy-about-locked, html.endy-about-locked body { overflow: hidden; }
 
 /* ========== 夜间模式性能优化：减少重绘重排 ========== */
 /* 1.（已移除）这里原先有一条「永久生效」的全局限制：

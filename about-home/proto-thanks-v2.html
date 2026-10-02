@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>星火长明 v2 · 感谢页 S15 原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+  [data-theme='dark'] body { background: radial-gradient(1100px 750px at 50% 38%, #0b1530, #04070f 78%); color: #d8e6ff; }
+  [data-theme='light'] body { background: radial-gradient(1100px 750px at 50% 38%, #eaf1fd, #dbe6f8 78%); color: #17233d; }
+
+  /* 文案 */
+  .head { position: fixed; left: 8vw; top: 15vh; z-index: 3; pointer-events: none; }
+  .head h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: 0.14em; }
+  .head p { margin-top: 12px; font-size: 14px; letter-spacing: 0.22em; opacity: 0.6; }
+
+  /* 星场画布：弹层打开时景深虚化 */
+  #sky { position: fixed; inset: 0; z-index: 1; display: block; transition: filter 0.5s ease, opacity 0.5s ease; }
+  body.sheet-open #sky { filter: blur(3px) saturate(0.7); opacity: 0.55; }
+
+  /* 投喂星标签：下划线自绘 */
+  .star-tip {
+    position: fixed; z-index: 4; pointer-events: none; padding: 8px 13px; border-radius: 9px;
+    font-size: 12px; letter-spacing: 0.06em; white-space: nowrap;
+    background: rgba(10, 18, 36, 0.9); color: #cfe4ff; border: 1px solid rgba(123, 200, 255, 0.35);
+    opacity: 0; transform: translateY(6px) scale(0.96);
+    transition: opacity 0.26s ease, transform 0.32s cubic-bezier(0.22, 1.3, 0.36, 1);
+    backdrop-filter: blur(8px); overflow: hidden;
+  }
+  .star-tip.show { opacity: 1; transform: translateY(0) scale(1); }
+  .star-tip b { color: #ffd166; font-weight: 700; }
+  .star-tip::after {
+    content: ''; position: absolute; left: 13px; bottom: 5px; height: 1px; width: 0;
+    background: linear-gradient(90deg, #ffd166, transparent);
+    transition: width 0.5s cubic-bezier(0.3, 1, 0.4, 1) 0.12s;
+  }
+  .star-tip.show::after { width: calc(100% - 26px); }
+  [data-theme='light'] .star-tip { background: rgba(255, 255, 255, 0.94); color: #17233d; border-color: rgba(43, 108, 255, 0.35); }
+
+  /* ===== 充电电池按钮：悬停时能量液面上升 ===== */
+  .charge-wrap { position: fixed; left: 50%; bottom: 11vh; transform: translateX(-50%); z-index: 5; text-align: center; }
+  .charge {
+    position: relative; display: inline-flex; align-items: center; gap: 12px;
+    padding: 16px 36px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16);
+    cursor: pointer; overflow: hidden; isolation: isolate;
+    font-size: 16px; font-weight: 700; letter-spacing: 0.12em; color: #fff;
+    background: rgba(24, 36, 70, 0.55);
+    box-shadow: 0 10px 34px rgba(30, 60, 140, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  }
+  .charge-fill {
+    position: absolute; inset: 0; z-index: -1; transform-origin: left center;
+    transform: scaleX(0.32);
+    background: linear-gradient(90deg, #2f7cff, #7b5cff 60%, #b06cff);
+    transition: transform 0.75s cubic-bezier(0.22, 1, 0.3, 1), filter 0.3s;
+  }
+  .charge-fill::after {   /* 液面高光前沿 */
+    content: ''; position: absolute; right: -2px; top: 0; bottom: 0; width: 3px;
+    background: rgba(255, 255, 255, 0.95); box-shadow: 0 0 14px 3px rgba(160, 200, 255, 0.7);
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+  .charge:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 14px 44px rgba(60, 100, 220, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+  .charge:hover .charge-fill { transform: scaleX(1); }
+  .charge.pulsing { animation: pop 0.42s cubic-bezier(0.3, 1.6, 0.4, 1); }
+  @keyframes pop { 50% { transform: scale(1.06); } }
+  .charge:active { transform: scale(0.95); }
+  .charge span { position: relative; }
+  .charge kbd { font-style: normal; font-size: 18px; }
+  .charge-note { margin-top: 11px; font-size: 11px; letter-spacing: 0.3em; opacity: 0.45; }
+
+  .ripple { position: fixed; z-index: 4; pointer-events: none; border-radius: 50%;
+    border: 2px solid rgba(123, 200, 255, 0.75); animation: rip 0.85s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+  @keyframes rip { from { opacity: 0.95; transform: scale(0.15); } to { opacity: 0; transform: scale(1.05); } }
+
+  /* ===== 弹层 ===== */
+  .overlay {
+    position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+    background: rgba(4, 8, 18, 0.5); backdrop-filter: blur(12px);
+    opacity: 0; pointer-events: none; transition: opacity 0.34s ease;
+  }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+  [data-theme='light'] .overlay { background: rgba(224, 232, 248, 0.5); }
+
+  /* 入场不再是缩放：一道光带从左向右把卡片「扫」出来 */
+  .sheet {
+    width: min(374px, 90vw); border-radius: 22px; padding: 28px 26px 22px; position: relative;
+    background: linear-gradient(165deg, rgba(30, 44, 80, 0.94), rgba(15, 23, 46, 0.96));
+    border: 1px solid rgba(123, 200, 255, 0.26);
+    box-shadow: 0 40px 110px rgba(0, 0, 0, 0.6), 0 0 80px rgba(70, 130, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.62s cubic-bezier(0.35, 0.9, 0.25, 1), transform 0.4s cubic-bezier(0.2, 1, 0.3, 1);
+    transform: perspective(900px) rotateX(0) rotateY(0);
+  }
+  .overlay.open .sheet { clip-path: inset(0 0 0 0); }
+  [data-theme='light'] .sheet { background: linear-gradient(165deg, rgba(255, 255, 255, 0.98), rgba(238, 244, 255, 0.98)); border-color: rgba(43, 108, 255, 0.26); }
+
+  /* 扫描线（揭开时同步掠过） */
+  .sheet-scan { position: absolute; top: 0; bottom: 0; width: 2px; left: 0; opacity: 0;
+    background: linear-gradient(180deg, transparent, #8fd9ff, transparent); box-shadow: 0 0 18px 4px rgba(143, 217, 255, 0.5); }
+  .overlay.open .sheet-scan { animation: sheetScan 0.62s cubic-bezier(0.35, 0.9, 0.25, 1); }
+  @keyframes sheetScan { 0% { opacity: 1; left: 0; } 92% { opacity: 1; } 100% { opacity: 0; left: 100%; } }
+
+  .sheet h3 { font-size: 19px; letter-spacing: 0.1em; text-align: center; }
+  .sheet .sub { margin-top: 6px; font-size: 10px; letter-spacing: 0.26em; opacity: 0.5; text-align: center; }
+
+  /* 分段选择：滑块带过冲阻尼 */
+  .seg { position: relative; display: flex; margin: 20px 0 18px; border-radius: 12px; padding: 4px; background: rgba(8, 14, 30, 0.55); }
+  [data-theme='light'] .seg { background: rgba(28, 48, 96, 0.08); }
+  .seg-thumb { position: absolute; top: 4px; left: 4px; width: calc(50% - 4px); height: calc(100% - 8px); border-radius: 9px;
+    transition: transform 0.42s cubic-bezier(0.3, 1.35, 0.4, 1), background 0.3s; }
+  .seg-thumb.wx { background: linear-gradient(135deg, #07c160, #06ad56); transform: translateX(0); }
+  .seg-thumb.ali { background: linear-gradient(135deg, #1677ff, #0e5fd8); transform: translateX(100%); }
+  .seg button { position: relative; z-index: 1; flex: 1; padding: 10px 0; border: none; background: none; cursor: pointer;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.14em; color: inherit; opacity: 0.5;
+    transition: opacity 0.25s, color 0.25s; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+  .seg button.on { opacity: 1; color: #fff; }
+  .seg button i { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
+  .seg button.wx i { background: #fff; box-shadow: inset 0 0 0 5px #0a5c36; }
+  .seg button.ali i { background: #fff; box-shadow: inset 0 0 0 5px #0d47a8; }
+
+  /* 二维码白瓷托 */
+  .qr-tile { position: relative; margin: 0 auto; width: 240px; height: 240px; border-radius: 16px; background: #fff;
+    box-shadow: 0 14px 44px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(0, 0, 0, 0.05); overflow: hidden; }
+  .qr-tile svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* 逐模块：--d 径向生长延迟 / --d2 按列溶解延迟 */
+  .qr-mod { opacity: 0; transform-box: fill-box; transform-origin: center; transform: scale(0.15);
+    transition: opacity 0.34s ease, transform 0.4s cubic-bezier(0.24, 1.5, 0.32, 1); transition-delay: var(--d, 0ms); }
+  .qr-tile.is-in .qr-mod { opacity: 1; transform: scale(1); }
+  .qr-tile.is-out .qr-mod { opacity: 0; transform: scale(0.2); transition-delay: var(--d2, 0ms); transition-duration: 0.26s; }
+
+  /* 四角锁定框：从外向内收拢 */
+  .qbk { position: absolute; width: 24px; height: 24px; border: 3px solid var(--scan, #07c160); opacity: 0; }
+  .qbk.tl { left: 6px; top: 6px; border-right: none; border-bottom: none; border-radius: 8px 0 0 0; }
+  .qbk.tr { right: 6px; top: 6px; border-left: none; border-bottom: none; border-radius: 0 8px 0 0; }
+  .qbk.bl { left: 6px; bottom: 6px; border-right: none; border-top: none; border-radius: 0 0 0 8px; }
+  .qbk.br { right: 6px; bottom: 6px; border-left: none; border-top: none; border-radius: 0 0 8px 0; }
+  .overlay.open .qbk { animation: lockIn 0.44s cubic-bezier(0.3, 1.4, 0.36, 1) 0.34s forwards; }
+  .qbk.tl { --fx: -14px; --fy: -14px; } .qbk.tr { --fx: 14px; --fy: -14px; }
+  .qbk.bl { --fx: -14px; --fy: 14px; } .qbk.br { --fx: 14px; --fy: 14px; }
+  @keyframes lockIn { from { opacity: 0; transform: translate(var(--fx), var(--fy)) scale(1.5); } to { opacity: 0.9; transform: none; } }
+
+  /* 扫码光带 */
+  .qr-scan { position: absolute; left: 14px; right: 14px; height: 2px; border-radius: 2px; pointer-events: none; opacity: 0;
+    background: linear-gradient(90deg, transparent, var(--scan, #07c160), transparent); box-shadow: 0 0 12px var(--scan, #07c160); }
+  .overlay.open .qr-scan { animation: scan 2.6s ease-in-out 0.9s infinite; opacity: 1; }
+  @keyframes scan { 0%, 100% { top: 16%; } 50% { top: 84%; } }
+
+  .sheet .note { margin-top: 15px; text-align: center; font-size: 12px; letter-spacing: 0.14em; opacity: 0.62; }
+  .copy {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 8px 16px; border-radius: 999px;
+    border: 1px solid rgba(123, 200, 255, 0.3); background: rgba(123, 200, 255, 0.08); color: inherit;
+    font-size: 12px; letter-spacing: 0.12em; cursor: pointer; transition: background 0.25s, border-color 0.25s;
+  }
+  .copy:hover { background: rgba(123, 200, 255, 0.18); }
+  .copy.done { border-color: #2ec27e; background: rgba(46, 194, 126, 0.16); }
+  .copy.done::before { content: '✓ '; color: #2ec27e; }
+  .copy-row { text-align: center; }
+
+  .sheet .close { position: absolute; right: 14px; top: 14px; width: 32px; height: 32px; border-radius: 50%;
+    border: none; cursor: pointer; background: rgba(123, 200, 255, 0.12); color: inherit; font-size: 15px; transition: background 0.2s, transform 0.2s; }
+  .sheet .close:hover { background: rgba(123, 200, 255, 0.24); transform: rotate(90deg); }
+
+  .hint { position: fixed; left: 50%; bottom: 3vh; transform: translateX(-50%); font-size: 10px; letter-spacing: 0.16em; opacity: 0.4; z-index: 5; }
+  #theme-toggle { position: fixed; right: 18px; top: 16px; z-index: 30; width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid rgba(123, 224, 255, 0.4); background: rgba(20, 30, 56, 0.5); color: inherit; font-size: 16px; cursor: pointer; }
+  [data-theme='light'] #theme-toggle { background: rgba(255, 255, 255, 0.75); border-color: rgba(43, 108, 255, 0.4); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .charge-fill::after, .qr-scan, .sheet-scan, .overlay.open .qbk { animation: none; }
+    body.sheet-open #sky { filter: none; }
+    .sheet { clip-path: none; }
+    .qr-mod { opacity: 1; transform: none; transition: none; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="sky"></canvas>
+
+  <div class="head">
+    <h1>感谢</h1>
+    <p>每一份善意，都被认真记着</p>
+  </div>
+
+  <div class="charge-wrap">
+    <button class="charge" id="charge">
+      <div class="charge-fill"></div>
+      <span><kbd>⚡</kbd> 为我充电</span>
+    </button>
+    <div class="charge-note">电量来自每一颗星</div>
+  </div>
+
+  <div class="hint">移动鼠标扰动星场 · 悬停星星看是谁的心意 · ESC 关闭</div>
+  <button id="theme-toggle" title="切换明暗">◐</button>
+  <div class="star-tip" id="tip"></div>
+
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="打赏收款码">
+    <div class="sheet" id="sheet">
+      <div class="sheet-scan"></div>
+      <button class="close" id="close" aria-label="关闭">✕</button>
+      <h3>请彖渊子喝一杯</h3>
+      <div class="sub">THANKS FOR YOUR SUPPORT</div>
+      <div class="seg" id="seg">
+        <div class="seg-thumb wx" id="seg-thumb"></div>
+        <button class="wx on" data-pay="wx"><i></i>微信</button>
+        <button class="ali" data-pay="ali"><i></i>支付宝</button>
+      </div>
+      <div class="qr-tile" id="qr-tile">
+        <i class="qbk tl"></i><i class="qbk tr"></i><i class="qbk bl"></i><i class="qbk br"></i>
+        <div class="qr-scan" id="qr-scan"></div>
+      </div>
+      <p class="note" id="qr-note">金额随意 · 心意最重要 ☕</p>
+      <div class="copy-row"><button class="copy" id="copy">复制链接</button></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const TAU = Math.PI * 2
+  const rand = (a, b) => a + Math.random() * (b - a)
+
+  // ================= 星场：鼠标是引力井，星星被涡旋扰动后弹回锚点 =================
+  const REWARDS = [
+    { name: '乐儿', amt: 25, date: '2025-04-22' },
+    // 以后新投喂往这加一行即可
+  ]
+  const canvas = document.getElementById('sky')
+  const ctx = canvas.getContext('2d')
+  const tip = document.getElementById('tip')
+  const chargeBtn = document.getElementById('charge')
+  let W = 0, H = 0
+  let mouse = { x: -999, y: -999 }
+  let hover = -1
+  let btnGlow = 0           // 能量脉冲抵达按钮时的高光
+  const rises = []
+  const pulses = []         // 沿星座线奔向按钮的能量脉冲
+  const stars = []
+
+  function anchors() {
+    // 星星摆在右半屏，避开左上文案
+    return REWARDS.map((r, i) => ({
+      ax: W * (0.64 + 0.07 * Math.sin(i * 2.1)),
+      ay: H * (0.3 + 0.3 * (i / Math.max(1, REWARDS.length))) + Math.cos(i * 1.7) * H * 0.05,
+    }))
+  }
+
+  function resize() {
+    const dpr = Math.min(devicePixelRatio || 1, 2)
+    W = innerWidth; H = innerHeight
+    canvas.width = W * dpr; canvas.height = H * dpr
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px'
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    anchors().forEach((a, i) => { if (stars[i]) { stars[i].ax = a.ax; stars[i].ay = a.ay } })
+  }
+  addEventListener('resize', resize)
+
+  REWARDS.forEach((r, i) => stars.push({ x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, ph: rand(0, TAU), tw: rand(0, TAU) }))
+  resize()
+  anchors().forEach((a, i) => { stars[i].x = a.ax; stars[i].y = a.ay; stars[i].ax = a.ax; stars[i].ay = a.ay })
+
+  addEventListener('pointermove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY })
+  addEventListener('pointerleave', () => { mouse.x = mouse.y = -999 })
+
+  function themeC() {
+    return document.documentElement.dataset.theme !== 'light' ? '123,200,255' : '43,108,255'
+  }
+
+  // ================= 二维码：逐模块 SVG =================
+  const tile = document.getElementById('qr-tile')
+  const QR_DATA = { wx: null, ali: null }
+  let pay = 'wx'
+
+  function buildSvg(n, bits) {
+    const NS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(NS, 'svg')
+    svg.setAttribute('viewBox', `0 0 ${n} ${n}`)
+    svg.setAttribute('shape-rendering', 'geometricPrecision')
+    const defs = document.createElementNS(NS, 'defs')
+    const g = document.createElementNS(NS, 'radialGradient')
+    g.id = 'qrGrad'; g.setAttribute('cx', '50%'); g.setAttribute('cy', '50%'); g.setAttribute('r', '72%')
+    ;[['0%', '#2b6cff'], ['60%', '#6a5bff'], ['100%', '#c06bff']].forEach(([o, c]) => {
+      const s = document.createElementNS(NS, 'stop')
+      s.setAttribute('offset', o); s.setAttribute('stop-color', c)
+      g.appendChild(s)
+    })
+    defs.appendChild(g); svg.appendChild(defs)
+
+    const cx = (n - 1) / 2, maxD = Math.hypot(cx, cx)
+    const frag = document.createDocumentFragment()
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        if (bits[y * n + x] !== '1') continue
+        const r = document.createElementNS(NS, 'rect')
+        r.setAttribute('x', x); r.setAttribute('y', y)
+        r.setAttribute('width', 1); r.setAttribute('height', 1)
+        r.setAttribute('rx', 0.32)                     // 圆点化，和 PNG 版同风格
+        r.setAttribute('fill', 'url(#qrGrad)')
+        r.setAttribute('class', 'qr-mod')
+        const dRad = Math.hypot(x - cx, y - cx) / maxD  // 径向生长延迟
+        r.style.setProperty('--d', Math.round(dRad * 460) + 'ms')
+        r.style.setProperty('--d2', Math.round((x / n) * 260 + Math.random() * 60) + 'ms') // 按列溶解
+        frag.appendChild(r)
+      }
+    }
+    svg.appendChild(frag)
+
+    // 中心头像 Logo（白环 + 圆形头像），与 PNG 版保持 20% 占比
+    const L = n * 0.20, o = (n - L) / 2
+    const ring = document.createElementNS(NS, 'circle')
+    ring.setAttribute('cx', n / 2); ring.setAttribute('cy', n / 2)
+    ring.setAttribute('r', L / 2 + 0.7); ring.setAttribute('fill', '#fff')
+    svg.appendChild(ring)
+    const clip = document.createElementNS(NS, 'clipPath')
+    clip.id = 'qrClip'
+    const cc = document.createElementNS(NS, 'circle')
+    cc.setAttribute('cx', n / 2); cc.setAttribute('cy', n / 2); cc.setAttribute('r', L / 2)
+    clip.appendChild(cc); svg.appendChild(clip)
+    const img = document.createElementNS(NS, 'image')
+    img.setAttribute('x', o); img.setAttribute('y', o)
+    img.setAttribute('width', L); img.setAttribute('height', L)
+    img.setAttribute('href', './img/selfhosted/pZRXSc6.jpg')
+    img.setAttribute('clip-path', 'url(#qrClip)')
+    img.setAttribute('preserveAspectRatio', 'xMidYMid slice')
+    svg.appendChild(img)
+    return svg
+  }
+
+  function renderQr(key) {
+    const old = tile.querySelector('svg')
+    if (old) old.remove()
+    const d = QR_DATA[key]
+    if (!d) return
+    tile.appendChild(buildSvg(d.n, d.bits))
+  }
+
+  function showQr(key, animate) {
+    pay = key
+    document.querySelectorAll('.seg button').forEach((b) => b.classList.toggle('on', b.dataset.pay === key))
+    document.getElementById('seg-thumb').className = 'seg-thumb ' + key
+    const col = key === 'wx' ? '#07c160' : '#1677ff'
+    document.getElementById('qr-scan').style.setProperty('--scan', col)
+    tile.querySelectorAll('.qbk').forEach((b) => b.style.setProperty('--scan', col))
+    const copyBtn = document.getElementById('copy')
+    copyBtn.style.display = key === 'ali' ? '' : 'none'   // wxp:// 是微信私有协议，只有支付宝链接可复制
+    copyBtn.classList.remove('done'); copyBtn.textContent = '复制链接'
+
+    if (!animate || reduce) { renderQr(key); tile.classList.add('is-in'); return }
+    tile.classList.remove('is-in'); tile.classList.add('is-out')
+    setTimeout(() => {
+      tile.classList.remove('is-out')
+      renderQr(key)
+      requestAnimationFrame(() => tile.classList.add('is-in'))
+    }, 380)
+  }
+
+  ;[['wx', 'qr-wechat-art'], ['ali', 'qr-alipay-art']].forEach(([k, f]) => {
+    fetch('./img/selfhosted/' + f + '.json')
+      .then((r) => r.json())
+      .then((d) => { QR_DATA[k] = d; if (k === pay && !document.getElementById('overlay').classList.contains('open')) renderQr(k) })
+      .catch(() => {})
+  })
+
+  // ================= 弹层开关 =================
+  const overlay = document.getElementById('overlay')
+  const sheet = document.getElementById('sheet')
+  let lastFocus = null
+
+  function openSheet() {
+    lastFocus = document.activeElement
+    overlay.classList.add('open')
+    document.body.classList.add('sheet-open')
+    tile.classList.remove('is-in')
+    setTimeout(() => { renderQr(pay); requestAnimationFrame(() => tile.classList.add('is-in')) }, 460)
+    document.getElementById('close').focus()
+  }
+  function closeSheet() {
+    tile.classList.add('is-out')
+    overlay.classList.remove('open')
+    document.body.classList.remove('sheet-open')
+    sheet.style.transform = ''
+    if (lastFocus) lastFocus.focus()
+    setTimeout(() => tile.classList.remove('is-out', 'is-in'), 400)
+  }
+  chargeBtn.addEventListener('click', (e) => {
+    if (!reduce) ripple(e.clientX, e.clientY)
+    chargeBtn.classList.add('pulsing'); setTimeout(() => chargeBtn.classList.remove('pulsing'), 440)
+    openSheet()
+  })
+  document.getElementById('close').addEventListener('click', closeSheet)
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSheet() })
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) closeSheet() })
+
+  document.getElementById('seg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-pay]')
+    if (b && b.dataset.pay !== pay) showQr(b.dataset.pay, true)
+  })
+
+  document.getElementById('copy').addEventListener('click', async () => {
+    const btn = document.getElementById('copy')
+    try {
+      await navigator.clipboard.writeText(QR_DATA[pay].payload)
+      btn.classList.add('done'); btn.textContent = '已复制'
+    } catch (_) { btn.textContent = '复制失败' }
+  })
+
+  // 卡片 3D 视差：跟随鼠标微倾
+  sheet.addEventListener('pointermove', (e) => {
+    if (reduce) return
+    const r = sheet.getBoundingClientRect()
+    const dx = (e.clientX - (r.left + r.width / 2)) / r.width
+    const dy = (e.clientY - (r.top + r.height / 2)) / r.height
+    sheet.style.transform = `perspective(900px) rotateY(${dx * 5}deg) rotateX(${-dy * 5}deg)`
+  })
+  sheet.addEventListener('pointerleave', () => { sheet.style.transform = '' })
+
+  function ripple(x, y) {
+    const el = document.createElement('div')
+    el.className = 'ripple'
+    const d = 110
+    el.style.width = el.style.height = d + 'px'
+    el.style.left = (x - d / 2) + 'px'; el.style.top = (y - d / 2) + 'px'
+    document.body.appendChild(el)
+    setTimeout(() => el.remove(), 880)
+  }
+
+  // ================= 主循环 =================
+  let lastRise = 0
+  function frame(t) {
+    ctx.clearRect(0, 0, W, H)
+    const C = themeC()
+    const open = overlay.classList.contains('open')
+
+    // 星星：涡旋扰动 + 弹回锚点
+    hover = -1
+    stars.forEach((s, i) => {
+      if (!open) {
+        const dx = mouse.x - s.x, dy = mouse.y - s.y
+        const d = Math.hypot(dx, dy)
+        if (d < 230 && d > 0.5) {
+          const f = (1 - d / 230) * 0.55
+          s.vx += (-dy / d) * f * 0.34 + (dx / d) * f * 0.10   // 切向涡旋 + 轻微外推
+          s.vy += (dx / d) * f * 0.34 + (dy / d) * f * 0.10
+        }
+      }
+      s.vx += (s.ax - s.x) * 0.006         // 弹簧回锚
+      s.vy += (s.ay - s.y) * 0.006
+      s.vx *= 0.93; s.vy *= 0.93
+      s.x += s.vx; s.y += s.vy
+      if (Math.hypot(mouse.x - s.x, mouse.y - s.y) < 28) hover = i
+    })
+
+    // 悬停标签 + 触发一条奔向按钮的能量脉冲
+    if (hover >= 0) {
+      const r = REWARDS[hover]
+      if (tip.dataset.i !== String(hover)) {
+        tip.dataset.i = String(hover)
+        tip.innerHTML = '<b>' + r.name + '</b> 投喂了 ' + r.amt + ' 元 · ' + r.date
+      }
+      tip.style.left = Math.min(mouse.x + 16, W - 230) + 'px'
+      tip.style.top = (mouse.y - 42) + 'px'
+      tip.classList.add('show')
+      canvas.style.cursor = 'pointer'
+      if (!reduce && pulses.length === 0 && Math.random() < 0.05) pulses.push({ t: 0 })
+    } else {
+      tip.classList.remove('show'); tip.dataset.i = ''
+      canvas.style.cursor = 'default'
+    }
+
+    // 星座线：靠近鼠标更亮
+    if (stars.length > 1) {
+      for (let i = 0; i < stars.length - 1; i++) {
+        const a = stars[i], b = stars[i + 1]
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
+        const near = Math.max(0, 1 - Math.hypot(mouse.x - mx, mouse.y - my) / 300)
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y)
+        ctx.strokeStyle = `rgba(${C},${(0.12 + near * 0.4) * (open ? 0.35 : 1)})`
+        ctx.lineWidth = 1; ctx.stroke()
+      }
+    }
+
+    // 能量脉冲沿星座线奔向按钮，抵达后按钮高光炸一下
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i]
+      p.t += 0.012
+      if (p.t >= 1) {
+        pulses.splice(i, 1); btnGlow = 1
+        chargeBtn.classList.add('pulsing'); setTimeout(() => chargeBtn.classList.remove('pulsing'), 440)
+        continue
+      }
+      const seg = Math.min(stars.length - 2, Math.floor(p.t * (stars.length - 1)))
+      const lt = (p.t * (stars.length - 1)) % 1
+      const a = stars[seg], b = stars[seg + 1] || a
+      const x = a.x + (b.x - a.x) * lt, y = a.y + (b.y - a.y) * lt
+      ctx.beginPath(); ctx.arc(x, y, 3.2, 0, TAU)
+      ctx.fillStyle = `rgba(255,209,102,${0.9 * (open ? 0.3 : 1)})`
+      ctx.shadowBlur = 14; ctx.shadowColor = 'rgba(255,209,102,0.9)'
+      ctx.fill(); ctx.shadowBlur = 0
+    }
+    btnGlow *= 0.94
+
+    // 星星本体
+    stars.forEach((s, i) => {
+      const tw = 0.72 + 0.28 * Math.sin(t / 720 + s.tw)
+      const R = hover === i ? 7 : 4.6
+      const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, R * 5)
+      g.addColorStop(0, `rgba(255,209,102,${0.5 * tw * (open ? 0.35 : 1)})`)
+      g.addColorStop(1, 'rgba(255,209,102,0)')
+      ctx.fillStyle = g
+      ctx.beginPath(); ctx.arc(s.x, s.y, R * 5, 0, TAU); ctx.fill()
+      ctx.beginPath(); ctx.arc(s.x, s.y, R, 0, TAU)
+      ctx.fillStyle = `rgba(255,228,168,${(hover === i ? 1 : 0.9) * (open ? 0.4 : 1)})`
+      ctx.fill()
+    })
+
+    // 上飘微粒（感激母题）
+    if (!reduce && !open && t - lastRise > 210) {
+      lastRise = t
+      rises.push({ x: rand(W * 0.2, W * 0.85), y: H * 0.88, vy: rand(0.35, 1), vx: rand(-0.25, 0.25), a: rand(0.5, 1), s: rand(1.4, 3.2) })
+    }
+    for (const p of rises) { p.y -= p.vy; p.x += p.vx; p.a -= 0.0035 }
+    for (let i = rises.length - 1; i >= 0; i--) if (rises[i].a <= 0) rises.splice(i, 1)
+    for (const p of rises) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, TAU)
+      ctx.fillStyle = `rgba(${C},${p.a * 0.8 * (open ? 0.3 : 1)})`
+      ctx.fill()
+    }
+
+    requestAnimationFrame(frame)
+  }
+  requestAnimationFrame(frame)
+
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const html = document.documentElement
+    html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark'
+  })
+})()
+</script>
+</body>
+</html>
