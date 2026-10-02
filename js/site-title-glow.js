@@ -79,6 +79,9 @@
     var dt = lastT ? Math.min(ts - lastT, 60) : 16.7;
     lastT = ts;
 
+    // 切到浅色模式：立刻停 rAF，避免无谓重绘
+    if (!isDark()) { stopLoop(); return; }
+
     var y = window.scrollY || 0;
     var vh = window.innerHeight || 1;
 
@@ -129,6 +132,7 @@
 
   function startLoop() {
     if (raf || !span) return;
+    if (!isDark()) return; // 浅色模式不跑辉光 rAF：辉光样式只在 [data-theme=dark] 下生效
     lastT = 0;
     raf = requestAnimationFrame(frame);
   }
@@ -162,6 +166,11 @@
       startLoop();
     }, { passive: true });
     window.addEventListener('resize', function () { measure(); }, { passive: true });
+    // 切后台/最小化：暂停辉光 rAF，省电；回前台且仍是夜间时再启动
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) stopLoop();
+      else if (isDark()) startLoop();
+    });
   }
 
   function init() {

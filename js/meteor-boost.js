@@ -465,6 +465,11 @@
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   }
 
+  // 切后台/最小化：流星雨停 rAF + 隐藏画布，省电；回前台若仍是夜间且用户在蓄力会自行恢复
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && raf) stop();
+  });
+
   // 404 星图迷航等场景：外部直接引爆一次「星河过载」（免长按）
   // power: 0.15~1，缩放本次喷发强度（过载生成率 = overloadRate × burst）；x/y 可指定迸发点
   window.__endyMeteorOverload = function (power, x, y) {

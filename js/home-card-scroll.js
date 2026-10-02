@@ -52,6 +52,7 @@
 
   var EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
   var items = [];
+  var recentWrap = null;   // #recent-posts 引用，用于切换 .endy-scrolling（稳定视差层）
   var io = null;
   var sv = 0;            // 平滑后的滚动速度
   var lastY = window.scrollY || 0;
@@ -87,6 +88,7 @@
 
   function collect() {
     items = [];
+    recentWrap = document.getElementById('recent-posts');
     var cards = document.querySelectorAll('#recent-posts > .recent-post-item');
     for (var i = 0; i < cards.length; i++) {
       var card = cards[i];
@@ -167,8 +169,7 @@
 
   var running = false;
   function frame(ts) {
-    if (!running) return;            // 标签页隐藏时由 stopLoop 停掉 rAF，避免后台空转
-    requestAnimationFrame(frame);
+    if (!running) return;            // 已被 stopLoop / 空闲休眠停掉
     var dt = lastT ? Math.min(ts - lastT, 60) : 16.7;
     lastT = ts;
     dtAvg = dtAvg * 0.9 + dt * 0.1;
@@ -180,25 +181,32 @@
     sv += (v - sv) * 0.2;
     if (Math.abs(sv) < 0.02) sv = 0;
 
-    // 拖拽卡片时完全让位，避免和 home-drag-sort 抢 transform
+    // 拖拽卡片时完全让位，避免和 home-drag-sort 抢 transform（拖拽中保持运行，等松手）
     if (window.__endyDragActive === true) {
       if (sv !== 0) { sv = 0; }
       for (var d = 0; d < items.length; d++) {
         if (!items[d].off) { resetItem(items[d]); items[d].off = true; }
       }
+      requestAnimationFrame(frame);
       return;
     }
 
-    // 空闲跳过：没在滚（速度已归零且页面位置没变）、无强制档时，跳过每帧 transform 写入。
-    // 解决「明明没滚动却持续重排/重绘」导致的日常卡顿；一旦滚动 y 变化或 sv 回升立刻恢复。
+    // 空闲休眠：没在滚（速度归零且页面位置没变）、无强制档时 → 停掉 rAF 自排，
+    // 主线程彻底休息，等下一次滚动(scroll 事件)再唤醒。这是「白天首页也卡」的关键修复之一。
     var forceOn = (typeof window.__endyCardScrollForce === 'number');
     if (!forceOn && Math.abs(sv) < 0.05 && y === lastIdleY) {
+      if (recentWrap) recentWrap.classList.remove('endy-scrolling'); // 静止即撤掉视差层 will-change
+      running = false;
       return;
     }
     lastIdleY = y;
+    // 滚动中：给 #recent-posts 挂 .endy-scrolling，让视差子元素稳定合成层（避免每帧 promote/demote 抖动）
+    if (recentWrap && !recentWrap.classList.contains('endy-scrolling')) {
+      recentWrap.classList.add('endy-scrolling');
+    }
 
     var vh = window.innerHeight || 1;
-    var q = (typeof window.__endyCardScrollForce === 'number') ? window.__endyCardScrollForce : quality;
+    var q = forceOn ? window.__endyCardScrollForce : quality;
     var full = q === 2;
     var stretch = full ? clamp(Math.abs(sv) * CFG.velStretch, 0, CFG.maxStretch) : 0;
     var shift = full ? clamp(sv * CFG.velTextShift, -CFG.maxTextShift, CFG.maxTextShift) : 0;
@@ -229,6 +237,8 @@
         it.meta.style.setProperty('--endy-meta-tf', 'translate3d(0,' + num(p * CFG.metaParallax + sh * 0.5) + 'px,0)');
       }
     }
+
+    requestAnimationFrame(frame);   // 仅在有运动时续帧；空闲分支已 return（不排帧）
   }
 
   /* ---------------- 事件 ---------------- */
@@ -243,7 +253,10 @@
         for (var i = 0; i < items.length; i++) items[i].hover = false;
       }, true);
     }
-    window.addEventListener('scroll', scheduleMeasure, { passive: true });
+    window.addEventListener('scroll', function () {
+      if (items.length) startLoop();   // 滚动即唤醒视差循环；静止后帧函数会自行休眠
+      scheduleMeasure();
+    }, { passive: true });
     window.addEventListener('resize', function () { measure(); }, { passive: true });
     window.addEventListener('load', function () { setTimeout(measure, 200); });
     document.addEventListener('pjax:complete', function () {

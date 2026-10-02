@@ -218,29 +218,68 @@
     if (locked === wasLocked) return;
     wasLocked = locked;
     if (locked) lenis.stop();
-    else lenis.start();
+    else { lenis.start(); wake(); }   // 弹层关闭 → 解锁并唤醒循环（若有未完运动）
   }
   if (typeof MutationObserver !== 'undefined') {
     var mo = new MutationObserver(syncLock);
     mo.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
   }
 
-  // ---------- 4. rAF 主循环 ----------
+  // ---------- 4. rAF 主循环（空闲自休眠，省掉空转）----------
+  // ⚠️ 关键性能修复：原实现每帧无条件 requestAnimationFrame(raf)，
+  //    导致哪怕页面静止也在 60fps 空转，白天模式主线程常年被占 → 滚动掉帧 / 风扇转 / 整体发滞。
+  //    现改为「有运动才续帧」：惯性未停 / 正在平滑跳转(targetScroll 未达) 才排下一帧，
+  //    静止即休眠；用户的滚轮 / 触摸 / 按键 / 程序化滚动都会 wake() 唤醒。
+  var rafId = 0;
   function raf(t) {
+    rafId = 0;
     inLenis = true;
     try {
       lenis.raf(t);
     } finally {
       inLenis = false;
     }
-    requestAnimationFrame(raf);
+    if (lenis.isStopped) return;                  // 弹层锁滚动：彻底停摆，等解锁再 wake
+    var moving = Math.abs(lenis.velocity) > 0.06;  // 滚轮/触摸惯性还在衰减
+    var animating = (typeof lenis.targetScroll === 'number') &&
+                    Math.abs(lenis.scroll - lenis.targetScroll) > 0.5; // 平滑跳转进行中
+    if (moving || animating) rafId = requestAnimationFrame(raf);
+    // 否则：不再排帧 → 主线程休眠，直到下一次 wake()
   }
-  requestAnimationFrame(raf);
+  function wake() {
+    if (rafId === 0 && !lenis.isStopped) rafId = requestAnimationFrame(raf);
+  }
+  // 任何可能发起滚动的输入都唤醒循环；输入框里打字不误唤醒
+  ['wheel', 'touchstart', 'pointerdown'].forEach(function (ev) {
+    window.addEventListener(ev, wake, { passive: true });
+  });
+  window.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    wake();
+  }, { passive: true });
+  // 程序化滚动（含主题自己的 anzhiyu.scrollToDest、回到顶部等）一律唤醒
+  // —— 覆盖所有调用 lenis.scrollTo 的路径，确保动画期间循环不睡
+  var _origLenisScrollTo = lenis.scrollTo.bind(lenis);
+  lenis.scrollTo = function () {
+    wake();
+    return _origLenisScrollTo.apply(null, arguments);
+  };
+  // 标签页切走：取消挂起的帧；切回：唤醒（若有未完运动）
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    } else {
+      wake();
+    }
+  });
+  wake(); // 首屏启动；无运动时会在 1 帧内自行休眠
 
   // ---------- 5. pjax / 首屏 ----------
   function refresh() {
     lenis.resize();
     markScrollables();
+    wake();   // 尺寸变化后可能有未完运动，唤醒循环重新收敛
   }
   window.addEventListener('load', refresh);
   if (window.document.addEventListener) {
