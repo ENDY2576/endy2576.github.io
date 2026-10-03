@@ -3061,7 +3061,9 @@ html.lenis {
   50%      { --endy-breathe: 0.62; }
 }
 
-[data-theme='dark'] .endy-title-glow {
+/* 结构层与呼吸辉光层：两种主题都生效（浅色模式下也能看到站名辉光）。
+   之前整套写在 [data-theme='dark'] 下，导致浅色模式（站点默认）完全不显示。 */
+.endy-title-glow {
   position: relative;
   display: inline-block;
   letter-spacing: 0.12em;
@@ -3070,19 +3072,17 @@ html.lenis {
   isolation: isolate;
   transition: letter-spacing 1.1s cubic-bezier(0.22, 1, 0.36, 1);
 }
-[data-theme='dark'] .endy-title-glow.is-in {
+.endy-title-glow.is-in {
   letter-spacing: 0.02em;
 }
 
-/* ① 呼吸辉光层：负 z-index 沉在本体文字下面，模糊副本只动 opacity */
-[data-theme='dark'] .endy-title-glow::before {
+/* 呼吸辉光层：负 z-index 沉在本体文字下面，模糊副本只动 opacity（GPU 合成，零重绘） */
+.endy-title-glow::before {
   content: attr(data-text);
   position: absolute;
   left: 0;
   top: 0;
   z-index: -1;
-  color: #9ee0d6;
-  filter: blur(8px);
   letter-spacing: inherit;
   white-space: pre;
   pointer-events: none;
@@ -3092,13 +3092,12 @@ html.lenis {
   will-change: opacity;
 }
 @media (prefers-reduced-motion: no-preference) {
-  [data-theme='dark'] .endy-title-glow::before {
+  .endy-title-glow::before {
     animation: endy-breathe 7.5s ease-in-out infinite;
   }
 }
 
-/* ② 光斑层：上层径向渐变（跟随指针）+ 下层纯色兜底，两层一起 clip 到文字。
-      没有兜底层的话，渐变透明处的字会整块消失。 */
+/* ② 暗色：白青渐变（光斑跟随指针）+ 青色呼吸 halo + 头图暗投影 */
 [data-theme='dark'] .endy-title-glow {
   background-image: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%),
       #ffffff 0%,
@@ -3112,6 +3111,7 @@ html.lenis {
      只保留压在头图上的那层暗投影，保证字口不发灰。 */
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
 }
+[data-theme='dark'] .endy-title-glow::before { color: #9ee0d6; filter: blur(8px); }
 /* 不支持 background-clip:text 的浏览器：退回纯色 + 主题自带的 text-shadow */
 @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
   [data-theme='dark'] .endy-title-glow {
@@ -3119,6 +3119,13 @@ html.lenis {
     background-image: none;
   }
 }
+
+/* ③ 浅色：保留主题原本字色，叠加青色外发光 + 浅青呼吸 halo。
+      不换渐变（白字糊在浅底上看不清），靠 text-shadow + ::before 体现辉光。 */
+[data-theme='light'] .endy-title-glow {
+  text-shadow: 0 0 10px rgba(80, 200, 220, 0.55), 0 0 22px rgba(80, 200, 220, 0.30);
+}
+[data-theme='light'] .endy-title-glow::before { color: #7fd8e8; filter: blur(7px); }
 
 /* ============================================================
    404 星图迷航（error-star.js）—— 雷达 / 星点 / hover 卡 / 归航环

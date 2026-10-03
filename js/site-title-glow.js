@@ -32,7 +32,6 @@
 
   var REDUCED = false;
   try { REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-  if (REDUCED) return;
 
   var span = null;
   var raf = 0, lastT = 0;
@@ -176,6 +175,12 @@
   function init() {
     if (!wrap()) return;
     measure();
+    if (REDUCED) {
+      // 减少动态：不跑 rAF（不跟随指针/不滚动衰减），但保留静态辉光，
+      // ::before 用 @property 初始值 0.47 静态显示，避免「一点光都没有」。
+      if (span) span.style.setProperty('--endy-glow-mul', '1');
+      return;
+    }
     bind();
     startLoop();
     setTimeout(measure, 800);
