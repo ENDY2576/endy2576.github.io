@@ -3097,7 +3097,10 @@ html.lenis {
   }
 }
 
-/* ② 暗色：白青渐变（光斑跟随指针）+ 青色呼吸 halo + 头图暗投影 */
+/* ② 暗色：白青渐变字（光斑跟随指针）+ 明显的青色外发光 + 呼吸 halo。
+      JS 包 span 后，span 的 text-shadow 会覆盖 h1 原本的青色辉光，
+      所以这里必须把青色辉光重新写回来（沿用 --endy-glow-1/2，与原始一致），
+      否则暗色站名就只剩一层几乎看不出的 ::before 淡模糊。 */
 [data-theme='dark'] .endy-title-glow {
   background-image: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%),
       #ffffff 0%,
@@ -3107,11 +3110,12 @@ html.lenis {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  /* 清掉 v60 继承来的静态青色双层外发光：它会和 ::before 呼吸层叠成一坨死光。
-     只保留压在头图上的那层暗投影，保证字口不发灰。 */
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  /* 头图暗投影保字口清晰 + 两层青色辉光（近 10px / 远 26px） */
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35),
+               0 0 10px var(--endy-glow-1),
+               0 0 26px var(--endy-glow-2);
 }
-[data-theme='dark'] .endy-title-glow::before { color: #9ee0d6; filter: blur(8px); }
+[data-theme='dark'] .endy-title-glow::before { color: #9ee0d6; filter: blur(9px); }
 /* 不支持 background-clip:text 的浏览器：退回纯色 + 主题自带的 text-shadow */
 @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
   [data-theme='dark'] .endy-title-glow {
@@ -3120,12 +3124,8 @@ html.lenis {
   }
 }
 
-/* ③ 浅色：保留主题原本字色，叠加青色外发光 + 浅青呼吸 halo。
-      不换渐变（白字糊在浅底上看不清），靠 text-shadow + ::before 体现辉光。 */
-[data-theme='light'] .endy-title-glow {
-  text-shadow: 0 0 10px rgba(80, 200, 220, 0.55), 0 0 22px rgba(80, 200, 220, 0.30);
-}
-[data-theme='light'] .endy-title-glow::before { color: #7fd8e8; filter: blur(7px); }
+/* ③ 浅色：用户不需要辉光，保持主题默认字色，不加外发光、不渲染 ::before */
+[data-theme='light'] .endy-title-glow::before { content: none; }
 
 /* ============================================================
    404 星图迷航（error-star.js）—— 雷达 / 星点 / hover 卡 / 归航环
