@@ -55,8 +55,23 @@
 
   function markScroll() {
     scrolling = true;
+    hideOml2d();                       // 滚动时停掉 WebGL 画布的合成
     if (tScroll) clearTimeout(tScroll);
-    tScroll = setTimeout(function () { scrolling = false; }, SCROLL_MS);
+    tScroll = setTimeout(function () {
+      scrolling = false;
+      showOml2d();                     // 停滚恢复
+    }, SCROLL_MS);
+  }
+
+  // 滚动时把 Live2D 画布藏起来：GPU 不再合成 1280×1920 的 WebGL 画布，主线程/显卡都减负。
+  // 画布由 oml2d 延迟创建，每次滚动时按 id 现查即可（getElementById 很便宜）。
+  function hideOml2d() {
+    var c = document.getElementById('oml2d-canvas');
+    if (c) c.style.setProperty('visibility', 'hidden', 'important');
+  }
+  function showOml2d() {
+    var c = document.getElementById('oml2d-canvas');
+    if (c) c.style.removeProperty('visibility');
   }
 
   // 滚动用 scroll；其余交互用各自事件
@@ -67,6 +82,7 @@
 
   document.addEventListener('visibilitychange', function () {
     last = 0; // 切回前台时允许立刻渲染一帧
+    if (isHidden()) hideOml2d(); else if (!scrolling) showOml2d();
   });
 
   window.requestAnimationFrame = function (cb) {

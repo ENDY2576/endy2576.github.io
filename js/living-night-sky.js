@@ -215,6 +215,17 @@
     }
   });
 
+  // 滚动时暂停：减少滚动期间的 GPU/CPU 负担（与 oml2d 同思路）；停滚后若仍是暗色则恢复
+  var skyScrollT = 0;
+  window.addEventListener('scroll', function () {
+    if (!isDark() || !running) return;
+    stop();
+    if (skyScrollT) clearTimeout(skyScrollT);
+    skyScrollT = setTimeout(function () {
+      if (isDark() && !reduce) start();
+    }, 200);
+  }, { passive: true });
+
   // 主题切换：进暗 → 起；出暗 → 收（与 meteor-boost 同范式）
   if (typeof MutationObserver !== 'undefined') {
     var mo = new MutationObserver(function () {
