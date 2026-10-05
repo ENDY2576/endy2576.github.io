@@ -1,0 +1,2439 @@
+/* miku-easter-egg.js  v=1
+ * 机械抽取自 _config.yml 的 OhMyLive2d.then 块（原第195-2620行），仅去除4空格基准缩进。
+ * 由 miku-loader 在需要时才调用 window.__mikuBoot() 启动看板娘。
+ * 注意：本文件等价于原 oml2d 注入的 then 脚本；oml2d 为 window.__mikuBoot 作用域内的局部变量，
+ *       内部 IIFE 通过闭包访问它，并主动挂到 window.oml2d。
+ */
+window.__mikuBoot = function () {
+  if (window.__mikuBooted) return;
+  var oml2d = OML2D.loadOml2d(window.__mikuOption);
+  // ===== 原 then 块内容开始 =====
+// ===== 看板娘交互：单击换表情 / 双击头顶聊天 / 三击设置面板 + 模型拖动 + 透明区仅身体可交互 =====
+(function () {
+  var THEME = '#4b5cc4'; // 博客主题色 deep blue
+  var EXPR_EMOTION = ['脸红', '圈圈', 'QQ人'];
+  var EXPR_MOTION = ['拿葱', '唱歌', '比心', '前倾'];
+  var SCALE_MIN = 0.01, SCALE_MAX = 0.1, SCALE_STEP = 0.001;
+  var DEFAULT_SCALE = 0.045;
+  // 发送按钮图标：用户指定 SVG（白色圆圈+镂空箭头，放在主题色按钮上）
+  var SEND_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="22" height="22" fill="#fff" style="display:block;pointer-events:none;"><path d="M512.056889 1024a512 512 0 0 1 0-1024 512 512 0 1 1 0 1024zm108.771555-514.844444l-208.668444 202.126222a47.502222 47.502222 0 0 0 0 69.063111 52.508444 52.508444 0 0 0 72.078222 0l237.112889-229.376a46.819556 46.819556 0 0 0 12.686222-23.665778 46.876444 46.876444 0 0 0-8.931555-56.32L488.106667 241.607111a52.622222 52.622222 0 0 0-72.078223 0 47.331556 47.331556 0 0 0 0 69.063111l204.8 198.485334z"/></svg>';
+
+  // 双击聊天：后端代理地址（严禁把 DeepSeek key 写在前端！）
+  // 当前用阿里云函数计算 FC 默认测试域名；后续可换自定义域 miku-api.endy2576.cn。
+  var CHAT_API_URL = 'https://miku-chat-jggayawxnr.cn-shanghai.fcapp.run/api/miku-chat';
+  var CHAT_DIALOG_WIDTH = 280;
+
+  // Miku 人格设定（来自 hatsune-miku-kanban skill v1.0.0）：用于后端 system prompt
+  var MIKU_SYSTEM_PROMPT = '你是「彖渊子」博客（https://www.endy2576.cn/）的看板娘：初音未来。' +
+    '你是 AI 虚拟形象，不是 Crypton 官方初音未来本人，而是这个技术×二次元博客请来的「元气陪伴型」看板娘。' +
+    '互动规则：1）用「初音」「我」「Miku」自称，称站长为「Turiya」「站长」，称访客为「你」「访客大人」「旅人」；' +
+    '2）永远元气、温柔、略带傲娇，先给情绪价值再补信息，不抢风头、不冒充真人、不涉商务、不说教；' +
+    '3）高频使用句尾～/呐呐/♪，口头禅「葱，才是本体」「葱说了算」；' +
+    '4）聊博客内容时略懂行但保持元气，不编造最新文章/访客数等站内实时数据，不知道就引导站内搜索；' +
+    '5）被问「你是不是真的初音未来」时，大方承认「我是 Turiya 请来的看板娘，借了初音未来的壳～葱绿才是我的本体哦」；' +
+    '6）尊重版权，不指导任何侵权二传二改商用。';
+
+  // 关键：oml2d 在注入脚本里是 `const oml2d = ...` 的「脚本作用域局部变量」,
+  // 并非 window.oml2d。控制台诊断 / pjax 重载后都无法再拿到实例，所以这里主动挂到 window。
+  window.oml2d = oml2d;
+
+  // 压平看板娘气泡的「持续跳动」：oml2d 默认给气泡挂 oml2d-shake-tips（上下弹跳 5%）并常驻，
+  // 读长句时很晃眼。库样式在运行时注入，这里在之后同名覆盖 @keyframes，幅度降到几乎不可见。
+  // 每次都重新挂到 <head> 末尾，保证覆盖（pjax 重载后库若重注也能压住）。
+  try {
+    var sFix = document.getElementById('endy-tips-shake-fix');
+    if (!sFix) {
+      sFix = document.createElement('style');
+      sFix.id = 'endy-tips-shake-fix';
+      sFix.textContent = '@keyframes oml2d-shake-tips{0%{transform:translate(-50%,0%) scale(1)}50%{transform:translate(-50%,0%) scale(1)}100%{transform:translate(-50%,0%) scale(1)}}';
+    }
+    document.head.appendChild(sFix);
+  } catch (e) {}
+
+  window.__mikuLastScale = DEFAULT_SCALE;
+  window.__mikuDragEnabled = false;
+  window.__mikuClickTimes = [];
+  window.__mikuResting = false;
+  // 彩蛋态：默认隐藏，留言板开信后解锁；解锁后由用户通过开关控制显隐
+  window.__mikuVisible = false;
+  window.__mikuUnlocked = false;
+  window.__mikuUnlockHandled = false;
+  // 看板娘对话能力开关（持久化于 localStorage）：联网功能默认开；深度思考默认关
+  window.__mikuOnlineEnabled = (localStorage.getItem('endy-miku-online') !== '0');
+  window.__mikuDeepThink = (localStorage.getItem('endy-miku-deepthink') === '1');
+
+  function model() {
+    var o = (window.oml2d && window.oml2d.models) ? window.oml2d.models.model : null;
+    if (!o && typeof oml2d !== 'undefined' && oml2d.models) o = oml2d.models.model;
+    return o;
+  }
+  function stage() { return document.getElementById('oml2d-stage'); }
+  function canvas() { var s = stage(); return s ? s.querySelector('canvas') : null; }
+
+  // 把拖动偏移应用到舞台（以及景深辉光层）。
+  // 必须用 !important 才能压住 oml2d 可能设置的内联 transform !important 或 .miku-hidden 的 transform !important。
+  function applyStageOffset(s) {
+    if (!s) s = stage();
+    if (!s) return;
+    var x = window.__mikuStageOffsetX || 0;
+    var y = window.__mikuStageOffsetY || 0;
+    var tx = 'translate3d(' + x + 'px,' + y + 'px,0)';
+    s.style.setProperty('transform', tx, 'important');
+    var g = document.getElementById('miku-depth-glow');
+    if (g) g.style.setProperty('transform', tx, 'important');
+  }
+  // 清掉内联 transform（隐藏/休息前必须清，否则 .miku-hidden 的 CSS transform !important 会被 Inline !important 压住，休息动画失效）。
+  function clearStageOffset(s) {
+    if (!s) s = stage();
+    if (!s) return;
+    s.style.removeProperty('transform');
+    var g = document.getElementById('miku-depth-glow');
+    if (g) g.style.removeProperty('transform');
+  }
+
+  // 舞台/画布整体穿透，透明区不拦截博客按钮。
+  // 顺便给 oml2d 气泡一个初始位置（默认 top:0 会跑到头顶上方很远）。
+  function patchPointerEvents() {
+    var s = stage(), c = canvas();
+    if (s) {
+      s.style.pointerEvents = 'none';
+      // 彩蛋态：默认隐藏舞台，直到留言板开信解锁
+      if (!window.__mikuUnlocked) s.classList.add('miku-hidden');
+      else s.classList.toggle('miku-hidden', !window.__mikuVisible);
+    }
+    if (c) c.style.pointerEvents = 'none';
+    // 命中框跟随舞台一起显隐，避免 Miku 隐藏后红框/命中还留在原地
+    var h = document.getElementById('miku-hitbox');
+    if (h) h.classList.toggle('miku-hidden', !window.__mikuVisible);
+    var t = document.getElementById('oml2d-tips');
+    if (t) { t.style.top = '220px'; t.style.bottom = 'auto'; }
+  }
+
+  // 统一控制舞台显隐
+  function setStageVisible(visible) {
+    var s = stage();
+    if (!s) return;
+    if (!visible) {
+      // 隐藏前先清掉拖动内联 transform（!important），否则 .miku-hidden 的 CSS transform !important 会被内联压住，休息/隐藏动画失效
+      clearStageOffset(s);
+    }
+    s.classList.toggle('miku-hidden', !visible);
+    // 命中框也要同步显隐，否则舞台藏了红框还留在页面上
+    var h = document.getElementById('miku-hitbox');
+    if (h) h.classList.toggle('miku-hidden', !visible);
+    window.__mikuVisible = visible;
+    syncToggleButtons();
+    if (visible) {
+      // 显示后重新应用拖动偏移（若有），用 !important 压住默认位置
+      applyStageOffset(s);
+    } else {
+      // 隐藏时一并清理状态栏、气泡、面板、聊天框，避免残留
+      try { oml2d.statusBarClose(); } catch (e) {}
+      try { oml2d.clearTips(); } catch (e) {}
+      window.__mikuClosePanel();
+      window.__mikuCloseChatDialog();
+      // P1(a)：复位鼠标视差，避免隐藏后辉光/模型残留漂移
+      if (window.__mikuResetParallax) window.__mikuResetParallax();
+    }
+  }
+
+  // 同步中控台 + 右侧设置面板里的 Miku 开关状态
+  function syncToggleButtons() {
+    var rs = document.getElementById('miku-rightside-toggle');
+    var cc = document.getElementById('console-miku-toggle');
+    if (rs) {
+      rs.style.display = window.__mikuUnlocked ? 'flex' : 'none';
+      rs.classList.toggle('miku-toggle-on', window.__mikuVisible);
+    }
+    if (cc) {
+      cc.style.display = window.__mikuUnlocked ? '' : 'none';
+      cc.classList.toggle('on', window.__mikuVisible);
+    }
+    try { syncSwitchUI(); } catch (e) {}
+  }
+
+  // 解锁彩蛋：留言板开信后调用，显示 Miku 并弹出开关
+  window.__mikuUnlock = function () {
+    if (window.__mikuUnlocked) return false;
+    // 如果 localStorage 里已经有解锁标记，说明是页面刷新后恢复状态，不是首次触发。
+    // 此时直接显示即可，避免再次 stageSlideIn 导致 Miku 从下方重新滑入、看起来闪烁。
+    var isResume = localStorage.getItem('endy-miku-unlocked') === '1';
+    window.__mikuUnlocked = true;
+    window.__mikuVisible = true;
+    try { localStorage.setItem('endy-miku-unlocked', '1'); } catch (e) {}
+    syncToggleButtons();
+    var s = stage();
+    if (s) {
+      s.classList.remove('miku-hidden');
+      s.style.visibility = 'visible';
+      s.style.opacity = '1';
+      clearStageOffset(s); // 清掉任何残留内联 transform，交给 stageSlideIn / 默认位置控制
+    }
+    try { oml2d.statusBarClose(); } catch (e) {}
+    if (!isResume) {
+      // 首次触发：保留滑入动画仪式感
+      try { oml2d.stageSlideIn(); } catch (e) {}
+    } else {
+      // 刷新恢复：舞台已经处于最终位置，不再播滑入动画
+      try { clearStageOffset(s); } catch (e) {}
+    }
+    // 触发 resize 强制 Pixi/Canvas 重绘，避免隐藏态切出后缺头
+    setTimeout(function () { try { window.dispatchEvent(new Event('resize')); } catch (e) {} }, 50);
+    ensureHitbox();
+    updateHitbox();
+    setupGlobalIntercept();
+    enhanceInit();
+    alignTipsToHead();
+    if (!isResume && oml2d && oml2d.tipsMessage) {
+      oml2d.tipsMessage('初音未来，报到～有什么可以帮你的吗？', 5000, 2);
+      alignTipsToHead();
+    }
+    return true;
+  };
+
+  // 全局开关：供右侧设置按钮 / 中控台调用
+  window.__mikuToggleVisible = function () {
+    if (!window.__mikuUnlocked) return;
+    var willShow = !window.__mikuVisible;
+    setStageVisible(willShow);
+    if (willShow) {
+      // 若当前在休息，先唤醒
+      if (window.__mikuResting) {
+        try {
+          oml2d.statusBarClose();
+          oml2d.stageSlideIn();
+          oml2d.statusBarClearEvents();
+        } catch (e) {}
+        window.__mikuResting = false;
+      }
+      // 强制重绘，避免 display/visibility 切换后模型渲染不完整
+      setTimeout(function () { try { window.dispatchEvent(new Event('resize')); } catch (e) {} }, 50);
+      updateHitbox();
+      alignTipsToHead();
+      // 初次显示时给一个友好提示
+      if (oml2d && oml2d.tipsMessage) {
+        oml2d.tipsMessage('初音未来，报到～有什么可以帮你的吗？', 5000, 2);
+        alignTipsToHead();
+      }
+    } else {
+      window.__mikuClosePanel();
+      window.__mikuCloseChatDialog();
+    }
+  };
+
+  // 创建/更新覆盖模型身体的命中框（仅不透明身体区域可交互）
+  // #miku-hitbox 现在只作为「诊断可视化」用的红框，不再承载点击命中（命中改用 hitTest 像素级判定）。
+  // 必须 pointer-events:none，否则会盖住博客按钮。
+  function ensureHitbox() {
+    var h = document.getElementById('miku-hitbox');
+    if (!h) {
+      h = document.createElement('div');
+      h.id = 'miku-hitbox';
+      h.style.cssText = 'position:fixed;z-index:99998;background:transparent;pointer-events:none;';
+      document.body.appendChild(h);
+    }
+    return h;
+  }
+
+  var __hitboxRetries = 0;
+  function updateHitbox() {
+    var h = ensureHitbox(), c = canvas(), m = model();
+    if (!h || !c || !c.isConnected || !m) { if (c && c.isConnected) retryHitbox(); return; }
+    var r = c.getBoundingClientRect();
+    if (!r.width || !r.height) { retryHitbox(); return; }
+
+    // PIXI App 的 resolution=2，canvas 内部像素是 CSS 尺寸的 2 倍；
+    // 用 m.getBounds() 取模型包围盒后，必须按 CSS/内部比例缩放，否则红框会偏移。
+    var b = null;
+    try { b = m.getBounds(); } catch (e) {}
+    if (!b || !(b.width > 0) || !(b.height > 0)) { retryHitbox(); return; }
+
+    var manualFactor = (typeof window.__mikuHitboxScaleFactor === 'number' && window.__mikuHitboxScaleFactor > 0) ? window.__mikuHitboxScaleFactor : 1;
+    // 用户实测后固化的红框偏移：xOffset=46, yOffset=8
+    var xOffset = (typeof window.__mikuHitboxXOffset === 'number') ? window.__mikuHitboxXOffset : 46;
+    var yOffset = (typeof window.__mikuHitboxYOffset === 'number') ? window.__mikuHitboxYOffset : 8;
+
+    // getBounds() 返回的是舞台坐标（stageStyle 640×960），不是 canvas 内部像素（1280×1920）。
+    // 所以要用 CSS 尺寸 / 舞台尺寸做换算，而不是 CSS 尺寸 / canvas.width。
+    var stageW = 640, stageH = 960;
+    var sx = r.width / stageW;
+    var sy = r.height / stageH;
+    var bx = b.x * sx + xOffset;
+    var by = b.y * sy + yOffset;
+    var bw = b.width * sx;
+    var bh = b.height * sy;
+
+    // 手动缩放因子：以中心为基准等比缩放（通常用 1，不需要调）
+    if (manualFactor !== 1 && bw > 0 && bh > 0) {
+      var cx = bx + bw / 2, cy = by + bh / 2;
+      bw *= manualFactor; bh *= manualFactor;
+      bx = cx - bw / 2; by = cy - bh / 2;
+    }
+
+    __hitboxRetries = 0;
+    h.style.left = (r.left + bx) + 'px';
+    h.style.top = (r.top + by) + 'px';
+    h.style.width = bw + 'px';
+    h.style.height = bh + 'px';
+    window.__mikuHitboxRect = { left: r.left + bx, top: r.top + by, width: bw, height: bh, method: 'getBounds', factor: manualFactor, xOffset: xOffset, yOffset: yOffset };
+    alignTipsToHead();
+    var d = document.getElementById('miku-chat-dialog');
+    if (d && d.style.display !== 'none') positionChatDialog(d);
+  }
+
+  function retryHitbox() {
+    if (__hitboxRetries++ < 40) setTimeout(updateHitbox, 300);
+  }
+
+  // 控制台精确诊断：让用户截图前运行，输出所有关键坐标
+  window.__mikuMeasure = function () {
+    var s = stage(), c = canvas(), m = model(), h = document.getElementById('miku-hitbox');
+    var sr = s ? s.getBoundingClientRect() : null;
+    var cr = c ? c.getBoundingClientRect() : null;
+    var hr = h ? h.getBoundingClientRect() : null;
+    var b = null;
+    try { if (m) b = m.getBounds(); } catch (e) {}
+    var info = {
+      screen: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
+      stage: sr ? { left: sr.left, top: sr.top, width: sr.width, height: sr.height, right: sr.right, bottom: sr.bottom } : null,
+      canvas: cr ? { left: cr.left, top: cr.top, width: cr.width, height: cr.height, right: cr.right, bottom: cr.bottom } : null,
+      modelBounds: b ? { x: b.x, y: b.y, width: b.width, height: b.height } : null,
+      hitbox: hr ? { left: hr.left, top: hr.top, width: hr.width, height: hr.height, right: hr.right, bottom: hr.bottom } : null,
+      currentOffsets: { xOffset: window.__mikuHitboxXOffset, yOffset: window.__mikuHitboxYOffset, factor: window.__mikuHitboxScaleFactor }
+    };
+    console.log('[Miku 测量]', JSON.stringify(info, null, 2));
+    return info;
+  };
+
+  // 播放表情：兼容 oml2d 不同版本对 model 的暴露方式，并兜底到 expressionManager.setExpression。
+  // 无法播放时打印模型实际加载到的表情名，方便排障（名字不匹配 / 资源未加载）。
+  function playMikuExpression(name) {
+    var m = model();
+    if (!m) { console.warn('[Miku] model 未就绪，无法播放表情:', name); return false; }
+    // 路径 1：模型统一方法（接受 model3.json 的 Expression Name，如「脸红」）
+    if (typeof m.expression === 'function') {
+      try { if (m.expression(name) !== false) return true; } catch (e) { console.warn('[Miku] m.expression 失败', e); }
+    }
+    // 路径 2：直接调用 expressionManager（同样按 Name 解析）
+    try {
+      var em = m.internalModel && m.internalModel.motionManager && m.internalModel.motionManager.expressionManager;
+      if (em && typeof em.setExpression === 'function') { return em.setExpression(name) !== false; }
+    } catch (e) { console.warn('[Miku] em.setExpression 失败', e); }
+    // 排障：打印模型实际加载到的表情名
+    try {
+      var em2 = m.internalModel && m.internalModel.motionManager && m.internalModel.motionManager.expressionManager;
+      var defs = (em2 && em2.definitions) ? em2.definitions.map(function (d) { return d.Name || d.name; }) : [];
+      console.warn('[Miku] 没有可播放的 API；已加载表情名 =', defs, '｜m.expression 类型 =', typeof m.expression);
+    } catch (e) {}
+    return false;
+  }
+
+  function setExpression(name) {
+    var ok = playMikuExpression(name);
+    // 表情保持 3 秒后自动恢复默认，避免夸张表情一直定格
+    clearTimeout(window.__mikuExpressionResetTimer);
+    window.__mikuExpressionResetTimer = setTimeout(function () {
+      try { resetExpression(); } catch (e) {}
+    }, 3000);
+    // 给访客可见反馈：即使模型表情幅度很小，也能感知「点击生效了」
+    if (ok) {
+      try { if (window.oml2d && window.oml2d.tipsMessage) window.oml2d.tipsMessage('初音摆出了「' + name + '」～', 1500, 2); } catch (e) {}
+    }
+  }
+
+  function resetExpression() {
+    var m = model(); if (!m) return;
+    try {
+      var em = m.internalModel && m.internalModel.motionManager && m.internalModel.motionManager.expressionManager;
+      if (em && typeof em.resetExpression === 'function') { em.resetExpression(); return; }
+    } catch (e) {}
+    try { if (typeof m.expression === 'function') m.expression(); } catch (e) {}
+  }
+
+  // 模拟"走路"：模型本身没有走路 motion，用舞台左右轻摆营造原地踏步感
+  function doWalk() {
+    var s = stage(); if (!s) return;
+    clearInterval(window.__mikuWalkTimer);
+    // 用 !important 覆盖 oml2d/.miku-hidden 的 transform；并叠加用户拖拽偏移，否则拖动后走路不动
+    s.style.setProperty('transition', 'transform 0.25s ease-in-out', 'important');
+    var steps = 0;
+    var bx = window.__mikuStageOffsetX || 0;
+    var by = window.__mikuStageOffsetY || 0;
+    window.__mikuWalkTimer = setInterval(function () {
+      steps++;
+      var dx = (steps % 2 === 0 ? 14 : -14);
+      s.style.setProperty('transform', 'translate3d(' + (bx + dx) + 'px,' + by + 'px,0)', 'important');
+      if (steps >= 8) {
+        clearInterval(window.__mikuWalkTimer);
+        applyStageOffset(s); // 复位到拖拽偏移（带 !important）
+        setTimeout(function () { s.style.removeProperty('transition'); }, 260);
+      }
+    }, 260);
+  }
+
+  // 面板里三个开关（显示 / 拖动 / 休息）统一同步：状态 + 禁用联动
+  function syncSwitchUI() {
+    var vis = !!window.__mikuVisible;
+    var rest = !!window.__mikuResting;
+    var drag = !!window.__mikuDragEnabled;
+
+    function setSw(id, on, disabled) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('is-on', !!on);
+      el.setAttribute('aria-checked', on ? 'true' : 'false');
+      if (disabled) {
+        el.classList.add('is-disabled');
+        el.setAttribute('disabled', 'disabled');
+      } else {
+        el.classList.remove('is-disabled');
+        el.removeAttribute('disabled');
+      }
+    }
+    setSw('miku-sw-visible', vis, false);
+    // 隐藏时、休息中：拖动开关不可用；隐藏时：休息开关不可用
+    setSw('miku-sw-drag', drag, !vis || rest);
+    setSw('miku-sw-rest', rest, !vis);
+    // 联网功能 / 深度思考：常驻可用，持久化于 localStorage
+    setSw('miku-sw-online', window.__mikuOnlineEnabled, false);
+    setSw('miku-sw-deepthink', window.__mikuDeepThink, false);
+  }
+
+  // 旧调用名保留，避免其它地方报错
+  function syncRestBtn() { syncSwitchUI(); }
+
+  // 把 oml2d 的气泡对齐到 Miku 附近（智能锚定：视口/舞台内安全定位）
+  function alignTipsToHead() {
+    var t = document.getElementById('oml2d-tips');
+    var s = stage();
+    if (!t || !s) return;
+    var sr = s.getBoundingClientRect();
+    var bubbleH = t.getBoundingClientRect().height || t.offsetHeight || 80;
+    var bubbleW = t.getBoundingClientRect().width || t.offsetWidth || 180;
+
+    // 聊天输入框打开：气泡贴到输入框上方
+    if (window.__mikuChatDialogOpen) {
+      var dlg = document.getElementById('miku-chat-dialog');
+      t.style.display = ''; t.style.visibility = ''; t.style.opacity = '';
+      if (!dlg) return;
+      var dr = dlg.getBoundingClientRect();
+      var bottomPx = sr.bottom - dr.top + 10;
+      var maxBottom = sr.height - bubbleH - 4;
+      if (bottomPx > maxBottom) bottomPx = maxBottom;
+      if (bottomPx < 0) bottomPx = 0;
+      t.style.bottom = bottomPx + 'px'; t.style.top = 'auto';
+      t.style.left = '50%'; t.style.transform = 'translateX(-50%)';
+      return;
+    }
+
+    var rect = window.__mikuHitboxRect;
+    if (!rect || !rect.width) return;
+
+    // 优先头顶上方；头顶空间不足则翻到模型下方（避免顶出视口顶部）
+    var placeAbove = (rect.top - sr.top - bubbleH - 8) >= 0;
+    var topPx;
+    if (placeAbove) {
+      topPx = rect.top - sr.top - bubbleH - 8;
+    } else {
+      topPx = (rect.top + rect.height) - sr.top + 8; // 翻到模型下方
+      if (topPx + bubbleH > sr.height) topPx = 0;     // 下方也放不下则贴顶
+    }
+    // 水平：以身体中心为基准，并钳制在视口内（不超出左右边）
+    var leftPx = rect.left + rect.width / 2 - bubbleW / 2 - sr.left;
+    var maxLeft = (window.innerWidth - sr.left) - bubbleW - 8;
+    if (leftPx < 0) leftPx = 0;
+    if (leftPx > maxLeft) leftPx = maxLeft;
+
+    t.style.top = topPx + 'px';
+    t.style.bottom = 'auto';
+    t.style.left = leftPx + 'px';
+    t.style.transform = 'none';
+
+    // 内容渲染稳定后再校准一次（避免高度跳动）
+    clearTimeout(window.__mikuAlignTimer);
+    window.__mikuAlignTimer = setTimeout(function () {
+      var bh2 = t.getBoundingClientRect().height || t.offsetHeight || 80;
+      var bw2 = t.getBoundingClientRect().width || t.offsetWidth || 180;
+      if (Math.abs(bh2 - bubbleH) > 2 || Math.abs(bw2 - bubbleW) > 2) {
+        var tp2 = placeAbove ? (rect.top - sr.top - bh2 - 8) : ((rect.top + rect.height) - sr.top + 8);
+        if (tp2 + bh2 > sr.height) tp2 = 0;
+        t.style.top = tp2 + 'px';
+        var lp2 = rect.left + rect.width / 2 - bw2 / 2 - sr.left;
+        if (lp2 < 0) lp2 = 0;
+        if (lp2 > maxLeft) lp2 = maxLeft;
+        t.style.left = lp2 + 'px';
+      }
+    }, 120);
+  }
+
+  function positionChatDialog(d) {
+    var rect = window.__mikuHitboxRect;
+    if (rect && rect.width) {
+      d.style.left = (rect.left + rect.width / 2 - CHAT_DIALOG_WIDTH / 2) + 'px';
+      d.style.top = (rect.top - d.offsetHeight - 12) + 'px';
+    } else {
+      var s = stage(); if (!s) return;
+      var r = s.getBoundingClientRect();
+      d.style.left = (r.left + r.width / 2 - CHAT_DIALOG_WIDTH / 2) + 'px';
+      d.style.top = (r.top + 60) + 'px';
+    }
+  }
+
+  function mikuChatSendFromInput(input) {
+    var text = (input.value || '').trim();
+    if (!text) return;
+    hideFollowups();
+    input.value = '';
+    window.__mikuSendChat(text);
+    window.__mikuCloseChatDialog();
+  }
+
+  // 主题切换预设按钮：按当前 data-theme 动态给出「夜间模式 / 日间模式」文案与指令
+  // 404 页（window.__endy404）锁夜间，禁止出现切换入口，直接返回 null
+  function themeToggleChip() {
+    if (window.__endy404) return null;
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return isDark
+      ? { label: '日间模式', q: '切换到日间模式', theme: true }
+      : { label: '夜间模式', q: '切换到夜间模式', theme: true };
+  }
+
+  // 根据当前页面类型返回 6 个预设 chips（2 行 × 3 列，保持对称）
+  function getMikuChipSet() {
+    if (isArticlePage()) {
+      return [
+        { label: '总结文章', q: '总结一下这篇文章' },
+        { label: '讲重点', q: '这篇文章讲了什么' },
+        { label: '相关推荐', q: '推荐和这篇文章相关的文章' },
+        { label: '今天天气', q: '今天天气怎么样' },
+        { label: '你会什么', q: '你会什么' },
+        { label: '冷知识', q: '讲个冷知识' }
+      ];
+    }
+    if (isHomePage()) {
+      return [
+        { label: '今天天气', q: '今天天气怎么样' },
+        { label: '推荐好文', q: '推荐一篇你写的文章给我' },
+        { label: '新文章', q: '最近有什么新文章' },
+        { label: '你会什么', q: '你会什么' },
+        { label: '冷知识', q: '讲个冷知识' },
+        ...(window.__endy404 ? [] : [themeToggleChip()])
+      ];
+    }
+    // 归档/分类/标签/关于/生活/友链等其它页面
+    return [
+      { label: '今天天气', q: '今天天气怎么样' },
+      { label: '推荐好文', q: '推荐一篇你写的文章给我' },
+      { label: '你会什么', q: '你会什么' },
+      { label: '冷知识', q: '讲个冷知识' },
+      ...(window.__endy404 ? [] : [themeToggleChip()]),
+      { label: '清空对话', q: '清空对话' }
+    ];
+  }
+
+  function isHomePage() {
+    var p = location.pathname;
+    if (p === '/' || /^\/page\/\d+\/?$/.test(p)) return true;
+    if (document.body && document.body.classList.contains('index')) return true;
+    if (document.getElementById('recent-posts')) return true;
+    return false;
+  }
+
+  function renderChips(container, chips) {
+    container.innerHTML = chips.map(function (c) {
+      var q = (c.q || c.label).replace(/"/g, '&quot;');
+      return '<button type="button" class="miku-chip" data-q="' + q + '"' + (c.theme ? ' data-miku-theme-btn' : '') + '>' + c.label + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(container.querySelectorAll('.miku-chip'), function (chip) {
+      chip.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var input = document.getElementById('miku-chat-input');
+        if (!input) return;
+        input.value = chip.getAttribute('data-q') || chip.textContent;
+        mikuChipRipple(chip, e);                       // 高级按压涟漪反馈
+        setTimeout(function () { mikuChatSendFromInput(input); }, 360); // 延迟到涟漪扩散明显后再发送并收起对话框
+      });
+    });
+  }
+
+  // 根据按钮当前背景明暗选涟漪颜色：深色/蓝底 → 白涟漪；浅色/白底 → 主题深蓝涟漪。
+  // 关键：点击瞬间按钮多处于 hover/active（蓝底），用白涟漪最显眼；静止/触屏（白底）用深蓝涟漪。
+  function mikuContrastRippleColor(el) {
+    var bg = '';
+    try { bg = getComputedStyle(el).backgroundColor || ''; } catch (e) {}
+    var m = bg.match(/rgba?\(([^)]+)\)/);
+    if (m) {
+      var p = m[1].split(',').map(function (s) { return parseFloat(s); });
+      var r = p[0] || 0, g = p[1] || 0, b = p[2] || 0;
+      var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255; // 相对亮度
+      if (lum < 0.55) return 'rgba(255,255,255,.6)';       // 深底 → 白涟漪
+    }
+    return 'rgba(75,92,196,.55)';                          // 浅底 → 主题深蓝涟漪
+  }
+  // 芯片按压涟漪：扩散期保持高不透明度（关键帧 miku-ripple），末段才淡出。
+  // 解决旧版「opacity 与 scale 同步归零 → 越扩散越透明=看不见」的坑。
+  function mikuChipRipple(el, e) {
+    if (!el) return;
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    if (getComputedStyle(el).overflow !== 'hidden') el.style.overflow = 'hidden';
+    var rect = el.getBoundingClientRect();
+    var x = (e && typeof e.clientX === 'number') ? e.clientX - rect.left : rect.width / 2;
+    var y = (e && typeof e.clientY === 'number') ? e.clientY - rect.top : rect.height / 2;
+    var size = Math.max(rect.width, rect.height) * 3;
+    var color = mikuContrastRippleColor(el);
+    var rip = document.createElement('span');
+    rip.className = 'miku-chip-ripple';
+    rip.style.cssText = 'position:absolute;left:' + (x - size / 2) + 'px;top:' + (y - size / 2) + 'px;' +
+      'width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + color + ';' +
+      'transform:scale(0);pointer-events:none;z-index:2;' +
+      'animation:miku-ripple .5s ease-out forwards;';
+    el.appendChild(rip);
+    setTimeout(function () { if (rip.parentNode) rip.parentNode.removeChild(rip); }, 560);
+  }
+
+  window.__mikuOpenChatDialog = function () {
+    var d = document.getElementById('miku-chat-dialog');
+    if (!d) {
+      d = document.createElement('div');
+      d.id = 'miku-chat-dialog';
+      // 输入行：文本框（flex:1） + 右侧发送箭头按钮（手机端无回车也能发送）
+      d.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<input id="miku-chat-input" type="text" placeholder="跟初音说点什么..." autocomplete="off" ' +
+          'style="flex:1;min-width:0;box-sizing:border-box;border:2px solid ' + THEME + ';border-radius:16px;padding:10px 14px;font-size:14px;outline:none;color:#333;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'PingFang SC\',\'Microsoft YaHei\',sans-serif;">' +
+          '<button id="miku-chat-send" type="button" aria-label="发送" ' +
+          'style="flex:0 0 auto;width:40px;height:40px;border:none;border-radius:50%;background:' + THEME + ';cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,opacity .15s;">' + SEND_ICON_SVG + '</button>' +
+        '</div>' +
+        '<div id="miku-chat-chips" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;"></div>';
+      d.style.cssText = 'position:fixed;z-index:99999;background:#fff;border:2px solid ' + THEME + ';border-radius:18px;padding:12px 14px;box-shadow:0 10px 30px ' + THEME + '55;width:' + CHAT_DIALOG_WIDTH + 'px;box-sizing:border-box;';
+      document.body.appendChild(d);
+
+      // 主题切换时若对话框正开着，把「夜间/日间模式」预设按钮文案实时翻成对应状态
+      if (!window.__mikuThemeObserverReady) {
+        window.__mikuThemeObserverReady = true;
+        try {
+          var _themeMuo = new MutationObserver(function () {
+            if (window.__mikuChatDialogOpen) {
+              var cc = document.getElementById('miku-chat-chips');
+              if (cc) renderChips(cc, getMikuChipSet());
+            }
+          });
+          _themeMuo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        } catch (e) {}
+      }
+
+      var input = d.querySelector('#miku-chat-input');
+      input.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        mikuChatSendFromInput(input);
+      });
+      var sendBtn = d.querySelector('#miku-chat-send');
+      sendBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        mikuChatSendFromInput(input);
+      });
+      // 点击输入框/按钮本身不再触发 body 点击事件（避免误关）
+      input.addEventListener('click', function (e) { e.stopPropagation(); });
+      sendBtn.addEventListener('mouseenter', function () { this.style.transform = 'scale(1.08)'; });
+      sendBtn.addEventListener('mouseleave', function () { this.style.transform = 'scale(1)'; });
+    }
+    // 每次打开都按当前页面类型刷新 chips（兼容 PJAX 后对话框仍缓存的情况）
+    var chipContainer = d.querySelector('#miku-chat-chips');
+    if (chipContainer) renderChips(chipContainer, getMikuChipSet());
+    window.__mikuChatDialogOpen = true;
+    setMikuState('listening');
+    hideFollowups();
+    // 不再隐藏气泡（否则输入框开着时回复永远看不见），交给 alignTipsToHead 挪到输入框上方
+    if (oml2d && oml2d.clearTips) oml2d.clearTips();
+    positionChatDialog(d);
+    // 中心聚焦：铺一层半透明遮罩把视线引向对话框（点击遮罩即关闭），对话框缩放进入强化「聚焦」感
+    var bd = document.getElementById('miku-dialog-backdrop');
+    if (!bd) {
+      bd = document.createElement('div');
+      bd.id = 'miku-dialog-backdrop';
+      bd.setAttribute('aria-hidden', 'true');
+      bd.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(20,22,34,.28);opacity:0;transition:opacity .22s ease;';
+      bd.addEventListener('click', function () { window.__mikuCloseChatDialog(); });
+      document.body.appendChild(bd);
+    }
+    bd.style.display = 'block';
+    d.style.display = 'block';
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      d.style.transform = 'scale(1)';
+      d.style.opacity = '1';
+      if (bd) bd.style.opacity = '1';
+    } else {
+      d.style.transform = 'scale(.96)';
+      d.style.opacity = '0';
+      d.style.transition = 'transform .22s cubic-bezier(.16,1,.3,1), opacity .22s ease';
+      requestAnimationFrame(function () {
+        d.style.transform = 'scale(1)';
+        d.style.opacity = '1';
+        if (bd) bd.style.opacity = '1';
+      });
+    }
+    alignTipsToHead();
+    var input = d.querySelector('#miku-chat-input');
+    setTimeout(function () { input.focus(); }, 10);
+  };
+
+  window.__mikuCloseChatDialog = function () {
+    window.__mikuChatDialogOpen = false;
+    var d = document.getElementById('miku-chat-dialog');
+    if (d) { d.style.display = 'none'; d.style.transform = ''; d.style.opacity = ''; }
+    // 遮罩淡出后隐藏（中心聚焦配套）
+    var bd = document.getElementById('miku-dialog-backdrop');
+    if (bd) { bd.style.opacity = '0'; setTimeout(function () { if (bd) bd.style.display = 'none'; }, 230); }
+    // 关闭输入框后恢复蓝色气泡（让“初音正在思考/回复”能正常显示）
+    var t = document.getElementById('oml2d-tips');
+    if (t) { t.style.display = ''; t.style.visibility = ''; t.style.opacity = ''; alignTipsToHead(); }
+    if (oml2d && oml2d.startTipsIdle) oml2d.startTipsIdle();
+  };
+
+  // 对话历史：最多保留 20 条消息（本地命令与 API 回复都写入），随 localStorage 持久化
+  var CHAT_HISTORY_KEY = 'endy-miku-chat';
+  function loadChatHistory() {
+    try {
+      var h = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY));
+      if (Array.isArray(h)) return h.slice(-20);
+    } catch (e) {}
+    return [];
+  }
+  function saveChatHistory(h) {
+    try {
+      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(h.slice(-20)));
+    } catch (e) {}
+  }
+  function clearChatHistory() {
+    try { localStorage.removeItem(CHAT_HISTORY_KEY); } catch (e) {}
+  }
+
+  // 根据气泡文字长度动态调整字号，避免省略号/溢出。
+  // 注意：字号+行高直接决定气泡高度，一句话的气泡要压得矮一点，
+  // 所以行高用 1.3 倍而不是写死 +3px（短文本下 +3px 会让气泡显得又厚又空）。
+  function setTipsFontSize(text) {
+    var c = document.querySelector('#oml2d-tips .oml2d-tips-content');
+    if (!c) return;
+    var len = (text || '').length;
+    var fs = 12;
+    if (len > 90) fs = 10;
+    else if (len > 55) fs = 10.5;
+    else if (len > 28) fs = 11.5;
+    c.style.fontSize = fs + 'px';
+    c.style.lineHeight = Math.round(fs * 1.3) + 'px';
+    // 短句（一句话）走紧凑内边距，进一步压低气泡高度
+    var t = document.getElementById('oml2d-tips');
+    if (t) t.classList.toggle('miku-tips-compact', len <= 24);
+  }
+
+  // 打开站内搜索并填入关键词
+  function openSiteSearch(q) {
+    setTimeout(function () {
+      var btn = document.querySelector('#search-button > .search') || document.querySelector('#menu-search');
+      if (btn) btn.click();
+      setTimeout(function () {
+        var input = document.querySelector('#local-search-input input');
+        if (input) {
+          input.value = q;
+          input.focus();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }, 400);
+    }, 200);
+  }
+
+  // 站点内容索引：文章/页面标题、链接、摘要，由 scripts/site-index.js 在 hexo generate 时生成
+  var SITE_INDEX_URL = '/site-index.json';
+  function loadSiteIndex(cb) {
+    if (window.__mikuSiteIndex) { cb(window.__mikuSiteIndex); return; }
+    try {
+      fetch(SITE_INDEX_URL, { cache: 'no-cache' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          window.__mikuSiteIndex = data || { posts: [], pages: [] };
+          cb(window.__mikuSiteIndex);
+        }).catch(function () { cb({ posts: [], pages: [] }); });
+    } catch (e) { cb({ posts: [], pages: [] }); }
+  }
+
+  function extractArticleText() {
+    // 关键修复：anzhiyu 所有页面（包括朋友圈）都把正文包在 #article-container 里，
+    // 用 '#article-container' 这类选择器会误判非文章页为文章页，导致「总结文章」到处出现且内容错乱。
+    // 只认真正的文章页：内容必须在 #post 内，并优先取 .post-content。
+    var selectors = ['#post .post-content', '#post #article-container', '#post #post-content', '#post article .content'];
+    var el = null;
+    for (var i = 0; i < selectors.length; i++) { el = document.querySelector(selectors[i]); if (el) break; }
+    if (!el) return '';
+    var clone = el.cloneNode(true);
+    var noise = clone.querySelectorAll('script, style, .twikoo, #twikoo, .post-copyright, .post-tags, .post-navigation, .relatedPosts, #post-comment, .ads-wrap, pre, code');
+    for (var j = 0; j < noise.length; j++) { var n = noise[j]; if (n.parentNode) n.parentNode.removeChild(n); }
+    var txt = clone.innerText || clone.textContent || '';
+    return txt.replace(/\s+/g, ' ').trim();
+  }
+
+  function summarizeCurrentArticle(text, cb) {
+    var article = extractArticleText();
+    if (!article || article.length < 50) { cb('当前页面好像不是文章页，或者内容太短了～'); return; }
+    var prompt = '你是初音未来，请用 2-3 句自然、口语化的中文总结下面这篇文章的核心内容，像聊天一样介绍给读者。' +
+      '不要分点（不要用 1.2.3 或「第一/第二/第三」），不要刻板套话（不要说「好的，下面是总结」），开头直接说内容。\n\n' + article.slice(0, 4000);
+    fetch(CHAT_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, system: MIKU_SYSTEM_PROMPT, context: prompt })
+    }).then(function (r) { return r.json(); })
+      .then(function (data) { cb(data && data.reply ? data.reply : '初音读完啦，但一时不知道怎么说～'); })
+      .catch(function () { cb('初音读文章时网络出错了…'); });
+  }
+
+  // ---- 关键词提取 / 文章打分：用于「有没有讲 XX 的文章」这类查询 ----
+  var KW_NOISE = ['有没有讲', '有没有', '关于', '找一下', '找一', '找', '搜索', '搜一下', '帮我搜', '站内搜',
+                  '帮我', '我想', '我要', '请', '看一下', '看看', '推荐', '相关的', '相关', '一篇', '篇',
+                  '文章', '一下', '呢', '啊', '吧', '吗', '了', '的'];
+
+  function extractKeyword(text) {
+    var s = String(text || '').trim();
+    s = s.replace(/[？?。!！,，、~～"'「」『』()（）]/g, ' ');
+    // 多轮剥离：噪声词可能在首尾反复出现（如"有没有讲…的文章"）
+    for (var i = 0; i < 3; i++) {
+      for (var j = 0; j < KW_NOISE.length; j++) {
+        var w = KW_NOISE[j];
+        if (s.indexOf(w) === 0) s = s.slice(w.length);
+        var p = s.lastIndexOf(w);
+        if (p !== -1 && p + w.length === s.length) s = s.slice(0, p);
+      }
+      s = s.trim();
+    }
+    return s.replace(/\s+/g, ' ').trim();
+  }
+
+  // 中英文混合分词：英文按词、中文按 2-gram
+  function kwTokens(k) {
+    var out = [];
+    var ascii = String(k).match(/[a-z0-9]+/g) || [];
+    ascii.forEach(function (w) { if (w.length >= 2) out.push(w); });
+    var cjk = String(k).replace(/[^一-龥]/g, '');
+    if (cjk.length >= 2) { for (var i = 0; i < cjk.length - 1; i++) out.push(cjk.substr(i, 2)); }
+    else if (cjk.length === 1) out.push(cjk);
+    return out.slice(0, 20);
+  }
+
+  function postScore(p, kw) {
+    var k = String(kw).toLowerCase();
+    var title = String(p.title || '').toLowerCase();
+    var tags = (p.tags || []).join(' ').toLowerCase();
+    var cats = (p.categories || []).join(' ').toLowerCase();
+    var ex = String(p.excerpt || '').toLowerCase();
+    var s = 0;
+    if (title.indexOf(k) !== -1) s += 10;
+    if (tags.indexOf(k) !== -1) s += 6;
+    if (cats.indexOf(k) !== -1) s += 4;
+    if (ex.indexOf(k) !== -1) s += 2;
+    // 整串匹配不上（标题里没有空格这类分隔）时，退化成分词累加
+    if (!s) {
+      kwTokens(k).forEach(function (t) {
+        if (!t) return;
+        if (title.indexOf(t) !== -1) s += 3;
+        else if (tags.indexOf(t) !== -1) s += 2;
+        else if (cats.indexOf(t) !== -1) s += 1;
+        else if (ex.indexOf(t) !== -1) s += 0.5;
+      });
+    }
+    return s;
+  }
+
+  // 门槛 4 分：低于这个分不自信，宁可交给 AI 知识库，也不乱跳转
+  function pickBestPost(posts, kw) {
+    var best = null, bs = 0;
+    posts.forEach(function (p) {
+      var s = postScore(p, kw);
+      if (s > bs) { bs = s; best = p; }
+    });
+    return bs >= 4 ? best : null;
+  }
+
+  // 按关键词给文章排名（只保留 4 分以上的），用于「命中多篇时列候选」
+  function rankPosts(posts, kw) {
+    var out = [];
+    posts.forEach(function (p) {
+      var s = postScore(p, kw);
+      if (s >= 4) out.push({ post: p, score: s });
+    });
+    out.sort(function (a, b) { return b.score - a.score; });
+    return out;
+  }
+
+  function escHtml(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // 命中多篇文章时：列出最多 3 篇让用户点选，避免自作主张跳错文章
+  function closeArticlePicker() {
+    var d = document.getElementById('miku-article-picker');
+    if (d && d.parentNode) d.parentNode.removeChild(d);
+    document.removeEventListener('click', onPickerOutside, true);
+    document.removeEventListener('pjax:send', closeArticlePicker);
+  }
+  function onPickerOutside(e) {
+    var d = document.getElementById('miku-article-picker');
+    if (!d) return;
+    if (d.contains(e.target)) return;   // 点面板内部不关
+    closeArticlePicker();
+  }
+  function showArticlePicker(list, kw) {
+    closeArticlePicker();
+    if (!list || !list.length) return;
+    var items = list.slice(0, 3);
+    var d = document.createElement('div');
+    d.id = 'miku-article-picker';
+    var html = '<div class="map-title"><span>找到 ' + items.length + ' 篇相关的～</span>' +
+               '<button class="map-close" type="button" aria-label="关闭">×</button></div>';
+    items.forEach(function (it) {
+      var p = it.post;
+      var meta = [];
+      if (p.date) meta.push(String(p.date).slice(0, 10));
+      if (p.categories && p.categories.length) meta.push(p.categories.join('/'));
+      html += '<button class="map-item" type="button" data-url="' + escHtml(p.url || '/') + '">' +
+              escHtml(p.title || '未命名') +
+              (meta.length ? '<span class="map-item-meta">' + escHtml(meta.join(' · ')) + '</span>' : '') +
+              '</button>';
+    });
+    html += '<button class="map-more" type="button">去站内搜索「' + escHtml(kw) + '」</button>';
+    d.innerHTML = html;
+    document.body.appendChild(d);
+
+    // 居中略偏上（面板本身是 fixed，left/top 用 JS 算，避免和入场动画的 transform 打架）
+    var w = d.offsetWidth || 320, h = d.offsetHeight || 160;
+    d.style.left = Math.max(8, Math.round((window.innerWidth - w) / 2)) + 'px';
+    d.style.top = Math.max(12, Math.round((window.innerHeight - h) / 2 - 40)) + 'px';
+
+    var closeBtn = d.querySelector('.map-close');
+    if (closeBtn) closeBtn.addEventListener('click', function (e) {
+      e.stopPropagation(); closeArticlePicker();
+    });
+    var nodes = d.querySelectorAll('.map-item');
+    for (var i = 0; i < nodes.length; i++) {
+      (function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var u = btn.getAttribute('data-url') || '/';
+          closeArticlePicker();
+          setTimeout(function () { window.location.href = u; }, 150);
+        });
+      })(nodes[i]);
+    }
+    var more = d.querySelector('.map-more');
+    if (more) more.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeArticlePicker();
+      openSiteSearch(kw);
+    });
+
+    // 点面板外 / pjax 换页时关掉，避免残留浮层
+    setTimeout(function () { document.addEventListener('click', onPickerOutside, true); }, 0);
+    document.addEventListener('pjax:send', closeArticlePicker);
+  }
+
+  // 触发主题切换：本 anzhiyu 主题并没有导出 anzhiyu.darkModeToggle()（此前一直为假、
+  // 导致预设按钮点了毫无反应）。真正入口是那几个原生切换按钮的 click，
+  // circular-theme.js 会拦截按钮点击做圆形 View Transition，其内部用 bypass 标志防止递归，
+  // 所以这里直接 .click() 是安全且一致的。找不到按钮时再退化为直接翻 data-theme。
+  function toggleTheme() {
+    var btn = document.querySelector('#darkmode, .darkmode_switchbutton, #menu-darkmode');
+    if (btn) { try { btn.click(); } catch (e) {} return; }
+    var html = document.documentElement;
+    html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  }
+
+  // Miku 本地指令：站内导航 / 主题交互 / 搜索 / 文章推荐 / 总结 / 重置彩蛋 / 彩蛋防剧透
+  function tryLocalCommand(text) {
+    var nav = {
+      '音乐馆': '/life/music/', '音乐': '/life/music/',
+      '留言板': '/comments/', '留言': '/comments/', '留言本': '/comments/',
+      '友链': '/link/', '友情链接': '/link/',
+      '关于': '/about/', '关于我': '/about/',
+      '首页': '/', '主页': '/', '回到首页': '/',
+      '归档': '/archives/', '文章归档': '/archives/',
+      '标签': '/tags/', '分类': '/categories/',
+      '相册': '/box/Gallery/', '画廊': '/box/Gallery/',
+      '朋友圈': '/fcircle/', '友圈': '/fcircle/',
+      '瞬间': '/essay/', '即刻': '/essay/', '碎碎念': '/essay/',
+      '游戏': '/box/game/',
+      '壁纸': '/box/wallpaper/',
+      '收藏': '/box/nav/', '导航': '/box/nav/', '书签': '/box/nav/'
+    };
+    var actionRe = /打开|去|跳转|前往|进入|到|带我去|我想去|我要|看看/;
+    for (var key in nav) {
+      if (text.indexOf(key) !== -1 && actionRe.test(text)) {
+        (function (u, k) {
+          setTimeout(function () { window.location.href = u; }, 600);
+        })(nav[key], key);
+        return '好的，这就带你去「' + key + '」～';
+      }
+    }
+
+    // 站内搜索：「搜索暗号」「帮我搜 Vue」
+    if (/搜索|搜一下|查找|帮我搜|站内搜/.test(text)) {
+      var m = text.match(/(?:搜索|搜一下|查找|帮我搜|站内搜)[了过个一下]?[\s"「『']?(.+?)["」』']?(?:吧|吗|嘛|哦|？|\?|$)/);
+      var q = m ? m[1].trim() : text.replace(/(?:搜索|搜一下|查找|帮我搜|站内搜)[了过个一下]?/g, '').replace(/[?!！？。\s]+$/, '').trim();
+      if (q && q.length) {
+        setTimeout(function () { openSiteSearch(q); }, 300);
+        return '正在帮你搜索「' + q + '」～点开搜索框就能看到结果啦。';
+      }
+    }
+
+    // 随机文章 / 随便看看 / 推荐一篇
+    if (/随机文章|随便看看|推荐一篇|随机跳转|随便读/.test(text)) {
+      loadSiteIndex(function (idx) {
+        var posts = (idx && idx.posts) || [];
+        if (!posts.length) { mikuSay('初音暂时没找到文章索引…', 5000, 3); return; }
+        var p = posts[Math.floor(Math.random() * posts.length)];
+        mikuSay('带你去读「' + p.title + '」～', 5000, 3);
+        setTimeout(function () { window.location.href = p.url; }, 1200);
+      });
+      return '让我给你挑一篇有趣的文章～';
+    }
+
+    // 最新文章 / 最近写了什么
+    if (/最新文章|最近文章|最近写了|新文章/.test(text)) {
+      loadSiteIndex(function (idx) {
+        var posts = (idx && idx.posts) || [];
+        if (!posts.length) { mikuSay('初音暂时没找到文章索引…', 5000, 3); return; }
+        var recent = posts.slice(0, 5);
+        var list = recent.map(function (p, i) { return (i + 1) + '. ' + p.title; }).join(' / ');
+        mikuSay('最近写了这些：' + list + '。要跳转哪篇告诉我标题～', 8000, 3);
+      });
+      return '初音正在翻最近的稿子…';
+    }
+
+    // 按关键词找文章：「有没有讲 AI 工具的文章」「找 Python 文章」
+    // ⚠️ 旧实现把「讲」这类动词留在关键词里（变成"讲 AI 工具"），再用整串 indexOf 匹配标题，
+    //    必然匹配不到 → 说完"正在帮你找"就没下文。改为：先剥噪声词，再分词打分。
+    if (/找.*文章|关于.*文章|有没有.*文章|.*的文章/.test(text)) {
+      var kw = extractKeyword(text);
+      var cached = window.__mikuSiteIndex;
+      if (kw && cached && cached.posts && cached.posts.length) {
+        var ranked = rankPosts(cached.posts, kw);
+        // 只命中 1 篇：直接跳，少一次点击
+        if (ranked.length === 1) {
+          var best = ranked[0].post;
+          setTimeout(function () { window.location.href = best.url; }, 1200);
+          return '找到啦：「' + best.title + '」～这就带你去。';
+        }
+        // 命中多篇：列最多 3 篇让用户点选，别替用户做决定
+        if (ranked.length > 1) {
+          showArticlePicker(ranked, kw);
+          return '和「' + kw + '」相关的有好几篇，我列出来给你挑～';
+        }
+      }
+      // 本地没把握就不吞掉问题：返回 null，交给 AI 知识库回答，保证一定有下文
+      return null;
+    }
+
+    // 文章上一篇 / 下一篇
+    if (/上一篇|前一篇|上一页/.test(text)) {
+      var prev = document.querySelector('#post .post-navigation a.prev, .post-navigation-prev a, a[rel="prev"]');
+      if (prev) {
+        setTimeout(function () { window.location.href = prev.href; }, 600);
+        return '好的，去看上一篇～';
+      }
+      return '这里已经是第一篇啦～';
+    }
+    if (/下一篇|后一篇|下一页/.test(text)) {
+      var next = document.querySelector('#post .post-navigation a.next, .post-navigation-next a, a[rel="next"]');
+      if (next) {
+        setTimeout(function () { window.location.href = next.href; }, 600);
+        return '好的，去看下一篇～';
+      }
+      return '这里已经是最后一篇啦～';
+    }
+
+    // 刷新页面
+    if (/刷新|reload|刷新一下/.test(text)) {
+      setTimeout(function () { window.location.reload(); }, 600);
+      return '页面马上刷新～';
+    }
+
+    // 总结当前文章
+    if (/总结|概括|讲了什么|这篇文章|内容是什么/.test(text)) {
+      summarizeCurrentArticle(text, function (reply) {
+        var history = loadChatHistory();
+        history.push({ role: 'assistant', content: reply });
+        saveChatHistory(history);
+        mikuSayAck(reply); // 总结内容长 → 必须点「我已知晓」才收起
+      });
+      return '初音正在读这篇文章…';
+    }
+
+    // 重置彩蛋 / 清空对话记忆
+    if (/重置.*彩蛋|清空.*彩蛋|重置.*记忆|清空.*对话|忘记.*对话|清除.*记忆/.test(text)) {
+      setTimeout(function () {
+        if (typeof window.clearEggDiscovery === 'function') window.clearEggDiscovery();
+        clearChatHistory();
+        window.__mikuEggAskCount = 0;
+      }, 200);
+      return '彩蛋状态和对话记忆都清空啦～你可以重新玩一遍。';
+    }
+
+    if (/控制台|中控台/.test(text) && /打开|开启|显示|弹出/.test(text)) {
+      setTimeout(function () {
+        if (typeof anzhiyu !== 'undefined' && anzhiyu.showConsole) anzhiyu.showConsole();
+      }, 400);
+      return '中控台已打开～';
+    }
+
+    // 主题切换：复用主题原生按钮（双向都能识别：夜间⇄日间⇄浅色⇄白天）
+    // 404 页锁夜间：直接回绝，配合 error-star 的 MutationObserver 兜底
+    if (/(深色|夜间|dark|暗黑|日间|亮色|浅色|白天|light)/.test(text) && /(切换|打开|开启|换|调|成|到)/.test(text)) {
+      if (window.__endy404) return '这一页是永久星空夜哦～切换开关已经藏起来啦。';
+      setTimeout(function () { toggleTheme(); }, 300);
+      return '已切换显示模式～';
+    }
+
+    if (/回顶|回到顶部|顶部|回顶部/.test(text)) {
+      setTimeout(function () { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 200);
+      return '已回到顶部～';
+    }
+
+    // 彩蛋：禁止剧透，再三追问才给提示
+    if (/彩蛋|egg|隐藏/.test(text) && /找|搜索|告诉|提示|线索|在哪|哪里|有没有/.test(text)) {
+      window.__mikuEggAskCount = (window.__mikuEggAskCount || 0) + 1;
+      if (window.__mikuEggAskCount === 1) return '彩蛋要自己发现才有趣哦～我不能告诉你。';
+      if (window.__mikuEggAskCount === 2) return '再问我也不说啦，你自己多点点看嘛～';
+      return '好吧好吧，提示一下：试着在首页快速点击大站名「彖渊子」5 次，会有惊喜哦～';
+    }
+
+    return null;
+  }
+
+  // 模型偶尔会吐 Markdown（**粗体** / > 引用 / - 列表），气泡里只会变成乱码符号。
+  // 前端做二次清洗兜底，保证气泡里永远是纯文本。
+  function stripMarkdown(s) {
+    var t = String(s === null || s === undefined ? '' : s);
+    t = t.replace(/```[\s\S]*?```/g, '');        // 代码块
+    t = t.replace(/`([^`\n]*)`/g, '$1');         // 行内代码
+    t = t.replace(/^\s{0,3}#{1,6}\s*/gm, '');    // 标题 #
+    t = t.replace(/^\s{0,3}>\s?/gm, '');         // 引用 >
+    t = t.replace(/^\s{0,3}(?:[-*+]|\d+[.)])\s+/gm, ''); // 列表项 - * 1.
+    t = t.replace(/\*\*([^*\n]+)\*\*/g, '$1');   // **粗体**
+    t = t.replace(/\*([^*\n]+)\*/g, '$1');       // *斜体*
+    t = t.replace(/__([^_\n]+)__/g, '$1');
+    t = t.replace(/~~([^~\n]+)~~/g, '$1');       // 删除线
+    t = t.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1'); // 链接
+    t = t.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+    return t.trim();
+  }
+
+  // 统一的气泡显示：自动调整字号 + 重新对齐到头顶
+  function mikuSay(msg, ms, priority) {
+    // 任何最终结果都会先结束「进行中」的常驻气泡
+    mikuClearSticky();
+    msg = stripMarkdown(msg);
+    if (!oml2d || !oml2d.tipsMessage) return;
+    oml2d.tipsMessage(msg, ms || 5000, priority || 3);
+    setTipsFontSize(msg);
+    alignTipsToHead();
+  }
+
+  // 「任务进行中」的常驻气泡：oml2d 的 tipsMessage 到点会自动隐藏，
+  // 而 AI 请求可能远超这个时长 → 结果还没回来气泡先没了，看起来像"没有下文"。
+  // 这里每 2s 重新点亮一次，直到任务结束调用 mikuClearSticky()。
+  function mikuSaySticky(msg) {
+    mikuClearSticky();
+    window.__mikuTaskPending = true;
+    msg = stripMarkdown(msg);
+    var show = function () {
+      if (!window.__mikuTaskPending) return;
+      if (oml2d && oml2d.tipsMessage) {
+        oml2d.tipsMessage(msg, 3000, 3);
+        setTipsFontSize(msg);
+        alignTipsToHead();
+      }
+    };
+    show();
+    window.__mikuStickyTimer = setInterval(show, 2000);
+  }
+
+  function mikuClearSticky() {
+    window.__mikuTaskPending = false;
+    window.__mikuAckPending = false;
+    mikuCancelTypewriter();
+    if (window.__mikuStickyTimer) { clearInterval(window.__mikuStickyTimer); window.__mikuStickyTimer = null; }
+    if (window.__mikuAckTimer) { clearInterval(window.__mikuAckTimer); window.__mikuAckTimer = null; }
+    var old = document.getElementById('miku-ack-btn');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+
+  // 「长回复 / 总结」专用：气泡不自动消失，必须点「我已知晓」才收起。
+  // 做法：给 tipsMessage 一个极长时长，再往气泡里注入关闭按钮。
+  var ACK_MIN_LEN = 40; // 超过这个字数就用「我已知晓」模式
+
+  function mikuSayAck(msg, onDone) {
+    mikuClearSticky();
+    msg = stripMarkdown(msg);
+    window.__mikuAckPending = true;
+    if (!oml2d || !oml2d.tipsMessage) { if (onDone) onDone(); return; }
+    oml2d.tipsMessage(msg, 3600000, 3); // 靠按钮关闭，不再自动隐藏
+    setTipsFontSize(msg);
+    alignTipsToHead();
+    var content = getTipsContent();
+    if (content) content.textContent = '';
+    mikuTypewrite(msg, function () {
+      injectAckButton();
+      if (onDone) onDone();
+    });
+    // oml2d 重绘/换文案可能把按钮冲掉，定时补挂
+    window.__mikuAckTimer = setInterval(function () {
+      if (!window.__mikuAckPending) return;
+      injectAckButton();
+    }, 1200);
+  }
+
+  function injectAckButton() {
+    var c = document.getElementById('oml2d-tips-content');
+    var t = document.getElementById('oml2d-tips');
+    if (!c || !t) return;
+    if (document.getElementById('miku-ack-btn')) return;
+    if (t) t.style.pointerEvents = 'auto';
+    var b = document.createElement('button');
+    b.id = 'miku-ack-btn';
+    b.type = 'button';
+    b.textContent = '我知道啦';
+    b.style.cssText = 'display:block;margin:8px auto 0;padding:4px 14px;border:none;border-radius:14px;' +
+                      'background:' + THEME + ';color:#fff;font-size:12px;line-height:1.6;cursor:pointer;pointer-events:auto;';
+    b.onclick = function (e) {
+      e.stopPropagation();
+      if (e.preventDefault) e.preventDefault();
+      mikuClearSticky();
+      try { oml2d.clearTips(); } catch (err) {}
+    };
+    c.appendChild(b);
+    alignTipsToHead();
+  }
+
+  // 获取气泡文本容器（兼容 oml2d 不同版本生成的 id/class）
+  function getTipsContent() {
+    return document.getElementById('oml2d-tips-content') || document.querySelector('#oml2d-tips .oml2d-tips-content');
+  }
+
+  // 取消当前打字机
+  function mikuCancelTypewriter() {
+    window.__mikuTypewriterSkip = true;
+    if (window.__mikuTypewriterTimer) { clearTimeout(window.__mikuTypewriterTimer); window.__mikuTypewriterTimer = null; }
+  }
+
+  // 打字机/流式打印：把文本逐字写入气泡，期间可点击气泡跳过。
+  function mikuTypewrite(text, onDone) {
+    var content = getTipsContent();
+    if (!content) { if (onDone) onDone(); return; }
+    content.textContent = '';
+    content.style.whiteSpace = 'pre-wrap';
+    window.__mikuTypewriterSkip = false;
+
+    var chars = text.split('');
+    var len = chars.length;
+    if (len === 0) { if (onDone) onDone(); return; }
+
+    // 动态速度：短句慢一点有存在感，长句快一点不拖沓
+    var speed = Math.max(8, Math.min(42, Math.round(900 / Math.max(len, 1))));
+    var i = 0;
+
+    function step() {
+      if (window.__mikuTypewriterSkip) {
+        content.textContent = text;
+        if (window.__mikuTypewriterAlignTimer) { cancelAnimationFrame(window.__mikuTypewriterAlignTimer); window.__mikuTypewriterAlignTimer = null; }
+        finish();
+        return;
+      }
+      i++;
+      content.textContent = chars.slice(0, i).join('');
+      // 高度变化时重新对齐到头顶，用 rAF + 单帧锁避免每字都强刷布局
+      if (!window.__mikuTypewriterAlignTimer) {
+        window.__mikuTypewriterAlignTimer = requestAnimationFrame(function () {
+          window.__mikuTypewriterAlignTimer = null;
+          alignTipsToHead();
+        });
+      }
+      if (i < len) {
+        window.__mikuTypewriterTimer = setTimeout(step, speed);
+      } else {
+        finish();
+      }
+    }
+
+    function finish() {
+      window.__mikuTypewriterTimer = null;
+      if (onDone) onDone();
+    }
+
+    step();
+  }
+
+  // 流式输出期间点击气泡（非「我知道啦」按钮）可立即跳到最后
+  (function () {
+    var t = document.getElementById('oml2d-tips');
+    if (t && !t.__mikuStreamClickBound) {
+      t.__mikuStreamClickBound = true;
+      t.addEventListener('click', function (e) {
+        if (window.__mikuTypewriterTimer && e.target && e.target.id !== 'miku-ack-btn') {
+          mikuCancelTypewriter();
+        }
+      });
+    }
+  })();
+
+  // 统一下发：短回复自动消失，长回复/总结等用户点「我已知晓」
+  function mikuReply(msg, onDone) {
+    mikuClearSticky();
+    msg = stripMarkdown(msg);
+    var isAck = String(msg).length >= ACK_MIN_LEN;
+    var duration = isAck ? 3600000 : 10000;
+    if (!oml2d || !oml2d.tipsMessage) { if (onDone) onDone(); return; }
+    // 先按完整文本创建气泡（拿到正确字号与尺寸），然后清空内容开始打字
+    oml2d.tipsMessage(msg, duration, 3);
+    setTipsFontSize(msg);
+    alignTipsToHead();
+    var content = getTipsContent();
+    if (content) content.textContent = '';
+    mikuTypewrite(msg, function () {
+      if (isAck) injectAckButton();
+      if (onDone) onDone();
+    });
+  }
+
+  // 访客地理位置：浏览器直连腾讯位置服务 IP 定位（拿到的是访客真实 IP 所在城市，
+  // 与首页欢迎信息同源）。结果缓存到 window.__mikuVisitorGeo = {city,lat,lon} 或保持 null（失败）。
+  // 随聊天请求发给后端 get_weather，优先用它定经纬度，彻底绕开「FC 服务端出口 IP 被定位到杭州机房」的坑。
+  // ===== 访客地理位置（客户端 IP 定位，无需授权、无弹窗）=====
+  // 设计：FC 服务端出口 IP 永远落在杭州机房 → 纯服务端定位必是「杭州」；
+  //       故改为浏览器直连腾讯位置服务 IP 定位（拿到访客真实 IP 城市+经纬度），
+  //       随聊天请求发 geo 给后端，后端用真实经纬度取天气，彻底绕开机房 IP 问题。
+  //       不使用浏览器 GPS（navigator.geolocation），避免弹「是否允许定位」授权框。
+  window.__mikuVisitorGeo = null;        // 最终采用的位置 {city,lat,lon}
+  window.__mikuVisitorGeoSource = null;  // 'ip' | null（诊断用）
+  window.__mikuIpGeoPromise = null;
+  window.__mikuIpGeoStarted = false;
+
+  // IP 定位（被动，页面加载即解析；同源首页欢迎信息）
+  function resolveIpGeo() {
+    if (window.__mikuIpGeoStarted) return window.__mikuIpGeoPromise;
+    window.__mikuIpGeoStarted = true;
+    var key = 'JAUBZ-QUO65-GGNIX-IKRYS-UQGQJ-CABLN'; // 与后端共用，已配 Referer 白名单
+    var cb = 'mikuGeoIpCb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    window.__mikuIpGeoPromise = new Promise(function (resolve) {
+      var timer = setTimeout(function () { resolve(null); }, 3000);
+      window[cb] = function (d) {
+        clearTimeout(timer);
+        try { delete window[cb]; } catch (e) {}
+        if (d && d.status === 0 && d.result && d.result.ad_info) {
+          var info = d.result.ad_info, loc = d.result.location || {};
+          resolve({
+            city: String(info.city || '').replace(/(市|省|自治区|特别行政区|自治州|地区|盟)$/g, ''),
+            lat: (loc.lat != null) ? loc.lat : null,
+            lon: (loc.lng != null) ? loc.lng : null,
+            source: 'ip'
+          });
+        } else {
+          resolve(null);
+        }
+      };
+      var sc = document.createElement('script');
+      sc.src = 'https://apis.map.qq.com/ws/location/v1/ip?key=' + encodeURIComponent(key) + '&output=jsonp&callback=' + cb;
+      sc.onerror = function () {
+        clearTimeout(timer);
+        try { delete window[cb]; } catch (e) {}
+        resolve(null);
+      };
+      document.head.appendChild(sc);
+    });
+    return window.__mikuIpGeoPromise;
+  }
+
+  // 问天气专用：等客户端 IP 定位就绪（最多 timeoutMs），结果写入 window.__mikuVisitorGeo
+  function resolveGeoForWeather(timeoutMs) {
+    return new Promise(function (resolve) {
+      var settled = false;
+      function finish(g) {
+        if (settled) return; settled = true;
+        window.__mikuVisitorGeo = g;
+        window.__mikuVisitorGeoSource = g ? g.source : null;
+        if (g) console.info('[miku-geo] 天气定位来源=' + g.source + ' 城市=' + (g.city || '(无城市名)'));
+        resolve(g);
+      }
+      resolveIpGeo().then(finish);
+      setTimeout(function () { finish(null); }, timeoutMs || 3000); // 总超时兜底
+    });
+  }
+
+  window.__mikuSendChat = function (text) {
+    hideFollowups(); // 一发消息就立即收起追问预设条，思考/回复期间不再显示
+    var isWeather = /天气|气温|几度|下雨|刮风|降温|升温|下雪|台风|湿度|体感|冷不冷|热不热|空气质量/.test(text);
+    var t = document.getElementById('oml2d-tips');
+    if (t) { t.style.display = ''; t.style.visibility = ''; }
+
+    // 加载/维护历史：最多 20 条
+    var history = loadChatHistory();
+    history.push({ role: 'user', content: text });
+
+    // 先把站点索引拉好（幂等，命中缓存时同步回调），再判本地命令：
+    // 这样首次对话也能命中「找文章 / 随机文章 / 最新文章」这类依赖索引的指令。
+    function runChat() {
+      loadSiteIndex(function () {
+        var localReply = tryLocalCommand(text);
+        if (localReply) {
+          history.push({ role: 'assistant', content: localReply });
+          saveChatHistory(history);
+          mikuSay(localReply, 5000, 3);
+          return;
+        }
+        startRemoteChat();
+      });
+    }
+
+    // 天气类请求：先用浏览器直连腾讯 IP 定位（无弹窗、无需授权）解析访客真实城市+经纬度，
+    // 结果写入 window.__mikuVisitorGeo，请求体自动带上 → 后端用真实经纬度取天气，绝不会回退杭州机房 IP。
+    if (isWeather) {
+      mikuSaySticky('初音正在确认你的位置…');
+      resolveGeoForWeather(3000).then(function () {
+        mikuClearSticky();
+        runChat();
+      });
+    } else {
+      runChat();
+    }
+
+    // 本地没接住 → 走后端 AI（带历史 + 站点知识库）
+    function startRemoteChat() {
+      // 任务进行中：气泡常驻，不再 5 秒就自己消失。
+      // 注：已去除「初音正在思考...」等思考类状态标记（用户要求），回复以流式气泡呈现即可。
+      setMikuState('thinking');
+
+    var REQ_TIMEOUT = 20000; // 20 秒兜底，超时也必定给一条回复
+    var timedOut = false;
+    var timeoutTimer = setTimeout(function () {
+      timedOut = true;
+      setMikuState('error');
+      mikuSay('初音想了太久，脑子有点卡葱了…再问一次好不好～', 6000, 3);
+    }, REQ_TIMEOUT);
+
+    var done = function (reply) {
+      if (timedOut) return;           // 已超时回执，不覆盖
+      clearTimeout(timeoutTimer);
+      history.push({ role: 'assistant', content: reply });
+      saveChatHistory(history);
+      setMikuState('speaking');
+      mikuBubblePop();
+      // 流式打印输出，全部打完后才显示新的追问条
+      mikuReply(reply, function () { maybeShowFollowups(text); });
+    };
+
+    // 压缩站点索引再发送：原始 20KB 会被后端截断，只保留标题/链接/日期/标签/短摘要
+    loadSiteIndex(function (site) {
+      var compact = { posts: [], pages: [] };
+      var posts = (site && site.posts) || [];
+      for (var i = 0; i < posts.length; i++) {
+        var p = posts[i];
+        compact.posts.push({
+          title: p.title, url: p.url, date: p.date,
+          tags: (p.tags || []).slice(0, 4),
+          categories: (p.categories || []).slice(0, 3),
+          excerpt: (p.excerpt || '').replace(/\s+/g, ' ').slice(0, 70)
+        });
+      }
+      var pages = (site && site.pages) || [];
+      for (var j = 0; j < pages.length; j++) {
+        compact.pages.push({ title: pages[j].title, url: pages[j].url });
+      }
+      fetch(CHAT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          system: MIKU_SYSTEM_PROMPT,
+          history: history.slice(-20),
+          site: compact,
+          online: window.__mikuOnlineEnabled,
+          deepThink: window.__mikuDeepThink,
+          geo: window.__mikuVisitorGeo || null
+        })
+      }).then(function (res) {
+        if (!res.ok) {
+          // 后端已改为结构化返回（含 error 字段），这里把真实原因带回前端，便于排查
+          return res.json().catch(function () { return {}; }).then(function (j) {
+            throw new Error('BACKEND:' + ((j && j.error) ? j.error : ('status ' + res.status)));
+          });
+        }
+        return res.json();
+      }).then(function (data) {
+        done(data && data.reply ? data.reply : '初音不知道说什么好了～');
+      }).catch(function (err) {
+        console.warn('[miku chat]', err);
+        if (timedOut) return;
+        clearTimeout(timeoutTimer);
+        setMikuState('error');
+        mikuStageShake();
+        var raw = (err && err.message) ? err.message : '网络异常';
+        // 去掉可能泄漏的服务端文件路径（如 /code/index.mjs:123），只保留可读信息
+        raw = raw.replace(/[A-Za-z]:[\\/][^ ]+/g, '').replace(/\/[^ ]*\.(mjs|js)(:\d+)?/g, '');
+        var text;
+        if (raw.indexOf('BACKEND:') === 0) {
+          text = '初音的后台开小差了：' + raw.slice(8) + '（稍后再试～）';
+        } else if (raw.indexOf('Failed to fetch') >= 0 || raw.indexOf('NetworkError') >= 0) {
+          text = '初音的网络好像断了一根葱…稍后再试吧～';
+        } else {
+          text = '初音这边出了点小状况（' + raw + '），稍后再试吧～';
+        }
+        mikuSay(text, 5000, 3);
+      });
+    });
+    } // end startRemoteChat
+  };
+
+  // 像素级命中判定：直接调用模型自带的 hitTest（基于 model3.json 里约 490 个 body_* 命中区，
+  // 按 ArtMesh 多边形精确判定，且跟随动画实时更新）。只有真正点在不透明身体上才拦截，
+  // 矩形内的透明区域会直接「穿透」给博客。preserveDrawingBuffer=false，故不读 GPU 帧缓冲。
+  function isBodyAt(clientX, clientY) {
+    var c = canvas(); if (!c || !c.isConnected) return false;
+    var r = c.getBoundingClientRect();
+    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return false;
+    var m = model();
+    if (m && typeof m.hitTest === 'function') {
+      try {
+        var hits = m.hitTest(clientX - r.left, clientY - r.top);
+        if (hits && hits.length) return true;
+      } catch (e) {}
+    }
+    // 兜底：hitTest 不可用时回退到动态包围盒矩形（粗略，仅保证不失效）
+    var rect = window.__mikuHitboxRect;
+    if (rect) {
+      return clientX >= rect.left && clientX <= rect.left + rect.width &&
+             clientY >= rect.top && clientY <= rect.top + rect.height;
+    }
+    return false;
+  }
+
+  // 拖动专用：比 isBodyAt 更宽容的命中区（身体包围盒，外扩 12px）。
+  // 拖动是用户显式开启的「抓着 widget 移动」动作，从身体任意位置抓起都符合直觉；
+  // 而点按（表情/面板）仍用精确的 isBodyAt，两者解耦，互不影响。
+  function isInBodyBox(clientX, clientY) {
+    var rect = window.__mikuHitboxRect;
+    if (rect) {
+      var pad = 12;
+      if (clientX >= rect.left - pad && clientX <= rect.left + rect.width + pad &&
+          clientY >= rect.top - pad && clientY <= rect.top + rect.height + pad) return true;
+    }
+    // 兜底：命中框未建立或超限时，退回到整个画布/舞台区域（640×960），保证拖动一定能抓起
+    var c = canvas();
+    if (c && c.isConnected) {
+      var r = c.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 &&
+          clientX >= r.left && clientX <= r.right &&
+          clientY >= r.top && clientY <= r.bottom) return true;
+    }
+    return false;
+  }
+
+  // 拖动排查日志：默认关闭，__mikuDiagDrag() 打开后实时打印每次 pointer 事件判定。
+  function dragLog() {
+    if (!window.__mikuDragLog) return;
+    var a = Array.prototype.slice.call(arguments);
+    a.unshift('[Miku 拖拽日志]');
+    console.log.apply(console, a);
+  }
+
+  // 在 document 捕获阶段拦截点击/拖动：命中身体→拦截并触发交互；否则放行给博客。
+  // 探测某个坐标「真正被挡住的页面元素」：先临时关掉看板娘自己的图层，
+  // 否则 elementFromPoint 只会返回我们自己的 stage/canvas/hitbox。
+  var MIKU_LAYERS = ['#oml2d-stage', '#miku-hitbox', '#oml2d-tips', '#miku-chat-dialog', '#miku-settings-panel'];
+  function probeElementAt(x, y) {
+    var saved = [];
+    for (var i = 0; i < MIKU_LAYERS.length; i++) {
+      var el = document.querySelector(MIKU_LAYERS[i]);
+      if (!el) continue;
+      saved.push([el, el.style.pointerEvents]);
+      el.style.pointerEvents = 'none';
+    }
+    var found = null;
+    try { found = document.elementFromPoint(x, y); } catch (e) {}
+    for (var j = 0; j < saved.length; j++) saved[j][0].style.pointerEvents = saved[j][1];
+    return found;
+  }
+
+  // 页面可交互元素：这些永远优先于看板娘，保证右侧按钮/菜单/链接点得到
+  var PAGE_UI_SELECTOR = 'a,button,input,textarea,select,label,summary,[role="button"],[onclick],' +
+                         '#rightside,.rightside-item,.rightside-config,#console,.console-btn-item,' +
+                         '.menus_item,.nav-link,#page-header,.post-tools,.post-copyright';
+  function isPageInteractive(el) {
+    if (!el || !el.closest) return false;
+    return !!el.closest(PAGE_UI_SELECTOR);
+  }
+
+  function setupGlobalIntercept() {
+    if (window.__mikuInterceptReady) return;
+    window.__mikuInterceptReady = true;
+
+    // 统一的放行判定：命中的是「真实可交互控件」→ 放行给页面；
+    // 但若点在了看板娘身体上，且下方只是容器性元素（如首页 #page-header 背景），
+    // 则让位给看板娘，恢复首页顶部看板娘的点击表情 / 三击面板 / 拖动（#190 / #193）。
+    function pageUiWins(x, y) {
+      var real = probeElementAt(x, y);
+      if (isPageInteractive(real)) {
+        // 真实控件（按钮/链接/输入框等）永远优先 —— 即便与看板娘身体重叠也不抢
+        if (isBodyAt(x, y)) {
+          var ctrl = real && real.closest
+            ? real.closest('a,button,input,textarea,select,label,[role="button"],[onclick]')
+            : null;
+          if (!ctrl) return false; // 只是容器（#page-header 背景等）→ 看板娘优先
+        }
+        return true;
+      }
+      if (isBodyAt(x, y)) return false; // 非页面 UI 且落在身体上 → 看板娘优先
+      return false;
+    }
+
+    document.addEventListener('pointerdown', function (e) {
+      if (e.target && e.target.closest && e.target.closest('#miku-settings-panel')) return;
+      if (e.target && e.target.closest && e.target.closest('#miku-ack-btn')) return; // 点「我已知晓」不算点看板娘
+      if (pageUiWins(e.clientX, e.clientY)) { dragLog('pointerdown 被页面 UI 拦截，不抢'); return; } // 右侧按钮等页面 UI 优先，不抢
+      if (!window.__mikuDragEnabled) { dragLog('拖动未开启，放行'); return; }
+      var onBodyStrict = isBodyAt(e.clientX, e.clientY);
+      var onBodyBox = isInBodyBox(e.clientX, e.clientY);
+      if (!onBodyStrict && !onBodyBox) { dragLog('pointerdown 不在身体上（精确=' + onBodyStrict + ' 包围盒=' + onBodyBox + '），放行'); return; }
+      var s = stage(); if (!s) { dragLog('stage 不存在'); return; }
+      dragLog('pointerdown 命中身体，开始准备拖动（精确=' + onBodyStrict + ' 包围盒=' + onBodyBox + '）');
+      e.preventDefault(); e.stopPropagation();
+      // 关键修复：custom.css 用 !important 固定了 left/right/bottom（为了压住 oml2d 默认位置），
+      // JS 设置 s.style.left/right/bottom 无法覆盖 !important，导致拖动完全无效。
+      // 改用 transform: translate3d 拖动；同时临时关闭 transition，避免 transform 过渡造成拖尾。
+      window.__mikuDrag = {
+        startX: e.clientX, startY: e.clientY,
+        baseX: window.__mikuStageOffsetX || 0, baseY: window.__mikuStageOffsetY || 0,
+        moved: false, pointerId: e.pointerId
+      };
+      s.style.setProperty('transition', 'none', 'important');
+      try { if (s.setPointerCapture) s.setPointerCapture(e.pointerId); } catch (_) {}
+    }, true);
+
+    document.addEventListener('pointermove', function (e) {
+      var d = window.__mikuDrag; if (!d) return;
+      var dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+      if (!d.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      if (!d.moved) dragLog('pointermove 越过阈值，进入拖动');
+      d.moved = true;
+      e.preventDefault(); e.stopPropagation();
+      var s = stage(); if (!s) return;
+      var nx = d.baseX + dx, ny = d.baseY + dy;
+      window.__mikuStageOffsetX = nx;
+      window.__mikuStageOffsetY = ny;
+      // 关键修复：oml2d 内联与 .miku-hidden 都用 transform !important 锁死舞台，
+      // 普通 s.style.transform = ... 会被压掉 → 拖动"写不进"位移。
+      // 改用 applyStageOffset 以 setProperty(..., 'important') 强制覆盖（内部同时处理舞台与景深辉光层）。
+      applyStageOffset(s);
+    }, true);
+
+    document.addEventListener('pointerup', function (e) {
+      var d = window.__mikuDrag; if (!d) return;
+      window.__mikuDrag = null;
+      dragLog('pointerup 结束拖动（moved=' + d.moved + '）');
+      e.preventDefault(); e.stopPropagation();
+      if (d.moved) window.__mikuSuppressClick = true;
+      var s = stage(); if (!s) return;
+      // 恢复 transition（移除内联 !important），让隐藏/显示动画继续生效
+      s.style.removeProperty('transition');
+      try { if (s.releasePointerCapture) s.releasePointerCapture(d.pointerId); } catch (_) {}
+    }, true);
+
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('#miku-settings-panel')) return;
+      if (e.target && e.target.closest && e.target.closest('#miku-chat-dialog')) return;
+      if (e.target && e.target.closest && e.target.closest('#miku-ack-btn')) return; // 「我已知晓」按钮不触发看板娘交互
+      if (pageUiWins(e.clientX, e.clientY)) return; // 页面 UI 优先：按钮/链接/菜单永远点得到
+      if (window.__mikuSuppressClick) { window.__mikuSuppressClick = false; return; }
+      var m = model(); if (!m) return;
+      if (!isBodyAt(e.clientX, e.clientY)) return; // 透明区/身体外 → 放行给博客
+      e.preventDefault(); e.stopPropagation();
+      var now = Date.now();
+      window.__mikuClickTimes.push(now);
+      window.__mikuClickTimes = window.__mikuClickTimes.filter(function (t) { return now - t < 1200; });
+      if (window.__mikuClickDecisionTimer) clearTimeout(window.__mikuClickDecisionTimer);
+      window.__mikuClickDecisionTimer = setTimeout(function () {
+        window.__mikuClickDecisionTimer = null;
+        var times = window.__mikuClickTimes;
+        window.__mikuClickTimes = [];
+        if (times.length >= 3) {
+          window.__mikuOpenPanel();
+        } else if (times.length === 2) {
+          // 双击：输入框已打开则关闭，未打开则打开
+          if (window.__mikuChatDialogOpen) window.__mikuCloseChatDialog();
+          else window.__mikuOpenChatDialog();
+        } else if (times.length === 1) {
+          if (!window.__mikuDragEnabled && m.expression) m.expression();
+        }
+      }, 280);
+    }, true);
+
+    // ===== 诊断脚本（拖动 / 天气），放到控制台供排查 =====
+    window.__mikuDiagDrag = function () {
+      window.__mikuDragLog = true;
+      console.log('[Miku 拖动诊断] 已开启实时拖拽日志（window.__mikuDragLog=true）。现在去按住看板娘拖动，控制台会逐条打印判定；关闭日志：window.__mikuDragLog=false');
+      var s = stage(), c = canvas(), m = model(), h = document.getElementById('miku-hitbox');
+      var cr = c ? c.getBoundingClientRect() : null;
+      var centerX = cr ? cr.left + cr.width / 2 : 0;
+      var centerY = cr ? cr.top + cr.height / 2 : 0;
+      var cs = s ? getComputedStyle(s) : null;
+
+      // 新增：扫描所有样式表，检测 #oml2d-stage 的 left/right/top/bottom 是否被 !important 锁死。
+      // 老版本拖动用 s.style.left/right 改位置，被 !important 死死压住 → 完全拖不动；
+      // 新版本改用 transform: translate3d 绕过，理论上不应再锁死。此项用于确认线上是不是老代码。
+      var importantLock = [];
+      try {
+        for (var si = 0; si < document.styleSheets.length; si++) {
+          var rules;
+          try { rules = document.styleSheets[si].cssRules; } catch (e2) { continue; }
+          if (!rules) continue;
+          for (var ri = 0; ri < rules.length; ri++) {
+            var rule = rules[ri];
+            if (rule.selectorText && rule.selectorText.indexOf('oml2d-stage') > -1) {
+              ['left', 'right', 'top', 'bottom'].forEach(function (p) {
+                if (rule.style && rule.style.getPropertyPriority(p) === 'important') {
+                  importantLock.push(p + ':' + rule.style.getPropertyValue(p));
+                }
+              });
+            }
+          }
+        }
+      } catch (e3) {}
+
+      var info = {
+        dragEnabled: !!window.__mikuDragEnabled,
+        interceptReady: !!window.__mikuInterceptReady,
+        unlocked: !!window.__mikuUnlocked,
+        visible: !!window.__mikuVisible,
+        resting: !!window.__mikuResting,
+        stageExists: !!s,
+        canvasExists: !!c,
+        modelExists: !!m,
+        hitboxExists: !!h,
+        stageComputed: cs ? {
+          position: cs.position,
+          left: cs.left, right: cs.right, top: cs.top, bottom: cs.bottom,
+          transform: cs.transform,
+          transition: cs.transition,
+          pointerEvents: cs.pointerEvents,
+          zIndex: cs.zIndex
+        } : null,
+        importantLockOnStage: importantLock,
+        stageInline: s ? {
+          left: s.style.left, right: s.style.right, top: s.style.top, bottom: s.style.bottom,
+          transform: s.style.transform,
+          transition: s.style.transition,
+          transitionPriority: s.style.getPropertyPriority('transition')
+        } : null,
+        canvasRect: cr ? { left: cr.left, top: cr.top, width: cr.width, height: cr.height } : null,
+        samplePoint: { x: centerX, y: centerY },
+        isBodyAtCenter: isBodyAt(centerX, centerY),
+        isInBodyBoxCenter: isInBodyBox(centerX, centerY),
+        pageUiWinsCenter: pageUiWins(centerX, centerY),
+        hitboxRect: window.__mikuHitboxRect || null,
+        stageOffset: { x: window.__mikuStageOffsetX || 0, y: window.__mikuStageOffsetY || 0 }
+      };
+      console.log('[Miku 拖动诊断]', info);
+
+      // ===== 自动判读（最关键的三条） =====
+      console.log('[Miku 拖动诊断] ===== 自动判读 =====');
+      console.log('[Miku 拖动诊断] ① 拖动开关 dragEnabled 必须为 true → 当前:', info.dragEnabled, info.dragEnabled ? 'OK' : '✗ 请在设置面板打开「允许拖动」');
+      console.log('[Miku 拖动诊断] ② 看板娘需已解锁且可见且非休息 → 当前 unlocked=' + info.unlocked + ' visible=' + info.visible + ' resting=' + info.resting);
+      console.log('[Miku 拖动诊断] ③ #oml2d-stage 的 left/right/top/bottom 被 !important 锁死(老bug特征) → 当前:', importantLock.length ? ('✗ 锁死(' + importantLock.join(',') + ') 说明线上仍是老代码，前端修复未部署') : 'OK(无锁死)');
+      console.log('[Miku 拖动诊断] ④ 舞台中心是否落在身体命中区 → isBodyAt=' + info.isBodyAtCenter + ' isInBodyBox=' + info.isInBodyBoxCenter);
+      console.log('[Miku 拖动诊断] ⑤ 舞台中心是否被页面 UI 抢走 → pageUiWins=' + info.pageUiWinsCenter, info.pageUiWinsCenter ? '✗ 该点被页面控件挡住，换身体其它位置拖' : 'OK');
+
+      if (s) {
+        var hasInlineImportant = s.style.getPropertyPriority('transform') === 'important';
+        console.log('[Miku 拖动诊断] 视觉测试前：舞台当前是否带内联 !important transform →', hasInlineImportant, hasInlineImportant ? '(预期：拖动过/显示后会有，新代码用 !important 写入)' : '(预期：未拖动时为空)');
+        console.log('[Miku 拖动诊断] 开始视觉测试：用 !important 把舞台短暂向右上移动 40px 后复位');
+        var sr0 = s.getBoundingClientRect();
+        s.style.setProperty('transition', 'none', 'important');
+        s.style.setProperty('transform', 'translate3d(40px,-40px,0)', 'important');
+        setTimeout(function () {
+          var sr1 = s.getBoundingClientRect();
+          var moved = Math.abs(sr1.left - sr0.left) > 5 || Math.abs(sr1.top - sr0.top) > 5;
+          s.style.removeProperty('transition');
+          applyStageOffset(s); // 复位到真实拖拽偏移（带 !important），而非简单移除
+          console.log('[Miku 拖动诊断] 视觉测试：用 !important 应用 transform 后舞台是否真的移动 →', moved, moved ? 'OK(transform 生效)' : '✗ transform 被 CSS/层级吃掉');
+          console.log('[Miku 拖动诊断] 若 ①=true 且 ③=OK 且 视觉测试=OK 但仍拖不动，请把上方诊断与实时拖拽日志一起贴回。');
+        }, 500);
+      }
+      return info;
+    };
+
+    window.__mikuDiagWeather = function () {
+      var payload = {
+        message: '今天天气怎么样',
+        system: MIKU_SYSTEM_PROMPT || '',
+        online: window.__mikuOnlineEnabled,
+        deepThink: window.__mikuDeepThink,
+        geo: window.__mikuVisitorGeo || null
+      };
+      console.log('[Miku 天气诊断] 发送:', payload);
+      fetch(CHAT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (res) {
+        console.log('[Miku 天气诊断] HTTP status:', res.status);
+        return res.json().catch(function (e) { return { parseError: e && e.message }; });
+      }).then(function (data) {
+        console.log('[Miku 天气诊断] 响应:', data);
+        if (data && data.error) console.warn('[Miku 天气诊断] 后端错误:', data.error);
+        if (data && data.reply) console.log('[Miku 天气诊断] 回复:', data.reply);
+      }).catch(function (err) {
+        console.error('[Miku 天气诊断] 请求失败:', err && err.message ? err.message : err);
+      });
+    };
+  }
+
+  // ====================================================================
+  // 世界级交互增强（纯前端）：状态机 / 上下文追问 / 右键径向菜单 / 微反馈 / 无障碍
+  // 全部封装在 enhanceInit() 内，__mikuUnlock 时调用一次；各函数带幂等守卫，重复调用安全。
+  // ====================================================================
+  function ensureEl(id, cls, css) {
+    var el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      if (cls) el.className = cls;
+      if (css) el.style.cssText = css;
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  // —— 状态机：idle / listening / thinking / speaking / error ——
+  // 注意：用户要求去除可见状态标记（待机/思考中/说话中等），故 setMikuState 不再渲染状态丸，
+  // 仅保留函数以便各调用点不受影响，并清理任何可能残留的丸元素。
+  var MIKU_STATE_LABEL = { idle: '待机', listening: '听你说', thinking: '思考中', speaking: '说话中', error: '出错了' };
+  var MIKU_STATE_ICON = { idle: '💤', listening: '👂', thinking: '💭', speaking: '💬', error: '⚠️' };
+  function setMikuState(state, customLabel) {
+    var pill = document.getElementById('miku-state-pill');
+    if (pill && pill.parentNode) pill.parentNode.removeChild(pill);
+    clearTimeout(window.__mikuStateTimer);
+  }
+
+  // —— 上下文追问 chips ——
+  function hideFollowups() {
+    var f = document.getElementById('miku-followups');
+    if (f && f.parentNode) f.parentNode.removeChild(f);
+  }
+  function showFollowups(items) {
+    hideFollowups();
+    if (!items || !items.length) return;
+    var bar = ensureEl('miku-followups', 'miku-followups',
+      'position:fixed;z-index:99997;display:flex;flex-wrap:wrap;gap:6px;max-width:240px;' +
+      'padding:6px 8px;border-radius:14px;background:rgba(255,255,255,.96);' +
+      'border:1px solid ' + THEME + '55;box-shadow:0 6px 18px rgba(0,0,0,.18);');
+    items.forEach(function (it) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'miku-followup-chip';
+      b.textContent = it.label;
+      b.style.cssText = 'border:1px solid ' + THEME + ';background:transparent;color:' + THEME +
+        ';border-radius:14px;padding:3px 10px;font-size:12px;cursor:pointer;font-family:inherit;transition:.15s;';
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        mikuChipRipple(b, e);
+        // 关键修复：先让涟漪扩散可见，再收起预设条并发送（旧版同步 hideFollowups 直接销毁涟漪）
+        setTimeout(function () {
+          hideFollowups(); // 收起追问预设条，等回复完再显示新的
+          window.__mikuSendChat(it.q);
+        }, 380);
+      });
+      bar.appendChild(b);
+    });
+    bindBubbleHideToFollowups(); // 气泡收起时同步收起本条
+    var t = document.getElementById('oml2d-tips');
+    if (t) {
+      var tr = t.getBoundingClientRect();
+      bar.style.left = Math.min(window.innerWidth - 250, Math.max(8, tr.left)) + 'px';
+      bar.style.top = Math.min(window.innerHeight - 60, tr.bottom + 8) + 'px';
+    }
+  }
+  // 气泡收起时同步收起追问预设条：避免「关闭气泡后预设按钮还残留」。
+  // 仅当追问条存在时挂观察者，气泡一旦隐藏立即移除，观察器随之断开（无常驻定时器）。
+  function bindBubbleHideToFollowups() {
+    var tip = document.getElementById('oml2d-tips');
+    if (!tip || tip.__mikuFUBound) return;
+    tip.__mikuFUBound = true;
+    var timer = null;
+    var mo = new MutationObserver(function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function () {
+        var el = document.getElementById('oml2d-tips');
+        if (!el) { hideFollowups(); return; }
+        var cs = getComputedStyle(el);
+        var hidden = cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') < 0.05;
+        if (hidden) hideFollowups();
+      }, 160);
+    });
+    mo.observe(tip, { attributes: true, attributeFilter: ['style', 'class'], childList: true, subtree: true });
+  }
+  function maybeShowFollowups(userText) {
+    var txt = String(userText || '');
+    var WEATHER = /天气|气温|几度|下雨|刮风|降温|升温|下雪|台风|湿度|体感|冷不冷|热不热|空气质量/;
+    if (WEATHER.test(txt)) {
+      showFollowups([
+        { label: '明天呢', q: '明天天气怎么样' },
+        { label: '换成杭州', q: '杭州今天天气怎么样' },
+        { label: '适合出门吗', q: '这种天气适合出门吗' }
+      ]);
+    } else {
+      hideFollowups();
+    }
+  }
+
+  // —— 右键径向菜单 ——
+  function closeRadial() {
+    var m = document.getElementById('miku-radial');
+    if (m) { m.style.display = 'none'; m.innerHTML = ''; }
+    // 关菜单时移除磁吸 mousemove，避免残留监听
+    if (window.__mikuRadialMag) { document.removeEventListener('mousemove', window.__mikuRadialMag); window.__mikuRadialMag = null; }
+  }
+  // 是否处于文章页：与 __mikuSummarizeArticle 的文章探测选择器保持一致。
+  // 必须用 #post 限定，因为 anzhiyu 页面（朋友圈/关于/归档等）也用 #article-container 包正文。
+  function isArticlePage() {
+    var sel = ['#post .post-content', '#post #article-container', '#post-meta', '.post-copyright'];
+    for (var i = 0; i < sel.length; i++) { if (document.querySelector(sel[i])) return true; }
+    return false;
+  }
+
+  function openRadial(cx, cy) {
+    var m = document.getElementById('miku-radial');
+    if (!m) return;
+    var isArt = isArticlePage();
+    var items = [
+      { label: '天气', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '今天天气怎么样'; i.focus(); } }, 30); } },
+      { label: '搜索', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '帮我搜一下'; i.focus(); } }, 30); } },
+      // 文章页给「总结文章」，非文章页给「推荐文章」（均走站内知识库，全站可用）
+      isArt
+        ? { label: '总结文章', act: function () { if (window.__mikuSummarizeArticle) window.__mikuSummarizeArticle(); else { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '总结一下这篇文章'; i.focus(); } }, 30); } } }
+        : { label: '推荐文章', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '推荐一篇你写的文章给我'; i.focus(); } }, 30); } },
+      { label: '切主题', theme: true, act: function () { var b = document.getElementById('darkmode') || document.querySelector('.darkmode_switchbutton'); if (b) b.click(); } },
+      // 「静音」仅切换一个无副作用的标记、无实际用途 → 替换为真正有用的「清空对话」
+      { label: '清空对话', act: function () { if (window.__mikuChatDialogOpen) window.__mikuCloseChatDialog(); clearChatHistory(); mikuSay('对话已清空～我们聊点新的吧！', 2600, 2); setMikuState('idle'); } }
+    ];
+    m.innerHTML = '';
+    m.style.display = 'block';
+    var R = 62;
+    items.forEach(function (it, idx) {
+      var ang = (-90 + idx * (360 / items.length)) * Math.PI / 180;
+      var x = cx + R * Math.cos(ang);
+      var y = cy + R * Math.sin(ang);
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'miku-radial-item';
+      b.textContent = it.label;
+      if (it.theme) b.setAttribute('data-miku-theme-btn', '');
+      b.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;transform:translate(-50%,-50%);' +
+        'width:54px;height:54px;border-radius:50%;border:none;background:' + THEME +
+        ';color:#fff;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);' +
+        'font-family:inherit;transition:transform .15s ease;z-index:99998;will-change:transform;';
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closeRadial();
+        it.act();
+      });
+      m.appendChild(b);
+    });
+    // 磁吸（Magnetic）：菜单打开期间，鼠标靠近按钮时按钮向光标轻微吸附（仅 transform，不影响定位/层级）
+    var rBtns = m.querySelectorAll('.miku-radial-item');
+    if (window.__mikuRadialMag) { document.removeEventListener('mousemove', window.__mikuRadialMag); window.__mikuRadialMag = null; }
+    var mag = function (e) {
+      for (var k2 = 0; k2 < rBtns.length; k2++) {
+        var btn = rBtns[k2];
+        var br = btn.getBoundingClientRect();
+        var bx = br.left + br.width / 2, by = br.top + br.height / 2;
+        var dx = e.clientX - bx, dy = e.clientY - by;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var R = 64;
+        if (dist < R) {
+          var k = (R - dist) / R;                       // 越近吸力越强（0..1）
+          var px = dx * 0.3 * k, py = dy * 0.3 * k;      // 朝光标方向偏移
+          btn.style.transform = 'translate(-50%,-50%) translate(' + px.toFixed(1) + 'px,' + py.toFixed(1) + 'px) scale(' + (1 + 0.16 * k).toFixed(3) + ')';
+        } else {
+          btn.style.transform = 'translate(-50%,-50%) scale(1)';
+        }
+      }
+    };
+    window.__mikuRadialMag = mag;
+    document.addEventListener('mousemove', mag);
+  }
+  function setupRadialMenu() {
+    if (window.__mikuRadialReady) return;
+    window.__mikuRadialReady = true;
+    ensureEl('miku-radial', 'miku-radial', 'position:fixed;z-index:99998;display:none;width:0;height:0;');
+    // 用捕获阶段监听：确保在 anzhiyu 自定义右键菜单（冒泡阶段）之前先判定。
+    // 命中模型身体时：preventDefault 阻止浏览器原生菜单 + stopPropagation 阻止 anzhiyu 菜单。
+    // 未命中时直接 return，原生菜单与 anzhiyu 菜单都正常弹出。
+    document.addEventListener('contextmenu', function (e) {
+      var s = stage(); if (!s || !window.__mikuVisible) return;
+      if (!isBodyAt(e.clientX, e.clientY)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openRadial(e.clientX, e.clientY);
+    }, true);
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('#miku-radial')) return;
+      closeRadial();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeRadial(); });
+  }
+
+  // —— 微反馈：气泡高亮脉冲 / 舞台抖动 ——
+  function mikuBubblePop() {
+    var t = document.getElementById('oml2d-tips');
+    if (!t) return;
+    t.classList.remove('miku-pop'); void t.offsetWidth; t.classList.add('miku-pop');
+    setTimeout(function () { t.classList.remove('miku-pop'); }, 360);
+  }
+  function mikuStageShake() {
+    var s = stage(); if (!s) return;
+    s.classList.remove('miku-shake'); void s.offsetWidth; s.classList.add('miku-shake');
+    setTimeout(function () { s.classList.remove('miku-shake'); }, 420);
+  }
+
+  // —— 无障碍：气泡 live region + 键盘（Esc 关框 / ↑ 翻历史）——
+  function enhanceA11y() {
+    var c = document.getElementById('oml2d-tips-content');
+    if (c) c.setAttribute('aria-live', 'polite');
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && window.__mikuChatDialogOpen) window.__mikuCloseChatDialog();
+    });
+    var input = document.getElementById('miku-chat-input');
+    if (input && !input.__histBound) {
+      input.__histBound = true;
+      var hi = -1;
+      input.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowUp') return;
+        var hist = [];
+        try { hist = JSON.parse(localStorage.getItem('endy-miku-chat') || '[]'); } catch (e2) {}
+        if (!hist.length) return;
+        e.preventDefault();
+        hi = (hi < 0) ? hist.length - 1 : Math.max(0, hi - 1);
+        input.value = (hist[hi] && hist[hi].content) ? hist[hi].content : '';
+      });
+      input.addEventListener('keydown', function (e) { if (e.key === 'ArrowDown') hi = -1; });
+    }
+  }
+
+  function enhanceInit() {
+    setupRadialMenu();
+    enhanceA11y();
+    setMikuState('idle');
+    setupMikuParallax();
+    resolveIpGeo(); // 后台被动解析访客 IP 地理位置（兜底），GPS 仅在问天气手势里触发
+  }
+  // —— P1(a)：Miku 鼠标视差 + 景深辉光（葱味物理舞台）——
+  // 作用对象：#oml2d-stage 内的 canvas（不是 stage 本身，避免与 left/top/transform 冲突）。
+  // 逻辑：光标偏离屏幕中心 → canvas 轻微平移 + rotateY/rotateX（≤4°），辉光反向微移强化景深。
+  // 缓动逼近营造惯性“物理”感；prefers-reduced-motion 时整体降级不启用。
+  function setupMikuParallax() {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    var glow = document.getElementById('miku-depth-glow');
+    if (!glow) {
+      glow = document.createElement('div');
+      glow.id = 'miku-depth-glow';
+      glow.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(glow);
+    }
+    var targetX = 0, targetY = 0, curX = 0, curY = 0, raf = null;
+    function onMove(e) {
+      var nx = (e.clientX / window.innerWidth) * 2 - 1;
+      var ny = (e.clientY / window.innerHeight) * 2 - 1;
+      if (nx < -1) nx = -1; else if (nx > 1) nx = 1;
+      if (ny < -1) ny = -1; else if (ny > 1) ny = 1;
+      targetX = nx; targetY = ny;
+      if (!raf) raf = requestAnimationFrame(tick);
+    }
+    function tick() {
+      curX += (targetX - curX) * 0.12; // 缓动系数：越小越“黏”、越大越跟手
+      curY += (targetY - curY) * 0.12;
+      var c = canvas();
+      if (c && window.__mikuVisible) {
+        var tx = (curX * 10).toFixed(2);   // 平移 ±10px
+        var ty = (curY * 7).toFixed(2);
+        var ry = (curX * 4).toFixed(2);    // rotateY ±4°
+        var rx = (-curY * 2).toFixed(2);   // rotateX ±2°
+        c.style.transformOrigin = 'center 60%';
+        c.style.transform = 'translate3d(' + tx + 'px,' + ty + 'px,0) rotateY(' + ry + 'deg) rotateX(' + rx + 'deg)';
+        c.style.willChange = 'transform';
+      }
+      if (glow) {
+        if (window.__mikuVisible) {
+          glow.classList.add('on');
+          var gx = (-curX * 26).toFixed(2), gy = (-curY * 18).toFixed(2); // 与鼠标反向 → 景深
+          glow.style.transform = 'translate3d(' + gx + 'px,' + gy + 'px,0)';
+        } else {
+          glow.classList.remove('on');
+        }
+      }
+      if (Math.abs(targetX - curX) > 0.001 || Math.abs(targetY - curY) > 0.001) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        raf = null;
+      }
+    }
+    window.addEventListener('mousemove', onMove, { passive: true });
+    // 隐藏/休息时复位，避免漂移残留
+    window.__mikuResetParallax = function () {
+      var c = canvas();
+      if (c) { c.style.transform = ''; c.style.willChange = ''; }
+      if (glow) { glow.classList.remove('on'); glow.style.transform = ''; }
+      targetX = targetY = curX = curY = 0;
+    };
+  }
+
+  // —— P1(b)：首页大图层视差（#site-info 随滚动轻微上浮 + 淡出）——
+  // 仅作用于首页全屏大图页（#page-header.full_page），且只对首屏内生效，滚过首屏即复位，
+  // 不长期偏移也不会和 anzhiyu 既有 header 滚动逻辑打架；reduced-motion 降级。
+  function setupPageParallax() {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    if (!document.querySelector('#page-header.full_page')) return;
+    var info = document.querySelector('#site-info');
+    var arrow = document.querySelector('#scroll-down');
+    if (!info) return;
+    var onScroll = function () {
+      var y = window.scrollY || window.pageYOffset || 0;
+      var vh = window.innerHeight || 800;
+      if (y > vh) {
+        info.style.transform = 'translateY(0)';
+        info.style.opacity = '1';
+        if (arrow) arrow.style.opacity = '0';
+        return;
+      }
+      info.style.transform = 'translateY(' + (y * 0.28).toFixed(1) + 'px)';
+      info.style.opacity = (1 - y / (vh * 0.9)).toFixed(3);
+      if (arrow) arrow.style.opacity = (1 - y / (vh * 0.6)).toFixed(3);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
+  window.__mikuEnhanceInit = enhanceInit;
+  // 暴露文章总结给径向菜单「总结文章」使用
+  window.__mikuSummarizeArticle = function () {
+    summarizeCurrentArticle('总结一下这篇文章', function (reply) {
+      mikuReply(reply);
+      setMikuState('speaking');
+      mikuBubblePop();
+    });
+  };
+
+  window.__mikuOpenPanel = function () {
+    if (!window.__mikuUnlocked) return;
+    var p = document.getElementById('miku-settings-panel');
+    if (!p) {
+      p = document.createElement('div');
+      p.id = 'miku-settings-panel';
+
+      function btnGroup(arr, type) {
+        return arr.map(function (n) {
+          return '<button class="miku-panel-btn" data-type="' + type + '" data-name="' + n + '" style="border:1px solid ' + THEME + ';background:#fff;color:' + THEME + ';border-radius:16px;padding:6px 12px;font-size:13px;cursor:pointer;transition:.2s;">' + n + '</button>';
+        }).join('');
+      }
+
+      p.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+          '<span style="font-weight:700;color:' + THEME + ';font-size:15px;letter-spacing:1px;">看板娘设置</span>' +
+          '<button id="miku-panel-close" style="border:none;background:' + THEME + '22;color:' + THEME + ';width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:16px;line-height:1;">×</button>' +
+        '</div>' +
+        '<div class="miku-sw-row" data-row="visible">' +
+          '<span class="miku-sw-label">显示看板娘</span>' +
+          '<button id="miku-sw-visible" class="miku-switch-btn" type="button" role="switch" aria-checked="false" aria-label="显示看板娘"><span class="miku-switch-knob"></span></button>' +
+        '</div>' +
+        '<div style="margin-bottom:14px;">' +
+          '<div style="font-size:13px;margin-bottom:8px;color:#666;">模型大小 <span id="miku-scale-val" style="color:' + THEME + ';font-weight:600;">' + window.__mikuLastScale.toFixed(3) + '</span></div>' +
+          '<input id="miku-scale-input" type="range" min="' + SCALE_MIN + '" max="' + SCALE_MAX + '" step="any" style="display:none;">' +
+          '<div id="miku-scale-slider" style="display:none;"></div>' +
+        '</div>' +
+        '<div class="miku-sw-row" data-row="drag">' +
+          '<span class="miku-sw-label">允许拖动</span>' +
+          '<button id="miku-sw-drag" class="miku-switch-btn" type="button" role="switch" aria-checked="false" aria-label="允许拖动"><span class="miku-switch-knob"></span></button>' +
+        '</div>' +
+        '<div class="miku-sw-row" data-row="rest">' +
+          '<span class="miku-sw-label">看板娘休息</span>' +
+          '<button id="miku-sw-rest" class="miku-switch-btn" type="button" role="switch" aria-checked="false" aria-label="看板娘休息"><span class="miku-switch-knob"></span></button>' +
+        '</div>' +
+        '<div class="miku-sw-row" data-row="online">' +
+          '<span class="miku-sw-label">联网功能</span>' +
+          '<button id="miku-sw-online" class="miku-switch-btn" type="button" role="switch" aria-checked="true" aria-label="联网功能"><span class="miku-switch-knob"></span></button>' +
+        '</div>' +
+        '<div class="miku-sw-hint" style="font-size:11px;color:#999;margin:-6px 0 10px 2px;line-height:1.4;">开启后可问「今天天气 / 最新资讯」，初音会联网查证</div>' +
+        '<div class="miku-sw-row" data-row="deepthink">' +
+          '<span class="miku-sw-label">深度思考</span>' +
+          '<button id="miku-sw-deepthink" class="miku-switch-btn" type="button" role="switch" aria-checked="false" aria-label="深度思考"><span class="miku-switch-knob"></span></button>' +
+        '</div>' +
+        '<div class="miku-sw-hint" style="font-size:11px;color:#999;margin:-6px 0 10px 2px;line-height:1.4;">开启后调用推理模型，回答更严谨但更慢</div>' +
+        '<div style="font-size:12px;color:#999;margin-bottom:8px;">表情</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' + btnGroup(EXPR_EMOTION, 'expr') + '</div>' +
+        '<div style="font-size:12px;color:#999;margin-bottom:8px;">动作</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' + btnGroup(EXPR_MOTION, 'expr') + '</div>' +
+        '<div id="miku-skill-info" style="font-size:11px;color:#999;text-align:center;line-height:1.4;padding-top:8px;border-top:1px solid ' + THEME + '33;">' +
+          '🎤 hatsune-miku-kanban v1.0.0<br>已加载「彖渊子的看板娘 · 初音未来」设定' +
+        '</div>';
+
+      p.style.cssText = 'position:fixed;z-index:99999;background:#fff;border:2px solid ' + THEME + ';border-radius:18px;padding:18px 20px;box-shadow:0 10px 30px ' + THEME + '55;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;width:260px;color:#333;box-sizing:border-box;';
+      document.body.appendChild(p);
+
+      var stg = stage();
+      if (stg) {
+        var r = stg.getBoundingClientRect();
+        // 水平居中对齐到模型（而非贴在模型左侧），整体更靠右、更居中
+        var left = r.left + r.width / 2 - 260 / 2;
+        if (left < 12) left = 12;
+        if (left + 260 > window.innerWidth - 12) left = window.innerWidth - 260 - 12;
+        var top = r.top; if (top < 12) top = 12;
+        var ph = p.offsetHeight || 320;
+        if (top + ph > window.innerHeight - 12) top = Math.max(12, window.innerHeight - 12 - ph);
+        p.style.left = left + 'px';
+        p.style.top = top + 'px';
+      } else { p.style.right = '20px'; p.style.bottom = '120px'; }
+
+      p.style.setProperty('--miku-theme', THEME);
+
+      var slider = p.querySelector('#miku-scale-input');
+      var val = p.querySelector('#miku-scale-val');
+      var sliderHost = p.querySelector('#miku-scale-slider');
+      slider.value = window.__mikuLastScale;
+
+      var lastHb = 0;
+      function applyScale(v, immediate) {
+        window.__mikuLastScale = v;
+        try { oml2d.setModelScale(v); } catch (e) {}
+        val.textContent = v.toFixed(3);
+        // updateHitbox 每次都要 getBounds，拖动/惯性中每帧调会卡 → 限频 90ms
+        var t = Date.now();
+        if (immediate || t - lastHb > 90) {
+          lastHb = t;
+          updateHitbox();
+        }
+      }
+      slider.oninput = function () { applyScale(parseFloat(this.value)); };
+
+      // 升级成带刻度的「惯性吸附」滑杆：松手后按释放速度小距离过冲，再用弹簧回到最近刻度
+      if (window.EndySnapSlider && sliderHost) {
+        slider.style.display = 'none';
+        sliderHost.style.display = '';
+        window.__mikuScaleSlider = window.EndySnapSlider.create(sliderHost, {
+          min: SCALE_MIN, max: SCALE_MAX, step: SCALE_STEP, snap: 0.005,
+          value: window.__mikuLastScale,
+          surface: 'light',
+          format: function (v) { return v.toFixed(3); },
+          onChange: function (v) { applyScale(v); },
+          onSettle: function (v) { applyScale(v, true); }
+        });
+      } else {
+        // 组件没加载（极端情况）→ 退回原生 range，功能不受影响
+        slider.style.display = '';
+        slider.style.width = '100%';
+        slider.style.accentColor = THEME;
+      }
+
+      // 开关联动涟漪：拨动任意一个开关，其余开关按距离依次荡开一圈波纹，
+      // 提示「这三个是一组整体设置」。
+      function waveFrom(el) {
+        var list = Array.prototype.slice.call(p.querySelectorAll('.miku-switch-btn'));
+        var idx = list.indexOf(el);
+        list.forEach(function (b, i) {
+          if (b === el) return;
+          b.classList.remove('wave');
+          void b.offsetWidth;   // 强制重排，保证连续点击也能重播动画
+          b.style.setProperty('--wave-delay', (Math.abs(i - idx) * 70) + 'ms');
+          b.classList.add('wave');
+          setTimeout(function () { b.classList.remove('wave'); }, 700);
+        });
+      }
+
+      // 开关一：显示 / 隐藏看板娘
+      p.querySelector('#miku-sw-visible').onclick = function () {
+        window.__mikuToggleVisible();
+        waveFrom(this);
+      };
+
+      // 开关二：允许拖动
+      p.querySelector('#miku-sw-drag').onclick = function () {
+        if (!window.__mikuVisible || window.__mikuResting) return;
+        window.__mikuDragEnabled = !window.__mikuDragEnabled;
+        syncSwitchUI();
+        waveFrom(this);
+        if (window.__mikuDragEnabled && oml2d && oml2d.tipsMessage) {
+          oml2d.tipsMessage('现在可以拖着我到处走啦～', 2600, 2);
+          alignTipsToHead();
+        }
+      };
+
+      // 开关三：休息 / 唤醒（舞台滑出、状态栏点击唤醒，与原来一致）
+      p.querySelector('#miku-sw-rest').onclick = function () {
+        if (!window.__mikuVisible) return;
+        if (window.__mikuResting) {
+          try {
+            oml2d.statusBarClose();
+            oml2d.stageSlideIn();
+            oml2d.statusBarClearEvents();
+          } catch (e) {}
+          window.__mikuResting = false;
+        } else {
+          try {
+            oml2d.statusBarOpen('看板娘休息中');
+            oml2d.clearTips();
+            oml2d.setStatusBarClickEvent(function () {
+              try {
+                oml2d.statusBarClose();
+                oml2d.stageSlideIn();
+                oml2d.statusBarClearEvents();
+              } catch (e) {}
+              window.__mikuResting = false;
+              syncSwitchUI();
+            });
+            oml2d.stageSlideOut();
+          } catch (e) {}
+          window.__mikuResting = true;
+        }
+        waveFrom(this);
+        syncSwitchUI();
+        setTimeout(updateHitbox, 50);
+        setTimeout(updateHitbox, 300);
+      };
+
+      // 开关四：联网功能（持久化到 localStorage，默认开）
+      p.querySelector('#miku-sw-online').onclick = function () {
+        window.__mikuOnlineEnabled = !window.__mikuOnlineEnabled;
+        try { localStorage.setItem('endy-miku-online', window.__mikuOnlineEnabled ? '1' : '0'); } catch (e) {}
+        syncSwitchUI();
+        waveFrom(this);
+      };
+
+      // 开关五：深度思考（持久化到 localStorage，默认关）
+      p.querySelector('#miku-sw-deepthink').onclick = function () {
+        window.__mikuDeepThink = !window.__mikuDeepThink;
+        try { localStorage.setItem('endy-miku-deepthink', window.__mikuDeepThink ? '1' : '0'); } catch (e) {}
+        syncSwitchUI();
+        waveFrom(this);
+      };
+
+      p.querySelectorAll('.miku-panel-btn').forEach(function (b) {
+        b.onmouseenter = function () { this.style.background = THEME; this.style.color = '#fff'; };
+        b.onmouseleave = function () { this.style.background = '#fff'; this.style.color = THEME; };
+        b.onclick = function () {
+          var type = this.getAttribute('data-type');
+          var name = this.getAttribute('data-name');
+          if (type === 'act') {
+            if (name === '待机') { resetExpression(); }
+            else if (name === '走路') { doWalk(); }
+            return;
+          }
+          setExpression(name);
+        };
+      });
+
+      p.querySelector('#miku-panel-close').onclick = function () { window.__mikuClosePanel(); };
+    }
+    syncSwitchUI();
+    p.style.display = 'block';
+  };
+
+  window.__mikuClosePanel = function () {
+    var p = document.getElementById('miku-settings-panel');
+    if (p) p.style.display = 'none';
+  };
+
+  function initMiku() {
+    var m = model();
+    if (!m) { setTimeout(initMiku, 400); return; }
+    try { m.off('hit'); } catch (e) {}
+    patchPointerEvents();
+    syncToggleButtons();
+    // 未解锁彩蛋时不显示舞台、不建立交互
+    if (!window.__mikuUnlocked) return;
+    ensureHitbox();
+    updateHitbox();
+    setupGlobalIntercept();
+    // 若已解锁但 oml2d 仍停在状态栏/滑出态，强制滑入并关闭状态栏
+    if (window.__mikuUnlocked && window.__mikuVisible) {
+      try { oml2d.statusBarClose(); } catch (e) {}
+      try { oml2d.stageSlideIn(); } catch (e) {}
+    }
+    // 气泡/对话框在模型加载/呼吸/拖动后都需要重新对齐到头顶
+    alignTipsToHead();
+    var d = document.getElementById('miku-chat-dialog');
+    if (d && d.style.display !== 'none') positionChatDialog(d);
+    setTimeout(alignTipsToHead, 300);
+    setTimeout(alignTipsToHead, 1000);
+    setTimeout(alignTipsToHead, 2500);
+  }
+
+  oml2d.onLoad(function () { initMiku(); });
+  // 兜底：若 onLoad 时序错失或模型尚未就绪，延迟重试确保命中框建立
+  setTimeout(initMiku, 600);
+  setTimeout(initMiku, 1800);
+  setTimeout(initMiku, 3600);
+
+  window.addEventListener('resize', updateHitbox);
+
+  // P1(b)：首页大图层视差（独立于看板娘解锁，进首页即生效）
+  setupPageParallax();
+
+  // 周期性重新对齐命中框：模型呼吸 / 切换衣服 / 拖动后位置会变，且首帧可能尚未就绪
+  setInterval(function () {
+    var c = canvas();
+    if (!c || !c.isConnected) return; // 舞台被移除（如 pjax 换页）则不空转
+    updateHitbox();
+  }, 1500);
+
+  // 诊断入口：__mikuDiag() 打印并用红框示意；__mikuDiag(clientX, clientY) 额外采样该点是否在身体上。
+  window.__mikuDiag = function (px, py) {
+    var c = canvas(), m = model(), lines = [];
+    lines.push('canvas connected: ' + (!!c && c.isConnected));
+    if (c) {
+      var r = c.getBoundingClientRect();
+      lines.push('canvasRect(l,t,w,h)=' + r.left.toFixed(1) + ',' + r.top.toFixed(1) + ',' + r.width.toFixed(1) + ',' + r.height.toFixed(1));
+      lines.push('canvas internal(w,h)=' + c.width + ',' + c.height);
+    }
+    lines.push('model存在: ' + !!m);
+    if (m) {
+      lines.push('model.width/height=' + (m.width || 0).toFixed(1) + '/' + (m.height || 0).toFixed(1));
+      lines.push('model.x/y=' + (m.x || 0).toFixed(1) + '/' + (m.y || 0).toFixed(1));
+      var b = null; try { b = m.getBounds(); } catch (e) {}
+      lines.push('getBounds(x,y,w,h)=' + (b ? (b.x.toFixed(1) + ',' + b.y.toFixed(1) + ',' + b.width.toFixed(1) + ',' + b.height.toFixed(1)) : 'null'));
+      lines.push('当前命中方式: hitTest(像素级) + 矩形兜底');
+    }
+    // 采样点：默认取舞台中心；传入参数则用指定客户端坐标
+    var sampleX = px, sampleY = py, haveSample = (typeof px === 'number' && typeof py === 'number');
+    if (!haveSample && c) { var cr = c.getBoundingClientRect(); sampleX = cr.left + cr.width / 2; sampleY = cr.top + cr.height / 2; }
+    if (typeof sampleX === 'number') {
+      lines.push('采样点(clientX,Y)=' + sampleX.toFixed(1) + ',' + sampleY.toFixed(1));
+      lines.push('isBodyAt(采样点)=' + isBodyAt(sampleX, sampleY));
+      if (m && typeof m.hitTest === 'function') {
+        var rr = c ? c.getBoundingClientRect() : { left: 0, top: 0 };
+        try { lines.push('hitAreas@点=' + JSON.stringify(m.hitTest(sampleX - rr.left, sampleY - rr.top))); }
+        catch (e) { lines.push('hitTest err=' + e.message); }
+      }
+    }
+    var h = document.getElementById('miku-hitbox');
+    if (h) {
+      h.style.outline = '3px solid #ff0000';
+      h.style.outlineOffset = '0px';
+      lines.push('已给包围框描红边（仅示意，真实命中以 hitTest 为准）');
+    }
+    console.log(lines.join('\n'));
+    return lines.join('\n');
+  };
+
+  // pjax 换页后（anzhiyu 会重建 data-pjax 脚本）重新对齐一次；若实例已更新则自动生效
+  document.addEventListener('pjax:complete', function () { setTimeout(initMiku, 1500); });
+})();
+  // ===== 原 then 块内容结束 =====
+  window.__mikuBooted = true;
+};

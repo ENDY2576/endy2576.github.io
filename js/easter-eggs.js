@@ -558,28 +558,15 @@
   }
 
   /* ---------- 彩蛋9：Miku 看板娘（留言板开信触发） ---------- */
+  // 纯彩蛋化：未解锁时全站不加载 oml2d 资源；解锁逻辑交给 miku-loader.js。
+  //   - 已解锁：miku-loader 在 DOMContentLoaded 时自动全站加载并常驻，这里不重复处理。
+  //   - 未解锁 + 留言板：信封开信停留 5 秒 → 调 __mikuTriggerEgg()（加载库+配置+交互并解锁）。
   function initMikuEgg() {
     const isCommentsPage = location.pathname.startsWith('/comments/');
     const unlocked = localStorage.getItem('endy-miku-unlocked') === '1';
 
-    function applyUnlock() {
-      if (typeof window.__mikuUnlock === 'function') {
-        window.__mikuUnlock();
-        return true;
-      }
-      return false;
-    }
-
-    // 已解锁：等待看板娘脚本就绪后全局生效
-    if (unlocked) {
-      if (!applyUnlock()) {
-        let tries = 0;
-        const timer = setInterval(function () {
-          if (applyUnlock() || ++tries > 40) clearInterval(timer);
-        }, 150);
-      }
-      return;
-    }
+    // 已解锁：交给 miku-loader 全站自动加载（含留言板恢复），这里不重复处理
+    if (unlocked) return;
 
     // 未解锁且不在留言板：不处理
     if (!isCommentsPage) return;
@@ -590,12 +577,14 @@
       wrap.dataset.mikuEggBound = '1';
 
       let dwellTimer = 0;
+      let handled = false;
 
       function tryUnlock() {
-        if (window.__mikuUnlockHandled) return;
-        window.__mikuUnlockHandled = true;
+        if (handled) return;
+        handled = true;
         dwellTimer = setTimeout(function () {
-          if (typeof window.__mikuUnlock === 'function' && window.__mikuUnlock()) {
+          if (typeof window.__mikuTriggerEgg === 'function') {
+            window.__mikuTriggerEgg();
             markEggFound('miku');
             showToast('🎤 你找到了 Miku 看板娘', { duration: 4200 });
           }
