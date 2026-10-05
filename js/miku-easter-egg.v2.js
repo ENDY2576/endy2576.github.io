@@ -1126,6 +1126,77 @@ window.__mikuBoot = function () {
     return t.trim();
   }
 
+  // 受控轻量 Markdown 渲染：先转义 HTML，再仅放开 链接/加粗/列表/换行 子集，杜绝 XSS。
+  // 仅允许 http/https 链接，其余一律降级为纯文本。
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function mdInline(s) {
+    s = escHtml(s);
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, text, url) {
+      if (/^https?:\/\//i.test(url)) {
+        return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" class="miku-md-link">' + text + '</a>';
+      }
+      return text;
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    return s;
+  }
+  function renderMikuMarkdown(raw) {
+    var lines = String(raw == null ? '' : raw).replace(/\r\n/g, '\n').split('\n');
+    var out = [];
+    var listType = null;
+    function closeList() { if (listType) { out.push('</' + listType + '>'); listType = null; } }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var m;
+      if ((m = line.match(/^\s*[-*]\s+(.*)$/))) {
+        if (listType !== 'ul') { closeList(); out.push('<ul class="miku-md-ul">'); listType = 'ul'; }
+        out.push('<li>' + mdInline(m[1]) + '</li>');
+        continue;
+      }
+      if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
+        if (listType !== 'ol') { closeList(); out.push('<ol class="miku-md-ol">'); listType = 'ol'; }
+        out.push('<li>' + mdInline(m[1]) + '</li>');
+        continue;
+      }
+      closeList();
+      if (line.trim() === '') continue;
+      out.push('<p class="miku-md-p">' + mdInline(line) + '</p>');
+    }
+    closeList();
+    return out.join('');
+  }
+  function hasMikuMarkdown(s) {
+    return /^\s*[-*]\s+/m.test(s) || /^\s*\d+[.)]\s+/m.test(s) || /\*\*[^*]+\*\*/.test(s) || /\[[^\]]+\]\(https?:\/\//.test(s);
+  }
+  // 长内容限高滚动 + 展开/收起
+  function applyMikuRichCollapse(content) {
+    requestAnimationFrame(function () {
+      var inner = content && content.firstElementChild;
+      if (!inner) return;
+      var maxH = 220;
+      if (inner.scrollHeight <= maxH + 12) return;
+      inner.style.maxHeight = maxH + 'px';
+      inner.style.overflowY = 'auto';
+      inner.classList.add('miku-md-scroll');
+      if (content.querySelector('.miku-md-toggle')) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'miku-md-toggle';
+      btn.textContent = '展开全部 ▾';
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var expanded = inner.style.maxHeight && inner.style.maxHeight !== 'none';
+        if (expanded) { inner.style.maxHeight = 'none'; inner.style.overflowY = 'visible'; btn.textContent = '收起 ▴'; }
+        else { inner.style.maxHeight = maxH + 'px'; inner.style.overflowY = 'auto'; btn.textContent = '展开全部 ▾'; }
+        alignTipsToHead();
+      });
+      content.appendChild(btn);
+      alignTipsToHead();
+    });
+  }
+
   // 统一的气泡显示：自动调整字号 + 重新对齐到头顶
   function mikuSay(msg, ms, priority) {
     // 任何最终结果都会先结束「进行中」的常驻气泡
@@ -1287,10 +1358,29 @@ window.__mikuBoot = function () {
   // 统一下发：短回复自动消失，长回复/总结等用户点「我已知晓」
   function mikuReply(msg, onDone) {
     mikuClearSticky();
-    msg = stripMarkdown(msg);
+    var rich = hasMikuMarkdown(msg);
+    if (!rich) msg = stripMarkdown(msg);
     var isAck = String(msg).length >= ACK_MIN_LEN;
     var duration = isAck ? 3600000 : 10000;
     if (!oml2d || !oml2d.tipsMessage) { if (onDone) onDone(); return; }
+    if (rich) {
+      // 受控 Markdown：气泡展示成列表/链接，替代一大段纯文本；不做逐字打字，直接淡入
+      var plain = stripMarkdown(msg);
+      var placeholder = plain.length > 36 ? plain.slice(0, 36) + '…' : (plain || '初音正在整理～');
+      oml2d.tipsMessage(placeholder, duration, 3);
+      setTipsFontSize(plain);
+      alignTipsToHead();
+      var c = getTipsContent();
+      if (c) {
+        c.textContent = '';
+        c.innerHTML = '<div class="miku-md">' + renderMikuMarkdown(msg) + '</div>';
+        c.style.whiteSpace = 'normal';
+        applyMikuRichCollapse(c);
+      }
+      if (isAck) injectAckButton();
+      if (onDone) onDone();
+      return;
+    }
     // 先按完整文本创建气泡（拿到正确字号与尺寸），然后清空内容开始打字
     oml2d.tipsMessage(msg, duration, 3);
     setTipsFontSize(msg);

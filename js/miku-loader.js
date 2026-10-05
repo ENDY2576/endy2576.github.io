@@ -14,7 +14,7 @@
 (function () {
   var LIB = '/pluginsSrc/oh-my-live2d/dist/index.min.js';
   var CONFIG = '/js/miku-config.js';
-  var EGG = '/js/miku-easter-egg.js';
+  var EGG = '/js/miku-easter-egg.v2.js';
 
   var loading = false;
   var pending = [];

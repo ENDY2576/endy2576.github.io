@@ -4102,3 +4102,43 @@ html:not([data-theme]) .endy-ghost,
 #endy-rocket-hud.hot em { color: #ffd79a; opacity: 0.9; }
 /* 火箭幕支持：长按 / 空格点火的提示强调 */
 .endy-scene.s5 .endy-scene-hint { color: #cfe9ff; opacity: 0.85; }
+
+/* ===== Miku 轻量 Markdown 渲染（天气/资讯列表化、链接可点、长文折叠） ===== */
+#oml2d-tips-content .miku-md,
+.oml2d-tips-content .miku-md {
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+#oml2d-tips-content .miku-md p.miku-md-p { margin: 0 0 5px; }
+#oml2d-tips-content .miku-md p.miku-md-p:last-child { margin-bottom: 0; }
+#oml2d-tips-content .miku-md ul.miku-md-ul,
+#oml2d-tips-content .miku-md ol.miku-md-ol { margin: 3px 0 6px; padding-left: 18px; }
+#oml2d-tips-content .miku-md li { margin: 4px 0; line-height: 1.45; }
+#oml2d-tips-content .miku-md strong { color: #4b5cc4; font-weight: 700; }
+#oml2d-tips-content .miku-md a.miku-md-link {
+  color: #4b5cc4;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(75, 92, 196, 0.45);
+  word-break: break-all;
+}
+#oml2d-tips-content .miku-md a.miku-md-link:hover { color: #2f3d9e; border-bottom-color: #2f3d9e; }
+#oml2d-tips-content .miku-md.miku-md-scroll { scrollbar-width: thin; scrollbar-color: rgba(75, 92, 196, 0.4) transparent; }
+#oml2d-tips-content .miku-md-toggle {
+  display: inline-block;
+  margin: 5px auto 0;
+  padding: 2px 11px;
+  border: none;
+  border-radius: 12px;
+  background: #4b5cc4;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+  pointer-events: auto;
+}
+#oml2d-tips-content .miku-md-toggle:hover { background: #2f3d9e; }
+[data-theme='dark'] #oml2d-tips-content .miku-md strong,
+[data-theme='dark'] #oml2d-tips-content .miku-md a.miku-md-link { color: #8fa0ff; }
+[data-theme='dark'] #oml2d-tips-content .miku-md a.miku-md-link { border-bottom-color: rgba(143, 160, 255, 0.45); }
