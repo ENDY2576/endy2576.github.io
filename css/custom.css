@@ -2937,6 +2937,12 @@ body.endy-dragging * { cursor: grabbing !important; }
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 0 10px var(--endy-glow-1), 0 0 26px var(--endy-glow-2);
 }
 
+/* 站名辉光已整体移除（source/js/site-title-glow.js 已删除）：清掉 #site-title 的青色外发光，
+   只保留头图上的暗投影保字口清晰；其余标题（文章/卡片等）的提亮与辉光保持不变。 */
+[data-theme="dark"] #page-header h1#site-title {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
 /* ==================================================================
    Lenis 平滑滚动：官方推荐的基础样式（自托管 /js/lenis.min.js）
    ------------------------------------------------------------------
@@ -3045,87 +3051,10 @@ html.lenis {
 }
 
 /* ==================================================================
-   夜间首页中心站名 · 辉光（source/js/site-title-glow.js）
-   ------------------------------------------------------------------
-   三层：底色冷白 / ::before 呼吸辉光（blur 副本，只动 opacity）/ 本体光斑跟随指针。
-   --endy-breathe 用 @property 注册成 <number>，才能被 keyframes 平滑插值
-   （未注册的自定义属性在动画里只会跳变；不支持 @property 的浏览器用 initial-value 静态兜底）。
+   站名辉光已整体移除（2026-10-05）：source/js/site-title-glow.js 已删除，
+   相关 CSS（.endy-title-glow / @property --endy-breathe / @keyframes endy-breathe）
+   一并清掉。站名只保留头图暗投影（见上方 #page-header h1#site-title 覆盖规则）。
    ================================================================== */
-@property --endy-breathe {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 0.47;
-}
-@keyframes endy-breathe {
-  0%, 100% { --endy-breathe: 0.32; }
-  50%      { --endy-breathe: 0.62; }
-}
-
-/* 结构层与呼吸辉光层：两种主题都生效（浅色模式下也能看到站名辉光）。
-   之前整套写在 [data-theme='dark'] 下，导致浅色模式（站点默认）完全不显示。 */
-.endy-title-glow {
-  position: relative;
-  display: inline-block;
-  letter-spacing: 0.12em;
-  /* 关键：创建独立堆叠上下文，否则 ::before 的 z-index:-1
-     会落到 #page-header 头图背景后面，呼吸辉光被直接吃掉。 */
-  isolation: isolate;
-  transition: letter-spacing 1.1s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.endy-title-glow.is-in {
-  letter-spacing: 0.02em;
-}
-
-/* 呼吸辉光层：负 z-index 沉在本体文字下面，模糊副本只动 opacity（GPU 合成，零重绘） */
-.endy-title-glow::before {
-  content: attr(data-text);
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: -1;
-  letter-spacing: inherit;
-  white-space: pre;
-  pointer-events: none;
-  transform: scaleY(var(--endy-glow-scale, 1));
-  transform-origin: 50% 50%;
-  opacity: calc(var(--endy-breathe) * var(--endy-glow-mul, 1));
-  will-change: opacity;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .endy-title-glow::before {
-    animation: endy-breathe 7.5s ease-in-out infinite;
-  }
-}
-
-/* ② 暗色：白青渐变字（光斑跟随指针）+ 明显的青色外发光 + 呼吸 halo。
-      JS 包 span 后，span 的 text-shadow 会覆盖 h1 原本的青色辉光，
-      所以这里必须把青色辉光重新写回来（沿用 --endy-glow-1/2，与原始一致），
-      否则暗色站名就只剩一层几乎看不出的 ::before 淡模糊。 */
-[data-theme='dark'] .endy-title-glow {
-  background-image: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%),
-      #ffffff 0%,
-      rgba(158, 224, 214, 0.75) 38%,
-      rgba(158, 224, 214, 0) 72%),
-    linear-gradient(var(--endy-title-color, #f4f9ff), var(--endy-title-color, #f4f9ff));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  /* 头图暗投影保字口清晰 + 两层青色辉光（近 10px / 远 26px） */
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35),
-               0 0 10px var(--endy-glow-1),
-               0 0 26px var(--endy-glow-2);
-}
-[data-theme='dark'] .endy-title-glow::before { color: #9ee0d6; filter: blur(9px); }
-/* 不支持 background-clip:text 的浏览器：退回纯色 + 主题自带的 text-shadow */
-@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
-  [data-theme='dark'] .endy-title-glow {
-    color: var(--endy-title-color, #f4f9ff);
-    background-image: none;
-  }
-}
-
-/* ③ 浅色：用户不需要辉光，保持主题默认字色，不加外发光、不渲染 ::before */
-[data-theme='light'] .endy-title-glow::before { content: none; }
 
 /* ============================================================
    404 星图迷航（error-star.js）—— 雷达 / 星点 / hover 卡 / 归航环
