@@ -1,77 +1,89 @@
 /**
- * Live2D 看板娘渲染节流（性能优化，零画质损失）
- * ------------------------------------------------------------
- * 站名辉光移除后，首页常驻的 GPU 重负载只剩 Live2D（WebGL ~60fps 渲染循环）。
- * 本脚本在不破坏库、不丢模型的前提下，按场景暂停/恢复其渲染循环：
- *   - 标签页隐藏 / 窗口失焦：停渲染（0 成本）
- *   - 页面滚动时：暂停渲染，把 GPU 让给滚动；停手 ~450ms 后恢复
- *     （拖拽看板娘 __endyDragActive 时不抢，保证拖动跟手）
- * 做法：直接调用 oml2d 暴露的渲染循环实例 oml2d.ticker 的 pause()/resume()，
- *       比劫持 requestAnimationFrame 安全（不会卡死渲染循环）。
- * 全局监听器在 pjax 翻页后依然有效（oml2d 因去掉 data-pjax 不重建）。
+ * Live2D 看板娘渲染节流（性能优化）
+ * ------------------------------------------------------------------
+ * 背景：部署版 oml2d 的渲染循环被锁在闭包里，没有可从外部调用的 pause/resume，
+ *        全局覆写 devicePixelRatio 也不影响其画布分辨率（库写死 2x）。
+ *        所以这里用「全局 requestAnimationFrame 限频」作为可靠手段：
+ *        - 页面空闲（无滚动/无指针/键盘交互）时，把 rAF 限到 30fps，
+ *          直接压低 Live2D 每帧 GPU/CPU 成本；
+ *        - 滚动/交互时放行（interacting=true），保证 Lenis 平滑滚动跟手；
+ *        - 标签页隐藏时进一步降到 5fps，切回前台立即恢复。
+ * 仅影响空闲态的 rAF 消费者（首页空闲时基本只有 Live2D），不破坏滚动与交互。
  */
 (function () {
   'use strict';
+  if (!window.requestAnimationFrame || !window.cancelAnimationFrame || !window.setTimeout) return;
 
-  // 取渲染循环控制器：优先 oml2d 自带 ticker(pause/resume)，回退 PixiJS ticker(stop/start)
-  function getPauser() {
-    try {
-      var o = window.oml2d;
-      if (o && o.ticker && typeof o.ticker.pause === 'function') {
-        return { pause: o.ticker.pause.bind(o.ticker), resume: o.ticker.resume.bind(o.ticker) };
-      }
-      var pt = o && o.pixiApp && o.pixiApp.ticker;
-      if (pt && typeof pt.stop === 'function') {
-        return { pause: pt.stop.bind(pt), resume: pt.start.bind(pt) };
-      }
-    } catch (e) {}
-    return null;
+  var nativeRAF = window.requestAnimationFrame.bind(window);
+  var nativeCAF = window.cancelAnimationFrame.bind(window);
+  var now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
+
+  var MIN_IDLE = 1000 / 30;      // 空闲 30fps
+  var MIN_HIDDEN = 1000 / 5;     // 后台 5fps
+  var INTERACTION_MS = 400;      // 交互后多久恢复空闲节流
+
+  var last = 0;
+  var interacting = false;
+  var hidden = false;
+  var t = null;
+
+  function isHidden() {
+    return document.hidden || document.visibilityState === 'hidden';
   }
 
-  var pausedByUs = false;
-  function pause() {
-    var p = getPauser();
-    if (p && !pausedByUs) {
-      try { p.pause(); pausedByUs = true; } catch (e) {}
-    }
-  }
-  function resume() {
-    var p = getPauser();
-    if (p && pausedByUs) {
-      try { p.resume(); pausedByUs = false; } catch (e) {}
-    }
+  function getMin() {
+    if (isHidden()) return MIN_HIDDEN;
+    if (interacting) return 0;
+    return MIN_IDLE;
   }
 
-  var hidden = function () { return document.hidden; };
-  var scrolling = false, scrollTimer = null;
-
-  function maybeResume() {
-    if (!hidden() && !scrolling && !window.__endyDragActive) resume();
+  function markInteracting() {
+    interacting = true;
+    hidden = isHidden();
+    if (t) clearTimeout(t);
+    t = setTimeout(function () { interacting = false; }, INTERACTION_MS);
   }
 
-  // 1) 标签页隐藏 / 窗口失焦：停渲染
-  document.addEventListener('visibilitychange', function () {
-    if (hidden()) pause(); else maybeResume();
+  ['scroll', 'pointerdown', 'pointermove', 'keydown', 'touchstart'].forEach(function (ev) {
+    window.addEventListener(ev, markInteracting, { passive: true });
   });
-  window.addEventListener('blur', pause);
-  window.addEventListener('focus', maybeResume);
 
-  // 2) 滚动时暂停渲染（让 GPU 给滚动），停手后恢复；拖拽看板娘时不抢
-  window.addEventListener('scroll', function () {
-    if (window.__endyDragActive) return;
-    scrolling = true;
-    pause();
-    if (scrollTimer) clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(function () {
-      scrolling = false;
-      maybeResume();
-    }, 450);
-  }, { passive: true });
+  document.addEventListener('visibilitychange', function () {
+    hidden = isHidden();
+    last = 0; // 切回前台时允许立刻渲染一帧，避免首帧被旧 last 卡住
+  });
 
-  // 拖拽看板娘结束时，若此前被滚动暂停则恢复
-  var _dragPoll = setInterval(function () {
-    if (window.__endyDragActive) { resume(); }
-    else { clearInterval(_dragPoll); }
-  }, 120);
-  setTimeout(function () { clearInterval(_dragPoll); }, 4000);
+  window.requestAnimationFrame = function (cb) {
+    var min = getMin();
+    if (min <= 0) return nativeRAF(cb);
+
+    var n = now();
+    var wait = min - (n - last);
+    if (wait <= 0) {
+      last = n;
+      return nativeRAF(cb);
+    }
+    // 延迟到下一个节流刻度再调度；setTimeout id 可被下面的 cancelAnimationFrame 取消
+    return setTimeout(function () {
+      last = now();
+      nativeRAF(cb);
+    }, wait);
+  };
+
+  window.cancelAnimationFrame = function (id) {
+    // 同时兼容 native rAF id 与本脚本返回的 setTimeout id
+    clearTimeout(id);
+    nativeCAF(id);
+  };
+
+  // 调试用：控制台输入 __endyLive2dPerf()
+  window.__endyLive2dPerf = function () {
+    return {
+      enabled: true,
+      idleFps: Math.round(1000 / MIN_IDLE),
+      hiddenFps: Math.round(1000 / MIN_HIDDEN),
+      interacting: interacting,
+      hidden: isHidden()
+    };
+  };
 })();
