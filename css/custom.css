@@ -4142,3 +4142,36 @@ html:not([data-theme]) .endy-ghost,
 [data-theme='dark'] #oml2d-tips-content .miku-md strong,
 [data-theme='dark'] #oml2d-tips-content .miku-md a.miku-md-link { color: #8fa0ff; }
 [data-theme='dark'] #oml2d-tips-content .miku-md a.miku-md-link { border-bottom-color: rgba(143, 160, 255, 0.45); }
+
+/* ==================================================================
+   修复1：代码块「展开/收起」箭头
+   主题原规则 .code-expand-btn.expand-done { transform: rotate(180deg) } 作用在
+   整条满宽按钮上（按钮自带背景 bar），导致「箭头 + 背景条」一起翻转。
+   改为只翻转内部的箭头图标 <i>，背景条保持不动。
+   注：工具栏折叠箭头（<i class="...expand closed">）的 rotate(90) 已直接作用在
+   <i> 上，无 bar，不需处理。
+   ================================================================== */
+#article-container .code-expand-btn.expand-done {
+  transform: none !important;   /* 按钮本体（含背景 bar）不再翻转 */
+}
+#article-container .code-expand-btn.expand-done i {
+  transform: rotate(180deg);    /* 仅箭头图标翻转 */
+  transition: transform 0.3s ease;
+}
+
+/* ==================================================================
+   修复2：个人页「访问统计」卡片蒙版
+   主题默认给 .about-statistic 加了一块 inset 深色暗角（::after），整块压在卡片
+   底部，看起来像被蒙版盖住。移除该覆盖层，并在内容层垫一层柔和渐变，
+   既去掉蒙版观感、又保证白字在封面图上可读。
+   ================================================================== */
+#about-page .about-statistic::after {
+  display: none !important;
+}
+#about-page .about-statistic .card-content {
+  background: linear-gradient(180deg,
+              rgba(8, 18, 30, 0.55) 0%,
+              rgba(8, 18, 30, 0.32) 55%,
+              rgba(8, 18, 30, 0.62) 100%);
+  border-radius: 12px;
+}
