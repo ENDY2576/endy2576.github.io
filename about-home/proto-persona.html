@@ -89,7 +89,7 @@ const core = new THREE.Group()   // 拖拽旋转的整体
 scene.add(core)
 
 // ---------- 抠图头像（中心悬浮） ----------
-const tex = new THREE.TextureLoader().load('/img/selfhosted/persona-cut.png')
+const tex = new THREE.TextureLoader().load('./img/selfhosted/persona-cut.webp')
 const avatarMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false })
 const avatar = new THREE.Mesh(new THREE.PlaneGeometry(21, 21 * 580 / 583), avatarMat)
 core.add(avatar)

@@ -10,20 +10,20 @@
            0 = 完全不压暗（直接看原图）。此前 0.15 偏闷，已降到 0.06；
            另在暗色 #web_bg 上加了 brightness(1.15) saturate(1.05) 直接提亮夜景。 */
 :root {
-  --endy-bg-light-desktop: url("/img/seasons/bg-winter.jpg");
+  --endy-bg-light-desktop: url("/img/seasons/bg-winter.webp");
   --endy-bg-dark-desktop: url("/img/selfhosted/pE0yMWt.jpg");
 
   --endy-bg-light-mobile: url("/img/selfhosted/pE0y3y8.jpg");
-  --endy-bg-dark-mobile: url("/img/selfhosted/pE0OoGt.jpg");
+  --endy-bg-dark-mobile: url("/img/selfhosted/pE0OoGt.webp");
 
   --endy-bg-light: var(--endy-bg-light-desktop);
   --endy-bg-dark: var(--endy-bg-dark-desktop);
 
   /* 四季图已统一为 2560x1431 JPEG（原 PNG 4.4MB/张 → 约 0.4MB/张），画幅一致切换才不会跳缩放 */
-  --endy-bg-spring: url("/img/seasons/bg-spring.jpg");
-  --endy-bg-summer: url("/img/seasons/bg-summer.jpg");
-  --endy-bg-autumn: url("/img/seasons/bg-autumn.jpg");
-  --endy-bg-winter: url("/img/seasons/bg-winter.jpg");
+  --endy-bg-spring: url("/img/seasons/bg-spring.webp");
+  --endy-bg-summer: url("/img/seasons/bg-summer.webp");
+  --endy-bg-autumn: url("/img/seasons/bg-autumn.webp");
+  --endy-bg-winter: url("/img/seasons/bg-winter.webp");
 
   /* 四季日间背景图（手机版，竖屏 cover 用） */
   --endy-bg-spring-mobile: url("/img/selfhosted/pE0y3y8.jpg");
