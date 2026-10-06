@@ -354,7 +354,7 @@
     const frame = document.createElement('iframe');
     frame.className = 'endy-about-frame';
     frame.id = 'endy-about-home-frame';
-    frame.src = '/about-home/?v=2';
+    frame.src = '/about-home/?v=3';
     frame.setAttribute('title', '彖渊子的新个人主页');
     frame.setAttribute('allow', 'autoplay; fullscreen');
 

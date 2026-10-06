@@ -234,13 +234,19 @@ if (true) {
     .then(res => res.text())
     .then(data => {
       let title = ["最近活跃", "今日人数", "今日访问", "昨日人数", "昨日访问", "本月访问", "总访问量"];
-      let num = data.match(/(<\/span><span>).*?(\/span><\/p>)/g);
-
-      num = num.map(el => {
-        let val = el.replace(/(<\/span><span>)/g, "");
-        let str = val.replace(/(<\/span><\/p>)/g, "");
-        return str;
-      });
+      /* 51la v6 quote.js 在 2025 年后改为把数据直接内嵌为
+         r.innerHTML="<p><span>0</span><span>今日人数</span></p>..."
+         用按索引捕获的方式解析，避免依赖旧版 document.write 输出格式。 */
+      let num = [];
+      const rowRe = /<p><span>(\d)<\/span><span>(\d+)<\/span><\/p>/g;
+      let m;
+      while ((m = rowRe.exec(data)) !== null) {
+        num[+m[1]] = parseInt(m[2], 10) || 0;
+      }
+      if (num.length < 7) {
+        console.warn("51la 访问统计数据解析失败，返回行数不足", num);
+        return;
+      }
 
       let statisticEl = document.getElementById("statistic");
 
