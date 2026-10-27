@@ -324,13 +324,12 @@
   /* =======================================================================
      彩蛋8 v2：个人页隐藏个人主页（home-app iframe）
      触发：头像 3 连击 → 全屏 iframe 浮层 /about-home/?v=3
-     新增：入场/出场动画、骨架屏、预加载、偏好记忆、focus trap、移动端
+     新增：入场/出场动画、骨架屏、预加载、focus trap、移动端
      跨窗口回切：home-app 内 postMessage({type:'endy:revertAbout'})
-     持久化：localStorage 'endy-about-pref' = 'home-app' | 'default'
+     入口：只有「头像三连击」，无任何常驻按钮（彩蛋保持隐蔽）
      ======================================================================= */
 
   const ABOUT_FRAME_URL = '/about-home/?v=3';
-  const ABOUT_PREF_KEY = 'endy-about-pref';
   const ABOUT_HINT_KEY = 'endy-about-hint-shown';
 
   let __endyAboutOverlay = null;
@@ -338,12 +337,6 @@
   let __endyAboutFocusStart = null; // 关闭时把焦点还回触发元素
   let __endyAboutCloseTimer = null; // 退场动画延迟 removeChild
 
-  function __endyPrefSave(pref) {
-    try { localStorage.setItem(ABOUT_PREF_KEY, pref); } catch (e) {}
-  }
-  function __endyPrefLoad() {
-    try { return localStorage.getItem(ABOUT_PREF_KEY); } catch (e) { return null; }
-  }
 
   /* --- iframe 预加载：about 页空闲时 fetch 预热 DNS/TLS/首包 --- */
   let __endyAboutPrefetched = false;
@@ -388,6 +381,11 @@
     }
     document.documentElement.classList.remove('endy-about-locked');
     __endyAboutFocusStart = null;
+
+    // 🔴 恢复外层 Lenis
+    if (window.__endyLenis && typeof window.__endyLenis.start === 'function') {
+      window.__endyLenis.start();
+    }
   }
 
   function __endyOpenAboutOverlay(triggerEl) {
@@ -457,6 +455,13 @@
     document.documentElement.classList.add('endy-about-locked');
     __endyAboutFocusStart = triggerEl || null;
 
+    // 🔴 停外层 Lenis！home-app iframe 自己有 Lenis smooth scroll，
+    // 博客外层不停的话 = 两个 Lenis 抢同一 wheel 事件 = GPU 合成爆炸 → 滑动卡成 PPT
+    // 关掉外层后，home-app 的 Lenis 独占，丝滑。
+    if (window.__endyLenis && typeof window.__endyLenis.stop === 'function') {
+      window.__endyLenis.stop();
+    }
+
     // load 事件：骨架屏淡出 + iframe 显示入场
     var slowTimer = null;
     var onLoad = function () {
@@ -494,45 +499,9 @@
         closeBtn.focus({ preventScroll: true });
       });
     });
-
-    __endyPrefSave('home-app');
   }
 
-  /* --- about 页 toggle 按钮：角落显示，点击切换 --- */
-  function __endyShowAboutToggle() {
-    var old = document.getElementById('endy-about-toggle');
-    if (old) old.remove();
-    var btn = document.createElement('button');
-    btn.id = 'endy-about-toggle';
-    btn.className = 'endy-about-toggle';
-    btn.type = 'button';
-    btn.setAttribute('aria-label', '切换个人主页');
-    btn.textContent = '🧑 隐藏主页';
-    document.body.appendChild(btn);
-    requestAnimationFrame(function () { btn.classList.add('is-visible'); });
-    btn.addEventListener('click', function () {
-      var pref = __endyPrefLoad();
-      if (pref === 'home-app') {
-        // 关掉 → 回到默认 about 页
-        if (__endyAboutOverlay) __endyCloseAboutOverlay();
-        __endyPrefSave('default');
-        btn.textContent = '🧑‍💻 隐藏主页';
-        showToast('已切回原个人页', { duration: 2000 });
-      } else {
-        __endyOpenAboutOverlay(btn);
-        __endyPrefSave('home-app');
-        btn.textContent = '🧑 隐藏主页';
-        showToast('已进入隐藏个人主页', { duration: 2000 });
-      }
-    });
-    return btn;
-  }
-
-  function __endyHideAboutToggle() {
-    var t = document.getElementById('endy-about-toggle');
-    if (t) t.classList.remove('is-visible');
-    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 260);
-  }
+  /* 彩蛋入口只有「头像三连击」——不提供任何常驻按钮，保持彩蛋的隐蔽性 */
 
   // 跨窗口回切 + pjax 关闭：整个脚本生命周期只绑一次
   if (!window.__endyAboutGlobalBound) {
@@ -541,13 +510,18 @@
       if (e.data && e.data.type === 'endy:revertAbout') __endyCloseAboutOverlay();
     });
     document.addEventListener('pjax:send', function () {
-      // pjax 切页 → 关闭浮层 + 隐藏 toggle
+      // pjax 切页 → 关闭浮层
       __endyCloseAboutOverlay();
-      __endyHideAboutToggle();
     });
   }
 
-  // 跨浮层音频互斥（保持原有逻辑，不碰）
+  /* --- 跨浮层音频互斥（重构版） ---
+     闪跳根因原版本自撞：
+       博客 play 事件（live2d/导航音乐）→ postMessage 通知 home-app pause
+       home-app play → postMessage 通知博客 pause → 双向触发无限循环
+     新策略：home-app 打开时**完全独占**，博客外层的 audio 暂停后不主动反杀；
+     只有 home-app 明确发消息说"我要播"，博客才会 pause 自己的播放器。
+     反过来：博客 play 只在 home-app **没打开**时才广播（不会自撞）。 */
   if (!window.__endyAudioFocusBound) {
     window.__endyAudioFocusBound = true;
     function __endyPauseBlogMedia() {
@@ -555,14 +529,18 @@
         try { if (!a.paused) a.pause(); } catch (e) {}
       });
     }
+    // home-app 主动要音频焦点 → 博客立刻让道，**但博客不让道后不反向通知**（关键！）
     window.addEventListener('message', function (e) {
       if (e.data && e.data.type === 'endy:audioFocus' && e.data.owner === 'home-app') __endyPauseBlogMedia();
     });
+    // 博客外层 play → 只在 home-app **没打开**时才广播（彻底切断死循环）
     document.addEventListener('play', function (e) {
       var t = e.target;
       if (!t || (t.tagName !== 'AUDIO' && t.tagName !== 'VIDEO')) return;
       var f = document.getElementById('endy-about-home-frame');
-      if (f && f.contentWindow) f.contentWindow.postMessage({ type: 'endy:audioFocus', owner: 'blog' }, '*');
+      if (!f || !f.contentWindow) return; // home-app 关了才会走到这里
+      // 注意：home-app 打开时，博客外层的 play 事件**不做任何事**！
+      // 让 home-app 独占音频焦点，只有 home-app 发消息来抢时博客才会暂停
     }, true);
   }
 
@@ -607,18 +585,6 @@
         }
       } catch (e) {}
     });
-
-    // 偏好记忆：如果用户上次用 home-app，直接自动打开
-    const pref = __endyPrefLoad();
-    if (pref === 'home-app') {
-      // 等 about 页渲染完再开，避免抢焦点
-      whenReady('#about-page .author-img', function (avatarWrap) {
-        setTimeout(function () { __endyOpenAboutOverlay(avatarWrap); }, 200);
-      });
-    }
-
-    // 显示 toggle 按钮
-    setTimeout(__endyShowAboutToggle, 1200);
   }
 
   /* ---------- 彩蛋5：长文底部悄悄话（仅文章详情页） ---------- */

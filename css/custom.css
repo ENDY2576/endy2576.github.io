@@ -1799,36 +1799,6 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
                         0 0 40px 12px rgba(120, 180, 255, 0.06); }
 }
 
-/* --- about 页 toggle 按钮（揭示后角落显示） --- */
-.endy-about-toggle {
-  position: fixed;
-  bottom: calc(24px + env(safe-area-inset-bottom));
-  right: calc(24px + env(safe-area-inset-right));
-  z-index: 9990;
-  background: rgba(255, 255, 255, 0.9);
-  color: #333;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 999px;
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.25s ease;
-  opacity: 0;
-  pointer-events: none;
-  font-family: inherit;
-}
-.endy-about-toggle.is-visible { opacity: 1; pointer-events: auto; }
-.endy-about-toggle:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); }
-.endy-about-toggle:active { transform: translateY(0); }
-.endy-about-toggle:focus-visible { outline: 2px solid var(--anzhiyu-main, #4b5cc4); outline-offset: 2px; }
-[data-theme="dark"] .endy-about-toggle {
-  background: rgba(30, 34, 48, 0.92);
-  color: #e4e4ee;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
 /* 打开浮层时锁住博客背景滚动（Lenis 接管下作为视觉兜底，避免背后穿透滚动） */
 html.endy-about-locked, html.endy-about-locked body { overflow: hidden; }
 
@@ -2765,6 +2735,13 @@ body.endy-dragging * { cursor: grabbing !important; }
   z-index: 3;
 }
 .is-lit::after { opacity: 1; }
+
+/* 关于页「爱好游戏」「音乐偏好」两张图卡：白色高光会把压在图上的纯白标题冲淡，
+   这两张卡不显示光影材质（与 motion-system.js 的 NO_GLOSS 双重保险）。 */
+#about-page .author-content-item.game-yuanshen.is-lit::after,
+#about-page .author-content-item.like-music.is-lit::after {
+  background: none !important;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .endy-reveal,

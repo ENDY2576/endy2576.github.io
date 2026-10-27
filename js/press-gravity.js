@@ -30,6 +30,10 @@
     '.pagination a', '.pagination .page-number', '#aside-content .sticky_layout > div'
   ].join(',');
 
+  // 这些卡片不参与悬停倾斜：纯白大标题压在照片背景上，任何 perspective+rotate 的
+  // 重采样都会让字边缘发虚、整体显得暗淡（用户明确要求保持锐利）。
+  var NO_HOVER_TILT = '.author-content-item.game-yuanshen, .author-content-item.like-music';
+
   // 这些元素/区域里按下不做动画：表单控件、可编辑区、看板娘自己的浮层
   var SKIP = [
     'input', 'textarea', 'select', 'option', '[contenteditable="true"]',
@@ -202,6 +206,7 @@
     var r0 = card.getBoundingClientRect();
     if (!r0.width || !r0.height || r0.width < MIN_W || r0.height < MIN_H) return;
     if (has3d(card)) return;
+    if (card.matches && card.matches(NO_HOVER_TILT)) return;
     var b = window.getComputedStyle(card).transform;
     hovered = card;
     hoverRect = r0;

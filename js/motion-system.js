@@ -100,6 +100,10 @@
     '.categoryItem', '.article-item'
   ].join(',');
 
+  // 这两张图卡上压着纯白大标题/说明文字，白 22% 的高光层会把字冲淡成灰雾感
+  // （用户反馈"悬浮时文字变暗"），因此它们不参与光影材质跟随。
+  var NO_GLOSS = '.author-content-item.game-yuanshen, .author-content-item.like-music';
+
   var glossEl = null, glossRaf = 0, glossPt = null;
 
   function glossPaint() {
@@ -175,6 +179,7 @@
       if (magEl && !m) magLeave();
 
       var g = t.closest(GLOSS);
+      if (g && g.matches && g.matches(NO_GLOSS)) g = null;
       if (g && e.pointerType !== 'touch') {
         if (g !== glossEl) {
           if (glossEl) glossEl.classList.remove('is-lit');
