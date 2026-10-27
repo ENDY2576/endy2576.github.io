@@ -184,7 +184,7 @@
   function stop() {
     running = false;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    if (canvas) canvas.style.display = 'none';
+    // 不再改 display:none —— 避免滚动期间频繁 reflow（每帧都改 display 强制布局重算）
     if (ctx) ctx.clearRect(0, 0, W, H);
   }
 
@@ -195,13 +195,31 @@
     pointer.ty = (e.clientY / H) * 2 - 1;
   }, { passive: true });
 
-  // 滚动视差：Lenis 优先，回退 window.scrollY
+  // 滚动视差 + 暂停策略：
+  // 合并原来的两个 scroll 监听器（一个只更新 scrollYT 数值，一个 stop/start）→ 一个搞定：
+  //   - 更新视差数值（draw 里用的 scrollYT）
+  //   - 滚动期间：stop() 停 rAF + 加 .no-backdrop 禁用全站 backdrop-filter（GPU 合成层是重灾区）
+  //   - 停滚 400ms 后：去掉 .no-backdrop 恢复 backdrop-filter + start() 恢复 rAF
+  var skyScrollT = 0, backdropTimer = 0;
   function onScroll() {
     if (!isDark()) return;
+    // 1. 更新视差数值
     var y = (window.__endyLenis && window.__endyLenis.scroll)
       ? window.__endyLenis.scroll
       : (window.scrollY || window.pageYOffset || 0);
     scrollYT = y;
+    // 2. 立即暂停 canvas rAF + 禁用 backdrop-filter
+    if (running) stop();
+    document.documentElement.classList.add('no-backdrop');
+    // 3. 停滚 400ms 后恢复（比之前 200ms 多一倍，给滚动惯性/补帧留够时间）
+    if (backdropTimer) clearTimeout(backdropTimer);
+    backdropTimer = setTimeout(function () {
+      document.documentElement.classList.remove('no-backdrop');
+    }, 400);
+    if (skyScrollT) clearTimeout(skyScrollT);
+    skyScrollT = setTimeout(function () {
+      if (isDark() && !reduce) start();
+    }, 400);
   }
   window.addEventListener('scroll', onScroll, { passive: true });
 
@@ -214,17 +232,6 @@
       raf = requestAnimationFrame(frame);
     }
   });
-
-  // 滚动时暂停：减少滚动期间的 GPU/CPU 负担（与 oml2d 同思路）；停滚后若仍是暗色则恢复
-  var skyScrollT = 0;
-  window.addEventListener('scroll', function () {
-    if (!isDark() || !running) return;
-    stop();
-    if (skyScrollT) clearTimeout(skyScrollT);
-    skyScrollT = setTimeout(function () {
-      if (isDark() && !reduce) start();
-    }, 200);
-  }, { passive: true });
 
   // 主题切换：进暗 → 起；出暗 → 收（与 meteor-boost 同范式）
   if (typeof MutationObserver !== 'undefined') {

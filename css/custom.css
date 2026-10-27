@@ -189,6 +189,24 @@ html:not([data-theme="dark"]) #web_bg_next::before {
 
 #footer-bar {
   background: rgba(255, 255, 255, 0.75);
+  border-top: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* footer-bar 上方所有可能产生白线的兄弟元素 —— 全部掐掉 */
+#footer-bar + *,
+#footer-wrap,
+#footer-wrap + *,
+#footer > *:first-child {
+  border-top: none !important;
+  box-shadow: none !important;
+}
+
+/* 防止 footer 背景渐变的上边缘接缝显示为白线 */
+#footer,
+#footer::before {
+  border-top: none !important;
 }
 
 /* 深色模式同步（同一条曲线，只是换成深色） */
@@ -2950,11 +2968,9 @@ body.endy-dragging * { cursor: grabbing !important; }
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 0 10px var(--endy-glow-1), 0 0 26px var(--endy-glow-2);
 }
 
-/* 夜间站名：保留头图暗投影 + 一层轻微的青色辉光，让字更白亮而不是只有暗投影。
-   比文章标题的辉光弱一半——文章标题有两层辉光（10px+26px glow），
-   站名只留一层（10px glow）避免头图上光晕过饱和。 */
+/* 夜间站名：只有头图暗投影，不加辉光（辉光在头图背景上看不见）。 */
 [data-theme="dark"] #page-header h1#site-title {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 0 14px rgba(158, 224, 214, 0.22);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 /* ==================================================================
@@ -3095,6 +3111,15 @@ html.lenis {
     rgba(24, 26, 36, 0.62);
   border-color: rgba(158, 224, 214, 0.45);
   backdrop-filter: blur(6px);
+}
+
+/* 滚动期间禁用全站 backdrop-filter（living-night-sky.js 动态加 html.no-backdrop）
+   backdrop-filter 是滚动卡顿重灾区——每个毛玻璃元素每帧都要重模糊合成背景，
+   滚动时临时置为 none 即可让浏览器跳过整条 GPU 合成链，滚停后自动恢复。 */
+html.no-backdrop [class*="backdrop-filter"],
+html.no-backdrop * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 /* 同心圈 + 十字准线 */
 #error-wrap #endy-radar .endy-radar-ring {
