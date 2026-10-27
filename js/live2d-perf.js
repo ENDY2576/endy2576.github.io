@@ -1,121 +1,85 @@
 /**
- * Live2D 看板娘渲染节流（性能优化 · 滚动感知版）
+ * Live2D 看板娘滚动暂停（性能优化 · v2.1 动效版）
  * ------------------------------------------------------------------
- * 部署版 oml2d 渲染循环锁在闭包里，没有外部 pause/resume；devicePixelRatio 也改不了
- * 其画布分辨率（写死 2x）。所以用「全局 requestAnimationFrame 限频」兜底，并区分状态：
- *   - 隐藏标签：5fps（省电）
- *   - 滚动中：oml2d / dark.js / 光标 等限到 20fps，但 Lenis(raf) 与卡片滚动(frame)
- *     这类滚动驱动回调保持 60fps，保证滚动跟手、不自宫；
- *   - 点击/悬停/键盘交互：全放行 60fps（UI 跟手）；
- *   - 空闲：30fps，压低 Live2D 每帧 GPU/CPU 成本。
- * 通过回调名白名单识别滚动关键回调，避免把 Lenis 平滑滚动也一起限成卡顿。
+ * v2 移除了全局 rAF patch（解决误伤其他脚本 rAF 的问题），
+ * 但 hide/show 直接改 canvas.style.visibility 绕过了 custom.css 里
+ * 已有的 miku-hidden 过渡动效（opacity+transform 柔和滑出）。
+ *
+ * 这版：
+ *   1. 隐藏/显示通过切换 #oml2d-stage.miku-hidden 触发 CSS 过渡
+ *      （custom.css:L1367-1401 已定义 opacity 0.36s + transform 0.42s）；
+ *   2. 不 patch rAF、不改 canvas 尺寸、不触发 oml2d 重绘——
+ *      visibility:hidden 直接让浏览器跳过合成层绘制，WebGL context 完整保留。
  */
 (function () {
   'use strict';
-  if (!window.requestAnimationFrame || !window.cancelAnimationFrame || !window.setTimeout) return;
+  if (!window.requestAnimationFrame) return;
 
-  var nativeRAF = window.requestAnimationFrame.bind(window);
-  var nativeCAF = window.cancelAnimationFrame.bind(window);
-  var now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var SCROLL_MS = 200;           // 滚动停滞后多久恢复（lenis 惯性衰减时间）
+  var pendingShow = 0;           // setTimeout id
+  var hideRAF = 0;               // rAF 批处理 id
+  var HIDE_CLASS = 'miku-hidden';
 
-  var MIN_IDLE = 1000 / 30;      // 空闲 30fps
-  var MIN_SCROLL = 1000 / 20;    // 滚动时非关键回调 20fps
-  var MIN_HIDDEN = 1000 / 5;     // 后台 5fps
-  var INTERACTION_MS = 400;      // 一般交互后多久恢复空闲节流
-  var SCROLL_MS = 160;           // 滚动停滞后多久解除「滚动」态
-
-  // 滚动驱动的关键回调：必须保持 60fps，否则平滑滚动本身会变卡
-  var SCROLL_KEEP = { raf: 1, frame: 1 };
-
-  var last = 0;
-  var active = false;            // 点击/悬停/键盘
-  var scrolling = false;         // 滚动中
-  var tActive = null;
-  var tScroll = null;
-
-  function isHidden() {
-    return document.hidden || document.visibilityState === 'hidden';
+  function getStage() {
+    // #oml2d-stage 是 oml2d 创建的包裹层（canvas 直接挂在它里面）
+    return document.getElementById('oml2d-stage');
   }
 
-  function getMin(cb) {
-    if (isHidden()) return MIN_HIDDEN;
-    if (scrolling) {
-      if (cb && cb.name && SCROLL_KEEP[cb.name]) return 0; // 滚动关键回调不节流
-      return MIN_SCROLL;
-    }
-    if (active) return 0;
-    return MIN_IDLE;
+  function hide() {
+    var s = getStage();
+    if (!s) return;
+    s.classList.add(HIDE_CLASS);
   }
 
-  function markActive() {
-    active = true;
-    if (tActive) clearTimeout(tActive);
-    tActive = setTimeout(function () { active = false; }, INTERACTION_MS);
+  function show() {
+    var s = getStage();
+    if (!s) return;
+    s.classList.remove(HIDE_CLASS);
   }
 
-  function markScroll() {
-    scrolling = true;
-    hideOml2d();                       // 滚动时停掉 WebGL 画布的合成
-    if (tScroll) clearTimeout(tScroll);
-    tScroll = setTimeout(function () {
-      scrolling = false;
-      showOml2d();                     // 停滚恢复
+  // --- rAF 批处理 hide：scroll 事件高频（60+ 次/滚轮），
+  //     但我们一帧内只需要 hide 一次 ---
+  function scheduleHide() {
+    if (hideRAF) return;
+    hideRAF = requestAnimationFrame(function () {
+      hideRAF = 0;
+      hide();
+    });
+  }
+
+  // --- 节流的 show：200ms 内只排一次 ---
+  function scheduleShow() {
+    if (pendingShow) return;
+    pendingShow = setTimeout(function () {
+      pendingShow = 0;
+      show();
     }, SCROLL_MS);
   }
 
-  // 滚动时把 Live2D 画布藏起来：GPU 不再合成 1280×1920 的 WebGL 画布，主线程/显卡都减负。
-  // 画布由 oml2d 延迟创建，每次滚动时按 id 现查即可（getElementById 很便宜）。
-  function hideOml2d() {
-    var c = document.getElementById('oml2d-canvas');
-    if (c) c.style.setProperty('visibility', 'hidden', 'important');
-  }
-  function showOml2d() {
-    var c = document.getElementById('oml2d-canvas');
-    if (c) c.style.removeProperty('visibility');
-  }
+  // ---- 事件监听 ----
 
-  // 滚动用 scroll；其余交互用各自事件
-  window.addEventListener('scroll', markScroll, { passive: true });
-  ['pointerdown', 'pointermove', 'keydown', 'touchstart'].forEach(function (ev) {
-    window.addEventListener(ev, markActive, { passive: true });
-  });
+  window.addEventListener('scroll', function () {
+    if (document.hidden) return;
+    scheduleHide();
+    scheduleShow();
+  }, { passive: true });
 
   document.addEventListener('visibilitychange', function () {
-    last = 0; // 切回前台时允许立刻渲染一帧
-    if (isHidden()) hideOml2d(); else if (!scrolling) showOml2d();
+    if (document.hidden) {
+      hide();
+      if (pendingShow) { clearTimeout(pendingShow); pendingShow = 0; }
+    } else {
+      scheduleShow();
+    }
   });
 
-  window.requestAnimationFrame = function (cb) {
-    var min = getMin(cb);
-    if (min <= 0) return nativeRAF(cb);
-
-    var n = now();
-    var wait = min - (n - last);
-    if (wait <= 0) {
-      last = n;
-      return nativeRAF(cb);
-    }
-    return setTimeout(function () {
-      last = now();
-      nativeRAF(cb);
-    }, wait);
-  };
-
-  window.cancelAnimationFrame = function (id) {
-    clearTimeout(id);
-    nativeCAF(id);
-  };
-
-  // 调试：控制台 __endyLive2dPerf()
+  // ---- 调试 API ----
   window.__endyLive2dPerf = function () {
+    var s = getStage();
     return {
-      enabled: true,
-      idleFps: Math.round(1000 / MIN_IDLE),
-      scrollFps: Math.round(1000 / MIN_SCROLL),
-      hiddenFps: Math.round(1000 / MIN_HIDDEN),
-      scrolling: scrolling,
-      active: active,
-      hidden: isHidden()
+      version: 'v2.1',
+      hidden: s ? s.classList.contains(HIDE_CLASS) : false,
+      note: '通过 .miku-hidden class 触发 CSS 过渡，无全局 rAF patch'
     };
   };
 })();

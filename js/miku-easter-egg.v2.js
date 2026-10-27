@@ -1982,101 +1982,97 @@ window.__mikuBoot = function () {
     }
   }
 
-  // —— 右键径向菜单 ——
-  function closeRadial() {
-    var m = document.getElementById('miku-radial');
-    if (m) { m.style.display = 'none'; m.innerHTML = ''; }
-    // 关菜单时移除磁吸 mousemove，避免残留监听
-    if (window.__mikuRadialMag) { document.removeEventListener('mousemove', window.__mikuRadialMag); window.__mikuRadialMag = null; }
+  // —— 右键菜单合并（v2：环形菜单 → 注入网站右键菜单顶部） ——
+  // 命中看板娘身体时：preventDefault 阻止浏览器原生菜单，但不 stopPropagation，
+  // 让 anzhiyu 菜单正常弹出，然后把看板娘按钮塞到顶部 .rightMenuMiku 分组里。
+
+  // 看板娘专属的 5 个菜单按钮定义（每个配专属 anzhiyufont icon）
+  function getMikuMenuItems() {
+    var isArt = isArticlePage();
+    return [
+      // 天气：放大镜+云？anzhiyufont 没有 cloud-sun，用 message（对话气泡语义：问天气）
+      { label: '初音说天气', icon: 'anzhiyu-icon-message', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '今天天气怎么样'; i.focus(); } }, 30); } },
+      // 搜索：magnifying-glass —— rightmenu.pug 确认有（站内搜索用的就是这个）
+      { label: '初音帮我搜', icon: 'anzhiyu-icon-magnifying-glass', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '帮我搜一下'; i.focus(); } }, 30); } },
+      // 总结/推荐：shuffle（随便逛逛的 shuffle，推荐文章语义匹配）
+      isArt
+        ? { label: '总结这篇文章', icon: 'anzhiyu-icon-shuffle', act: function () { if (window.__mikuSummarizeArticle) window.__mikuSummarizeArticle(); else { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '总结一下这篇文章'; i.focus(); } }, 30); } } }
+        : { label: '推荐一篇文章', icon: 'anzhiyu-icon-shuffle', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '推荐一篇你写的文章给我'; i.focus(); } }, 30); } },
+      // 切换主题：circle-half-stroke —— rightmenu.pug 确认有（深色模式用的就是这个）
+      { label: '切换主题', icon: 'anzhiyu-icon-circle-half-stroke', act: function () { var b = document.getElementById('darkmode') || document.querySelector('.darkmode_switchbutton'); if (b) b.click(); } },
+      // 清空对话：copy 的反义？用 paste 反过来？不，用 xmark（关闭/清空语义）
+      { label: '清空对话', icon: 'anzhiyu-icon-xmark', act: function () { if (window.__mikuChatDialogOpen) window.__mikuCloseChatDialog(); clearChatHistory(); mikuSay('对话已清空～我们聊点新的吧！', 2600, 2); setMikuState('idle'); } }
+    ];
   }
-  // 是否处于文章页：与 __mikuSummarizeArticle 的文章探测选择器保持一致。
-  // 必须用 #post 限定，因为 anzhiyu 页面（朋友圈/关于/归档等）也用 #article-container 包正文。
+
+  // 往 anzhiyu 右键菜单的 .rightMenuMiku 分组里注入按钮
+  // 注意：.rightMenuMiku 模板 class 是 rightMenu-group.rightMenu-line，
+  // 父分组 rightMenu-line 本身是 block 纵向布局（每个 item 占一行），
+  // 内部 .rightMenu-item 才是 flex（图标+文字水平排列）。
+  function injectMikuToRightMenu() {
+    var group = document.querySelector('.rightMenuMiku');
+    if (!group) return;
+    group.innerHTML = '';
+    group.style.display = 'block';  // 让 rightMenu-line 的纵向布局生效
+    var items = getMikuMenuItems();
+    items.forEach(function (it) {
+      var a = document.createElement('a');
+      a.className = 'rightMenu-item menu-link';
+      a.href = 'javascript:void(0);';
+      a.innerHTML = '<i class="anzhiyufont ' + it.icon + '"></i><span>' + it.label + '</span>';
+      a.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var hider = document.getElementById('rightmenu-mask');
+        if (hider && hider.click) hider.click();
+        it.act();
+      });
+      group.appendChild(a);
+    });
+    // 注入后 anzhiyu 菜单变高了，重新计算尺寸避免出界
+    if (window.rm && typeof window.rm.reloadrmSize === 'function') {
+      try { window.rm.reloadrmSize(); } catch (e) {}
+    }
+  }
+
+  // 关闭 anzhiyu 菜单时同步隐藏看板娘按钮
+  function hideMikuFromRightMenu() {
+    var group = document.querySelector('.rightMenuMiku');
+    if (group) { group.innerHTML = ''; group.style.display = 'none'; }
+  }
+
+  // 是否处于文章页
   function isArticlePage() {
     var sel = ['#post .post-content', '#post #article-container', '#post-meta', '.post-copyright'];
     for (var i = 0; i < sel.length; i++) { if (document.querySelector(sel[i])) return true; }
     return false;
   }
 
-  function openRadial(cx, cy) {
-    var m = document.getElementById('miku-radial');
-    if (!m) return;
-    var isArt = isArticlePage();
-    var items = [
-      { label: '天气', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '今天天气怎么样'; i.focus(); } }, 30); } },
-      { label: '搜索', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '帮我搜一下'; i.focus(); } }, 30); } },
-      // 文章页给「总结文章」，非文章页给「推荐文章」（均走站内知识库，全站可用）
-      isArt
-        ? { label: '总结文章', act: function () { if (window.__mikuSummarizeArticle) window.__mikuSummarizeArticle(); else { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '总结一下这篇文章'; i.focus(); } }, 30); } } }
-        : { label: '推荐文章', act: function () { window.__mikuOpenChatDialog(); setTimeout(function () { var i = document.getElementById('miku-chat-input'); if (i) { i.value = '推荐一篇你写的文章给我'; i.focus(); } }, 30); } },
-      { label: '切主题', theme: true, act: function () { var b = document.getElementById('darkmode') || document.querySelector('.darkmode_switchbutton'); if (b) b.click(); } },
-      // 「静音」仅切换一个无副作用的标记、无实际用途 → 替换为真正有用的「清空对话」
-      { label: '清空对话', act: function () { if (window.__mikuChatDialogOpen) window.__mikuCloseChatDialog(); clearChatHistory(); mikuSay('对话已清空～我们聊点新的吧！', 2600, 2); setMikuState('idle'); } }
-    ];
-    m.innerHTML = '';
-    m.style.display = 'block';
-    var R = 62;
-    items.forEach(function (it, idx) {
-      var ang = (-90 + idx * (360 / items.length)) * Math.PI / 180;
-      var x = cx + R * Math.cos(ang);
-      var y = cy + R * Math.sin(ang);
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'miku-radial-item';
-      b.textContent = it.label;
-      if (it.theme) b.setAttribute('data-miku-theme-btn', '');
-      b.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;transform:translate(-50%,-50%);' +
-        'width:54px;height:54px;border-radius:50%;border:none;background:' + THEME +
-        ';color:#fff;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);' +
-        'font-family:inherit;transition:transform .15s ease;z-index:99998;will-change:transform;';
-      b.addEventListener('click', function (e) {
-        e.stopPropagation();
-        closeRadial();
-        it.act();
-      });
-      m.appendChild(b);
-    });
-    // 磁吸（Magnetic）：菜单打开期间，鼠标靠近按钮时按钮向光标轻微吸附（仅 transform，不影响定位/层级）
-    var rBtns = m.querySelectorAll('.miku-radial-item');
-    if (window.__mikuRadialMag) { document.removeEventListener('mousemove', window.__mikuRadialMag); window.__mikuRadialMag = null; }
-    var mag = function (e) {
-      for (var k2 = 0; k2 < rBtns.length; k2++) {
-        var btn = rBtns[k2];
-        var br = btn.getBoundingClientRect();
-        var bx = br.left + br.width / 2, by = br.top + br.height / 2;
-        var dx = e.clientX - bx, dy = e.clientY - by;
-        var dist = Math.sqrt(dx * dx + dy * dy);
-        var R = 64;
-        if (dist < R) {
-          var k = (R - dist) / R;                       // 越近吸力越强（0..1）
-          var px = dx * 0.3 * k, py = dy * 0.3 * k;      // 朝光标方向偏移
-          btn.style.transform = 'translate(-50%,-50%) translate(' + px.toFixed(1) + 'px,' + py.toFixed(1) + 'px) scale(' + (1 + 0.16 * k).toFixed(3) + ')';
-        } else {
-          btn.style.transform = 'translate(-50%,-50%) scale(1)';
-        }
-      }
-    };
-    window.__mikuRadialMag = mag;
-    document.addEventListener('mousemove', mag);
-  }
   function setupRadialMenu() {
     if (window.__mikuRadialReady) return;
     window.__mikuRadialReady = true;
-    ensureEl('miku-radial', 'miku-radial', 'position:fixed;z-index:99998;display:none;width:0;height:0;');
-    // 用捕获阶段监听：确保在 anzhiyu 自定义右键菜单（冒泡阶段）之前先判定。
-    // 命中模型身体时：preventDefault 阻止浏览器原生菜单 + stopPropagation 阻止 anzhiyu 菜单。
-    // 未命中时直接 return，原生菜单与 anzhiyu 菜单都正常弹出。
+
+    // 菜单关闭时同步隐藏看板娘按钮
+    document.addEventListener('click', function (e) {
+      var mask = document.getElementById('rightmenu-mask');
+      if (mask && e.target === mask) hideMikuFromRightMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') hideMikuFromRightMenu();
+    });
+
+    // 只有右键看板娘身体才出合并菜单（左键不触发，还原正常点击）
     document.addEventListener('contextmenu', function (e) {
       var s = stage(); if (!s || !window.__mikuVisible) return;
       if (!isBodyAt(e.clientX, e.clientY)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      openRadial(e.clientX, e.clientY);
+      e.preventDefault();                          // 阻止浏览器原生菜单
+      // 不 stopPropagation！让 anzhiyu 的 window.oncontextmenu 也能收到
+      requestAnimationFrame(function () {
+        var menu = document.getElementById('rightMenu');
+        if (menu && menu.style.display !== 'none') {
+          injectMikuToRightMenu();
+        }
+      });
     }, true);
-    document.addEventListener('click', function (e) {
-      if (e.target && e.target.closest && e.target.closest('#miku-radial')) return;
-      closeRadial();
-    });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeRadial(); });
   }
 
   // —— 微反馈：气泡高亮脉冲 / 舞台抖动 ——

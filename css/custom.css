@@ -2459,7 +2459,20 @@ img[data-lazy-src*="pZRXSc6"] {
 #about-page .myInfoAndSayHello > * { position: relative; z-index: 1; }
 
 /* ==================================================================
-   首页 aside 站长卡片（含“一日之计在于晨”问候 #author-info__sayhi）
+   追番卡片 hover 黄光移除
+   - 主题默认给 .comic-content::after 加了 #fbe9b8 黄光 inset box-shadow，
+     追番卡片 hover 时这层黄光会透出来，跟我们的蓝调主题不搭；
+   - 这里把黄光换成中性的青色柔光（夜间） / 透明（白天）。
+   ================================================================== */
+#about-page .author-content-item.comic-content::after {
+  box-shadow: 0 -48px 203px 11px rgba(158, 224, 214, 0.08) inset;
+}
+[data-theme="light"] #about-page .author-content-item.comic-content::after {
+  box-shadow: none;
+}
+
+/* ==================================================================
+   首页 aside 站长卡片（含"一日之计在于晨"问候 #author-info__sayhi）
    - 白天模式：保留主题默认蓝白卡片（正常蓝色主题色）
    - 夜间模式：与关于页站长卡片同款蓝黄流动渐变 + 漂浮光斑
    （R18 原误加在 #welcome-info 欢迎卡，已移至此正确卡片；
@@ -2937,10 +2950,11 @@ body.endy-dragging * { cursor: grabbing !important; }
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 0 10px var(--endy-glow-1), 0 0 26px var(--endy-glow-2);
 }
 
-/* 站名辉光已整体移除（source/js/site-title-glow.js 已删除）：清掉 #site-title 的青色外发光，
-   只保留头图上的暗投影保字口清晰；其余标题（文章/卡片等）的提亮与辉光保持不变。 */
+/* 夜间站名：保留头图暗投影 + 一层轻微的青色辉光，让字更白亮而不是只有暗投影。
+   比文章标题的辉光弱一半——文章标题有两层辉光（10px+26px glow），
+   站名只留一层（10px glow）避免头图上光晕过饱和。 */
 [data-theme="dark"] #page-header h1#site-title {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 0 14px rgba(158, 224, 214, 0.22);
 }
 
 /* ==================================================================
