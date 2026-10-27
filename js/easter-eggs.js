@@ -321,65 +321,217 @@
     });
   }
 
-  /* ---------- 彩蛋8：个人页三连点头像 → 全屏浮层切换到新个人页（home-app） ----------
-     连点三下 #about-page .author-img 打开全屏 iframe 浮层加载 /about-home/（home-app 产物）；
-     浮层内（home-app）再三连点其头像 → window.parent.postMessage({type:'endy:revertAbout'})
-     通知本页关闭浮层，切回原个人页。浮层自带 × 与 ESC 关闭；pjax 切走时自动关闭。
-     原「连点揭示私密信息」彩蛋已移除，私密信息改为常显（下方永久加 endy-private-revealed）。 */
+  /* =======================================================================
+     彩蛋8 v2：个人页隐藏个人主页（home-app iframe）
+     触发：头像 3 连击 → 全屏 iframe 浮层 /about-home/?v=3
+     新增：入场/出场动画、骨架屏、预加载、偏好记忆、focus trap、移动端
+     跨窗口回切：home-app 内 postMessage({type:'endy:revertAbout'})
+     持久化：localStorage 'endy-about-pref' = 'home-app' | 'default'
+     ======================================================================= */
 
-  /* --- 浮层管理 + 跨窗口回切：模块级单例，避免 pjax 重跑重复绑定 --- */
+  const ABOUT_FRAME_URL = '/about-home/?v=3';
+  const ABOUT_PREF_KEY = 'endy-about-pref';
+  const ABOUT_HINT_KEY = 'endy-about-hint-shown';
+
   let __endyAboutOverlay = null;
   let __endyAboutKeyHandler = null;
+  let __endyAboutFocusStart = null; // 关闭时把焦点还回触发元素
+  let __endyAboutCloseTimer = null; // 退场动画延迟 removeChild
 
-  function __endyCloseAboutOverlay() {
-    if (__endyAboutOverlay && __endyAboutOverlay.parentNode) {
-      __endyAboutOverlay.parentNode.removeChild(__endyAboutOverlay);
+  function __endyPrefSave(pref) {
+    try { localStorage.setItem(ABOUT_PREF_KEY, pref); } catch (e) {}
+  }
+  function __endyPrefLoad() {
+    try { return localStorage.getItem(ABOUT_PREF_KEY); } catch (e) { return null; }
+  }
+
+  /* --- iframe 预加载：about 页空闲时 fetch 预热 DNS/TLS/首包 --- */
+  let __endyAboutPrefetched = false;
+  function __endyPrefetchAbout() {
+    if (__endyAboutPrefetched) return;
+    __endyAboutPrefetched = true;
+    // requestIdleCallback 让浏览器在空闲时才干活，不抢首屏
+    const start = function () {
+      try {
+        // 用 fetch 只是预热连接，不解析 body
+        fetch(ABOUT_FRAME_URL, { method: 'GET', credentials: 'omit' }).catch(function () {});
+      } catch (e) {}
+    };
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(start, { timeout: 8000 });
+    } else {
+      setTimeout(start, 2000);
     }
+  }
+
+  function __endyCloseAboutOverlay(returnFocus) {
+    if (!__endyAboutOverlay) return;
+
+    // 退出动画：先撤 is-open，等 320ms 让 iframe blur+scale 退场再 remove
+    __endyAboutOverlay.classList.remove('is-open');
+    var overlay = __endyAboutOverlay;
     __endyAboutOverlay = null;
+
+    if (__endyAboutCloseTimer) clearTimeout(__endyAboutCloseTimer);
+    __endyAboutCloseTimer = setTimeout(function () {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      __endyAboutCloseTimer = null;
+      // 还焦点
+      if (returnFocus && typeof returnFocus.focus === 'function') {
+        try { returnFocus.focus(); } catch (e) {}
+      }
+    }, 340);
+
     if (__endyAboutKeyHandler) {
       document.removeEventListener('keydown', __endyAboutKeyHandler);
       __endyAboutKeyHandler = null;
     }
     document.documentElement.classList.remove('endy-about-locked');
+    __endyAboutFocusStart = null;
   }
 
-  function __endyOpenAboutOverlay() {
-    if (__endyAboutOverlay) return; // 已打开，避免重复创建
+  function __endyOpenAboutOverlay(triggerEl) {
+    if (__endyAboutOverlay) return;
+
     const overlay = document.createElement('div');
     overlay.className = 'endy-about-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', '新个人主页');
 
+    // 骨架屏：脉冲光斑 + spinner
+    const skeleton = document.createElement('div');
+    skeleton.className = 'endy-about-skeleton';
+
+    // iframe：初始不显示（等 load 后骨架屏淡出，iframe 接管）
     const frame = document.createElement('iframe');
     frame.className = 'endy-about-frame';
     frame.id = 'endy-about-home-frame';
-    frame.src = '/about-home/?v=3';
     frame.setAttribute('title', '彖渊子的新个人主页');
     frame.setAttribute('allow', 'autoplay; fullscreen');
+    // src 延后塞：骨架屏先上，避免白闪
+    // frame.src 在下面 rAF 之后才赋
 
+    // 关闭按钮
     const closeBtn = document.createElement('button');
     closeBtn.className = 'endy-about-close';
     closeBtn.type = 'button';
     closeBtn.setAttribute('aria-label', '返回原个人页');
     closeBtn.textContent = '×';
-    closeBtn.addEventListener('click', __endyCloseAboutOverlay);
 
-    // 点击遮罩空白区（iframe 外）关闭
+    // 点击遮罩空白关闭
     overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) __endyCloseAboutOverlay();
+      if (e.target === overlay) __endyCloseAboutOverlay(triggerEl);
     });
+    closeBtn.addEventListener('click', function () { __endyCloseAboutOverlay(triggerEl); });
 
+    // ESC + Focus Trap：焦点只在 closeBtn 和 iframe 间循环
+    __endyAboutKeyHandler = function (e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        __endyCloseAboutOverlay(triggerEl);
+        return;
+      }
+      // Focus Trap（只在浮层刚打开、还没进 iframe 时兜底）
+      if (e.key === 'Tab' && __endyAboutOverlay) {
+        var focusable = __endyAboutOverlay.querySelectorAll('.endy-about-close');
+        if (focusable.length === 0) return;
+        var first = focusable[0];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault(); closeBtn.focus();
+        } else if (!e.shiftKey && document.activeElement === closeBtn) {
+          e.preventDefault();
+          // 把焦点送进 iframe（跨域可能无效，忽略错误）
+          try { frame.contentWindow.focus(); } catch (ie) {}
+        }
+      }
+    };
+    document.addEventListener('keydown', __endyAboutKeyHandler);
+
+    // 装配顺序：overlay 先 append skeleton + frame + closeBtn → 等一帧赋 src + 加 is-open
+    overlay.appendChild(skeleton);
     overlay.appendChild(frame);
     overlay.appendChild(closeBtn);
     document.body.appendChild(overlay);
-
-    __endyAboutKeyHandler = function (e) {
-      if (e.key === 'Escape') __endyCloseAboutOverlay();
-    };
-    document.addEventListener('keydown', __endyAboutKeyHandler);
-    document.documentElement.classList.add('endy-about-locked');
     __endyAboutOverlay = overlay;
+    document.documentElement.classList.add('endy-about-locked');
+    __endyAboutFocusStart = triggerEl || null;
+
+    // load 事件：骨架屏淡出 + iframe 显示入场
+    var slowTimer = null;
+    var onLoad = function () {
+      if (slowTimer) { clearTimeout(slowTimer); slowTimer = null; }
+      // 骨架屏淡出 → 然后让 iframe 可见 + 入场动画
+      skeleton.classList.add('is-gone');
+      // 让 iframe 能接收 postMessage
+      try { frame.style.pointerEvents = 'auto'; } catch (ie) {}
+    };
+    frame.addEventListener('load', onLoad);
+    // 跨域 iframe 的 error 事件不触发，这里用 8 秒超时兜底
+    slowTimer = setTimeout(function () {
+      if (!__endyAboutOverlay || skeleton.classList.contains('is-gone')) return;
+      var slowTip = document.createElement('div');
+      slowTip.className = 'endy-about-slow';
+      slowTip.innerHTML = '加载较慢…';
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.textContent = '重试';
+      retry.addEventListener('click', function () {
+        slowTip.remove();
+        frame.src = ABOUT_FRAME_URL + '?v=' + Date.now();
+      });
+      slowTip.appendChild(retry);
+      skeleton.appendChild(slowTip);
+    }, 8000);
+
+    // 入场：先 rAF 让 overlay 参与布局 → 赋 src → 下一帧加 is-open 触发动画
+    requestAnimationFrame(function () {
+      frame.src = ABOUT_FRAME_URL;
+      frame.style.pointerEvents = 'none'; // load 完成前不让 iframe 抢焦点
+      requestAnimationFrame(function () {
+        overlay.classList.add('is-open');
+        // 焦点给关闭按钮，保证键盘可达
+        closeBtn.focus({ preventScroll: true });
+      });
+    });
+
+    __endyPrefSave('home-app');
+  }
+
+  /* --- about 页 toggle 按钮：角落显示，点击切换 --- */
+  function __endyShowAboutToggle() {
+    var old = document.getElementById('endy-about-toggle');
+    if (old) old.remove();
+    var btn = document.createElement('button');
+    btn.id = 'endy-about-toggle';
+    btn.className = 'endy-about-toggle';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', '切换个人主页');
+    btn.textContent = '🧑 隐藏主页';
+    document.body.appendChild(btn);
+    requestAnimationFrame(function () { btn.classList.add('is-visible'); });
+    btn.addEventListener('click', function () {
+      var pref = __endyPrefLoad();
+      if (pref === 'home-app') {
+        // 关掉 → 回到默认 about 页
+        if (__endyAboutOverlay) __endyCloseAboutOverlay();
+        __endyPrefSave('default');
+        btn.textContent = '🧑‍💻 隐藏主页';
+        showToast('已切回原个人页', { duration: 2000 });
+      } else {
+        __endyOpenAboutOverlay(btn);
+        __endyPrefSave('home-app');
+        btn.textContent = '🧑 隐藏主页';
+        showToast('已进入隐藏个人主页', { duration: 2000 });
+      }
+    });
+    return btn;
+  }
+
+  function __endyHideAboutToggle() {
+    var t = document.getElementById('endy-about-toggle');
+    if (t) t.classList.remove('is-visible');
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 260);
   }
 
   // 跨窗口回切 + pjax 关闭：整个脚本生命周期只绑一次
@@ -388,11 +540,14 @@
     window.addEventListener('message', function (e) {
       if (e.data && e.data.type === 'endy:revertAbout') __endyCloseAboutOverlay();
     });
-    document.addEventListener('pjax:send', __endyCloseAboutOverlay);
+    document.addEventListener('pjax:send', function () {
+      // pjax 切页 → 关闭浮层 + 隐藏 toggle
+      __endyCloseAboutOverlay();
+      __endyHideAboutToggle();
+    });
   }
 
-  // 跨浮层音频互斥：博客 ↔ home-app(iframe) 同时只能有一边出声。
-  // 协议：谁先 play 谁广播 owner，对方收到后暂停自己的媒体；只在「播放」时广播，绝不级联，天然无环。
+  // 跨浮层音频互斥（保持原有逻辑，不碰）
   if (!window.__endyAudioFocusBound) {
     window.__endyAudioFocusBound = true;
     function __endyPauseBlogMedia() {
@@ -403,8 +558,6 @@
     window.addEventListener('message', function (e) {
       if (e.data && e.data.type === 'endy:audioFocus' && e.data.owner === 'home-app') __endyPauseBlogMedia();
     });
-    // 博客自身媒体开始播放（导航音乐 / 音乐馆 / 任意 <audio><video>）→ 通知浮层里的 home-app 暂停。
-    // 注意：iframe 内部的 play 事件不会冒泡到博客 document，所以此监听只会捕获博客自己的媒体，不会误伤。
     document.addEventListener('play', function (e) {
       var t = e.target;
       if (!t || (t.tagName !== 'AUDIO' && t.tagName !== 'VIDEO')) return;
@@ -413,29 +566,59 @@
     }, true);
   }
 
+  /* ---------- about 页初始化 ---------- */
   function initAboutPageEgg() {
     if (!location.pathname.startsWith('/about/')) return;
     const aboutPage = document.getElementById('about-page');
     if (!aboutPage) return;
-    // 私密信息（地图 / 生于·学校·职业）改为常显，不再依赖点击揭示
+
+    // 私密信息常显（CSS 僵尸代码已删，这里保留 class 供其他潜在用途）
     aboutPage.classList.add('endy-private-revealed');
 
+    // 预加载 about-home
+    __endyPrefetchAbout();
+
+    // 可发现性：首次访问 about 页给头像脉冲光晕（只闪一次）
     whenReady('#about-page .author-img', function (avatarWrap) {
-      if (avatarWrap.dataset.aboutEggBound) return;
-      avatarWrap.dataset.aboutEggBound = '1';
-      let clicks = [];
-      avatarWrap.addEventListener('click', function () {
-        const now = Date.now();
-        clicks.push(now);
-        clicks = clicks.filter(function (t) { return now - t <= 1600; });
-        if (clicks.length >= 3) {
-          clicks = [];
-          __endyOpenAboutOverlay();
-          markEggFound('about');
-          showToast('🧑 已进入新个人主页，三连点头像返回', { duration: 3200 });
+      // 头像 3 连击触发浮层
+      if (!avatarWrap.dataset.aboutEggBound) {
+        avatarWrap.dataset.aboutEggBound = '1';
+        let clicks = [];
+        avatarWrap.addEventListener('click', function () {
+          const now = Date.now();
+          clicks.push(now);
+          clicks = clicks.filter(function (t) { return now - t <= 1600; });
+          if (clicks.length >= 3) {
+            clicks = [];
+            __endyOpenAboutOverlay(avatarWrap);
+            markEggFound('about');
+            showToast('🧑 已进入隐藏个人主页，三连点头像返回', { duration: 2800 });
+          }
+        });
+      }
+
+      // 首次访问提示光晕
+      try {
+        if (!localStorage.getItem(ABOUT_HINT_KEY)) {
+          localStorage.setItem(ABOUT_HINT_KEY, '1');
+          aboutPage.classList.add('endy-avatar-hint');
+          // 动画结束后移除 class（CSS animation 循环 3 次 × 2.2s ≈ 6.6s）
+          setTimeout(function () { aboutPage.classList.remove('endy-avatar-hint'); }, 7000);
         }
-      });
+      } catch (e) {}
     });
+
+    // 偏好记忆：如果用户上次用 home-app，直接自动打开
+    const pref = __endyPrefLoad();
+    if (pref === 'home-app') {
+      // 等 about 页渲染完再开，避免抢焦点
+      whenReady('#about-page .author-img', function (avatarWrap) {
+        setTimeout(function () { __endyOpenAboutOverlay(avatarWrap); }, 200);
+      });
+    }
+
+    // 显示 toggle 按钮
+    setTimeout(__endyShowAboutToggle, 1200);
   }
 
   /* ---------- 彩蛋5：长文底部悄悄话（仅文章详情页） ---------- */

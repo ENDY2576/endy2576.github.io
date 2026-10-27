@@ -1658,82 +1658,21 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
 /* 径向菜单项：聚焦可见（键盘可达） */
 .miku-radial-item:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-/* ==================================================================
-   彩蛋8：个人页私密信息（地图地址、生于/学校/职业）默认隐藏。
-   隐藏态：整组 mapAndInfo 横向+纵向收起淡出，统计卡补位占满整行（不留空洞）；
-   连击头像 5 次揭示：统计卡让位回 39%，整组恢复，地图/信息卡按主题 60%/40% 比例贴满。
-   注意：主题给 .map/.selfInfo 设了 height:60%/40% + min-height，必须 !important 压制。 */
-.endy-private-info .author-content-item.map.single,
-.endy-private-info .author-content-item.selfInfo.single {
-  height: 0 !important;
-  max-height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  opacity: 0 !important;
-  overflow: hidden !important;
-  border-width: 0 !important;
-  box-sizing: border-box !important;
-  transition: max-height 0.5s ease, min-height 0.5s ease, height 0.5s ease,
-              opacity 0.4s ease, margin 0.4s ease, padding 0.4s ease;
-}
-/* 组容器一并收起（宽→0、高→0、淡出），消除右列空洞 */
-.author-content-item-group.column.mapAndInfo.endy-private-info {
-  width: 0 !important;
-  min-width: 0 !important;
-  max-height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  opacity: 0 !important;
-  border-width: 0 !important;
-  transition: width 0.5s ease, max-height 0.5s ease, min-height 0.5s ease,
-              opacity 0.4s ease, margin 0.4s ease;
-}
-/* 统计卡补位：隐藏时 39%→100%；本行桌面端不换行，两卡宽度动画全程同排不跳行 */
-#about-page .author-content-item.about-statistic { transition: width 0.5s ease; }
-@media screen and (min-width: 769px) {
-  #about-page .author-content.endy-statistic-row { flex-wrap: nowrap; }
-  #about-page:not(.endy-private-revealed) .author-content-item.about-statistic { width: 100% !important; }
-}
-/* --- 揭示态：恢复主题比例 --- */
-#about-page.endy-private-revealed .author-content-item-group.column.mapAndInfo.endy-private-info {
-  width: 59% !important;
-  max-height: 900px !important;
-  opacity: 1 !important;
-}
-#about-page.endy-private-revealed .endy-private-info .author-content-item.map.single {
-  height: 60% !important;
-  max-height: 400px !important;
-  min-height: 160px !important;
-  margin-bottom: 0.5rem !important;
-  padding-top: 1rem !important;
-  padding-bottom: 1rem !important;
-  opacity: 1 !important;
-}
-#about-page.endy-private-revealed .endy-private-info .author-content-item.selfInfo.single {
-  height: 40% !important;
-  max-height: 400px !important;
-  min-height: 100px !important;
-  padding-top: 1rem !important;
-  padding-bottom: 1rem !important;
-  opacity: 1 !important;
-}
-@media screen and (max-width: 768px) {
-  #about-page.endy-private-revealed .author-content-item-group.column.mapAndInfo.endy-private-info {
-    width: 100% !important;
-  }
-}
+/* 彩蛋8 僵尸代码已清理：原 .endy-private-info hide/reveal CSS 因 easter-eggs.js
+   永久 add('endy-private-revealed') 永不触发，已整体删除。 */
 
-/* ========== 彩蛋8：新个人页全屏浮层（iframe 承载 home-app） ========== */
-/* 浮层 z-index 高于看板娘(99998)，整屏覆盖；iframe 内 home-app 独立运行，
-   不污染博客自身的 Lenis / Miku / 滚动 / PJAX。关闭最干净（直接移除节点）。 */
+/* ========== 彩蛋8：新个人页全屏浮层（iframe 承载 home-app） v2 ========== */
+/* --- 入场/出场：overlay 淡入 + iframe 从 scale(0.92)+blur(8px) 弹入 --- */
 .endy-about-overlay {
   position: fixed;
   inset: 0;
   z-index: 100000;
   background: #0a0e18;
+  opacity: 0;
+  transition: opacity 0.28s ease-out;
 }
+.endy-about-overlay.is-open { opacity: 1; }
+
 .endy-about-frame {
   position: absolute;
   inset: 0;
@@ -1741,28 +1680,155 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   height: 100%;
   border: 0;
   display: block;
+  transform: scale(0.92);
+  filter: blur(8px);
+  opacity: 0;
+  transition:
+    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.38s ease-out,
+    opacity 0.24s ease-out;
+  transition-delay: 0.06s; /* 遮罩先淡一点再让 iframe 跟上 */
+  will-change: transform, filter, opacity;
 }
+.endy-about-overlay.is-open .endy-about-frame {
+  transform: scale(1);
+  filter: blur(0);
+  opacity: 1;
+  /* 骨架屏隐藏（JS 负责在 load 事件后移除骨架、让 iframe 显示） */
+}
+
+/* --- 骨架屏：脉冲光斑，覆盖 iframe 直到 load --- */
+.endy-about-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse at 30% 35%, rgba(80, 120, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse at 70% 65%, rgba(180, 100, 255, 0.28) 0%, transparent 55%),
+    linear-gradient(135deg, #0e1422 0%, #161c2e 50%, #0d1220 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.25s ease;
+}
+.endy-about-skeleton.is-gone { opacity: 0; pointer-events: none; }
+.endy-about-skeleton::after {
+  content: '';
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(140, 180, 255, 0.85);
+  animation: endy-about-spin 0.9s linear infinite;
+}
+@keyframes endy-about-spin { to { transform: rotate(360deg); } }
+
+/* --- 加载较慢提示（8 秒超时后 JS 显示） --- */
+.endy-about-slow {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px 16px;
+  border-radius: 20px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.endy-about-slow button {
+  margin-left: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  padding: 2px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* --- 关闭按钮：48px full-round + 移动端安全区 --- */
 .endy-about-close {
   position: absolute;
-  top: 18px;
-  right: 18px;
-  z-index: 2;
-  width: 44px;
-  height: 44px;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
+  z-index: 4;
+  width: 48px;
+  height: 48px;
   border: 0;
   border-radius: 50%;
-  background: rgba(20, 24, 38, 0.66);
+  background: rgba(20, 24, 38, 0.6);
   color: #fff;
-  font-size: 26px;
-  line-height: 1;
+  font-size: 24px;
+  line-height: 48px;
   cursor: pointer;
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
-  transition: transform 0.2s ease, background 0.2s ease;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  transition: transform 0.22s ease, background 0.22s ease, opacity 0.24s ease;
+  opacity: 0;
+  transform: rotate(-30deg) scale(0.6);
 }
-.endy-about-close:hover { background: rgba(40, 46, 70, 0.85); transform: scale(1.08); }
+.endy-about-overlay.is-open .endy-about-close {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+  transition-delay: 0.18s;
+}
+.endy-about-close:hover { background: rgba(40, 46, 70, 0.82); transform: scale(1.1); }
+.endy-about-close:active { transform: scale(0.95); }
 .endy-about-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* --- 可发现性：头像首次提示光晕（只在 about 页、localStorage 未标记时生效） --- */
+#about-page.endy-avatar-hint .author-img::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(120, 180, 255, 0.35),
+              0 0 24px 6px rgba(120, 180, 255, 0.18);
+  animation: endy-avatar-pulse 2.2s ease-in-out 3;
+  pointer-events: none;
+}
+@keyframes endy-avatar-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(120, 180, 255, 0.35),
+                        0 0 24px 6px rgba(120, 180, 255, 0.18); }
+  50%      { box-shadow: 0 0 0 8px rgba(120, 180, 255, 0.08),
+                        0 0 40px 12px rgba(120, 180, 255, 0.06); }
+}
+
+/* --- about 页 toggle 按钮（揭示后角落显示） --- */
+.endy-about-toggle {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  right: calc(24px + env(safe-area-inset-right));
+  z-index: 9990;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.25s ease;
+  opacity: 0;
+  pointer-events: none;
+  font-family: inherit;
+}
+.endy-about-toggle.is-visible { opacity: 1; pointer-events: auto; }
+.endy-about-toggle:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); }
+.endy-about-toggle:active { transform: translateY(0); }
+.endy-about-toggle:focus-visible { outline: 2px solid var(--anzhiyu-main, #4b5cc4); outline-offset: 2px; }
+[data-theme="dark"] .endy-about-toggle {
+  background: rgba(30, 34, 48, 0.92);
+  color: #e4e4ee;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
 /* 打开浮层时锁住博客背景滚动（Lenis 接管下作为视觉兜底，避免背后穿透滚动） */
 html.endy-about-locked, html.endy-about-locked body { overflow: hidden; }
 
