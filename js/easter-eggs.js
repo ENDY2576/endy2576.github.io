@@ -396,6 +396,8 @@
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', '新个人主页');
+    // 无右上角关闭按钮：用 tabindex=-1 让浮层自身可聚焦，Tab 焦点不会漏到背后的博客页面
+    overlay.setAttribute('tabindex', '-1');
 
     // 骨架屏：脉冲光斑 + spinner
     const skeleton = document.createElement('div');
@@ -410,46 +412,31 @@
     // src 延后塞：骨架屏先上，避免白闪
     // frame.src 在下面 rAF 之后才赋
 
-    // 关闭按钮
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'endy-about-close';
-    closeBtn.type = 'button';
-    closeBtn.setAttribute('aria-label', '返回原个人页');
-    closeBtn.textContent = '×';
+    // 关闭入口只有两个：点遮罩空白处（下方监听）与 Esc / iframe 内 postMessage。
+    // 右上角 × 已移除，页底「回到博客」等既有返回路径成为主入口。
 
     // 点击遮罩空白关闭
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) __endyCloseAboutOverlay(triggerEl);
     });
-    closeBtn.addEventListener('click', function () { __endyCloseAboutOverlay(triggerEl); });
 
-    // ESC + Focus Trap：焦点只在 closeBtn 和 iframe 间循环
+    // ESC + Focus Trap：没有可聚焦的关闭按钮后，Tab 焦点锁在浮层自身
     __endyAboutKeyHandler = function (e) {
       if (e.key === 'Escape') {
         e.preventDefault();
         __endyCloseAboutOverlay(triggerEl);
         return;
       }
-      // Focus Trap（只在浮层刚打开、还没进 iframe 时兜底）
       if (e.key === 'Tab' && __endyAboutOverlay) {
-        var focusable = __endyAboutOverlay.querySelectorAll('.endy-about-close');
-        if (focusable.length === 0) return;
-        var first = focusable[0];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault(); closeBtn.focus();
-        } else if (!e.shiftKey && document.activeElement === closeBtn) {
-          e.preventDefault();
-          // 把焦点送进 iframe（跨域可能无效，忽略错误）
-          try { frame.contentWindow.focus(); } catch (ie) {}
-        }
+        e.preventDefault();
+        try { overlay.focus({ preventScroll: true }); } catch (ie) {}
       }
     };
     document.addEventListener('keydown', __endyAboutKeyHandler);
 
-    // 装配顺序：overlay 先 append skeleton + frame + closeBtn → 等一帧赋 src + 加 is-open
+    // 装配顺序：overlay 先 append skeleton + frame → 等一帧赋 src + 加 is-open
     overlay.appendChild(skeleton);
     overlay.appendChild(frame);
-    overlay.appendChild(closeBtn);
     document.body.appendChild(overlay);
     __endyAboutOverlay = overlay;
     document.documentElement.classList.add('endy-about-locked');
@@ -495,8 +482,8 @@
       frame.style.pointerEvents = 'none'; // load 完成前不让 iframe 抢焦点
       requestAnimationFrame(function () {
         overlay.classList.add('is-open');
-        // 焦点给关闭按钮，保证键盘可达
-        closeBtn.focus({ preventScroll: true });
+        // 焦点交给浮层自身（iframe 跨域时不强求聚焦内部），保证键盘可达
+        try { overlay.focus({ preventScroll: true }); } catch (ie) {}
       });
     });
   }

@@ -1750,36 +1750,7 @@ body.endy-ania-cursor *:not(input):not(textarea):not(select) {
   font-size: 12px;
 }
 
-/* --- 关闭按钮：48px full-round + 移动端安全区 --- */
-.endy-about-close {
-  position: absolute;
-  top: calc(16px + env(safe-area-inset-top));
-  right: calc(16px + env(safe-area-inset-right));
-  z-index: 4;
-  width: 48px;
-  height: 48px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(20, 24, 38, 0.6);
-  color: #fff;
-  font-size: 24px;
-  line-height: 48px;
-  cursor: pointer;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-  transition: transform 0.22s ease, background 0.22s ease, opacity 0.24s ease;
-  opacity: 0;
-  transform: rotate(-30deg) scale(0.6);
-}
-.endy-about-overlay.is-open .endy-about-close {
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-  transition-delay: 0.18s;
-}
-.endy-about-close:hover { background: rgba(40, 46, 70, 0.82); transform: scale(1.1); }
-.endy-about-close:active { transform: scale(0.95); }
-.endy-about-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* --- 关闭按钮已移除：返回路径交给页底「回到博客」、遮罩空白点击与 Esc --- */
 
 /* --- 可发现性：头像首次提示光晕（只在 about 页、localStorage 未标记时生效） --- */
 #about-page.endy-avatar-hint .author-img::after {
