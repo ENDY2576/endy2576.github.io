@@ -46,12 +46,11 @@
       js: ['/js/page-dnd.js?v=1', '/js/gallery-ogl.js?v=1'],
     },
     { test: /^\/life\/movies\/?$/, js: ['/js/bangumi-calendar.js?v=1'] },
+    { test: /^\/archives\/?$/, js: ['/js/archive-stats.js?v=1'] },
     { test: /^\/stats\/?$/, js: ['/js/stats-charts.js?v=1'] },
     { test: /^\/footprint\/?$/, js: ['/js/footprint-map.js?v=1'] },
     { test: /^\/timeline\/?$/, js: ['/js/timeline-flow.js?v=1'] },
-    { test: /^\/tools\/cover\/?$/, js: ['/js/cover-studio.js?v=1'] },
-    { test: /^\/tools\/art\/?$/, js: ['/js/p5-art.js?v=1'] },
-    { test: /^\/tools\/sound\/?$/, js: ['/js/sound-lab.js?v=1'] },
+    { test: /^\/piano\/?$/, js: ['/js/sound-lab.js?v=2'] },
     { test: /^\/about\/?$/, js: ['/js/about-shader.js?v=1'] },
   ];
 
