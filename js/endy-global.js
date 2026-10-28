@@ -94,6 +94,7 @@
       season = getSeasonByMonth();
     }
     document.documentElement.setAttribute('data-season', season);
+    seasonTarget = season; // 启动/PJAX 后让「目标季节」与真实季节对齐
   }
 
   // 预加载图片：返回 Promise，onload/onerror/已缓存都立即 resolve，避免切换瞬间图未就绪而闪白
@@ -134,8 +135,14 @@
   // 切换令牌：快速连点时只让最后一次切换真正生效，避免多个临时层叠加导致闪烁/卡顿
   let seasonToken = 0;
 
+  // 「目标季节」：点击瞬间就向前推进的意图值。
+  // data-season 要等 1.8s 过渡结束才写入，如果连点时以它为准算「下一季」，
+  // 过渡期间每次点击都会算出同一个结果 → 表现为「连点没反应/只换一季」。
+  let seasonTarget = null;
+
   function setSeason(season) {
     if (SEASONS.indexOf(season) === -1) return;
+    seasonTarget = season;
     const root = document.documentElement;
     const bg = document.getElementById('web_bg');
     const current = root.getAttribute('data-season') || getSeasonByMonth();
@@ -271,8 +278,11 @@
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        const current = document.documentElement.getAttribute('data-season') || getSeasonByMonth();
-        const idx = SEASONS.indexOf(current);
+        const root = document.documentElement;
+        // 以「目标季节」为基准推进：过渡期间连点也能一季一季往下走，
+        // 不会因为 data-season 还没写入而重复算同一个下一季。
+        const base = seasonTarget || root.getAttribute('data-season') || getSeasonByMonth();
+        const idx = SEASONS.indexOf(base);
         const next = SEASONS[(idx + 1) % SEASONS.length];
         setSeason(next);
         updateAll(next);
