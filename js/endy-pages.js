@@ -51,7 +51,6 @@
     { test: /^\/footprint\/?$/, js: ['/js/footprint-map.js?v=1'] },
     { test: /^\/timeline\/?$/, js: ['/js/timeline-flow.js?v=1'] },
     { test: /^\/piano\/?$/, js: ['/js/sound-lab.js?v=2'] },
-    { test: /^\/about\/?$/, js: ['/js/about-shader.js?v=1'] },
   ];
 
   function run() {
