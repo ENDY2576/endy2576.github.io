@@ -12,7 +12,6 @@
   const API_URL = 'https://cdn.jsdelivr.net/gh/ENDY2576/Friend-Circle-Lite@page/all.json';
   const ERRORS_URL = 'https://cdn.jsdelivr.net/gh/ENDY2576/Friend-Circle-Lite@page/errors.json';
   const ERROR_IMG = 'https://i.p-i.vip/30/20240815-66bced9226a36.webp';
-  const CHART_JS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
 
   // 缓存本次 fetch 的数据，供博主面板按作者筛选文章用
   let pageData = null;
@@ -326,15 +325,15 @@
       <div class="fc-sub-charts">
         <div class="fc-sub-chart-box">
           <h3 class="fc-sub-chart-title">分类分布</h3>
-          <div class="fc-sub-chart-canvas-wrap"><canvas id="fc-chart-cat"></canvas></div>
+          <div class="fc-sub-chart-canvas-wrap" id="fc-chart-cat"></div>
         </div>
         <div class="fc-sub-chart-box">
           <h3 class="fc-sub-chart-title">发文最多博主 Top 10</h3>
-          <div class="fc-sub-chart-canvas-wrap"><canvas id="fc-chart-author"></canvas></div>
+          <div class="fc-sub-chart-canvas-wrap" id="fc-chart-author"></div>
         </div>
         <div class="fc-sub-chart-box fc-sub-chart-wide">
           <h3 class="fc-sub-chart-title">每月文章数</h3>
-          <div class="fc-sub-chart-canvas-wrap"><canvas id="fc-chart-month"></canvas></div>
+          <div class="fc-sub-chart-canvas-wrap" id="fc-chart-month"></div>
         </div>
       </div>
       <div class="fc-sub-section">
@@ -418,132 +417,49 @@
     `;
   }
 
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
-
   function drawCharts(articles) {
-    const canvasCat = document.getElementById('fc-chart-cat');
-    const canvasAuthor = document.getElementById('fc-chart-author');
-    const canvasMonth = document.getElementById('fc-chart-month');
-    const hasCanvas = canvasCat || canvasAuthor || canvasMonth;
-    if (!hasCanvas) return;
+    const catEl = document.getElementById('fc-chart-cat');
+    const authorEl = document.getElementById('fc-chart-author');
+    const monthEl = document.getElementById('fc-chart-month');
+    if (!catEl && !authorEl && !monthEl) return;
 
-    const render = () => {
-      if (typeof Chart === 'undefined') {
-        [canvasCat, canvasAuthor, canvasMonth].forEach(c => {
-          if (c) c.insertAdjacentHTML('afterend', '<p class="fc-sub-chart-fail">图表库加载失败，已隐藏图表。</p>');
-        });
-        return;
-      }
-
-      // 分类分布
-      const catCounts = {};
-      CATEGORIES.forEach(c => { if (c.key !== 'all') catCounts[c.key] = 0; });
-      articles.forEach(a => { catCounts[a.category] = (catCounts[a.category] || 0) + 1; });
-      const catKeys = Object.keys(catCounts).filter(k => catCounts[k] > 0);
-      new Chart(canvasCat, {
-        type: 'doughnut',
-        data: {
-          labels: catKeys.map(k => getCategory(k).label),
-          datasets: [{
-            data: catKeys.map(k => catCounts[k]),
-            backgroundColor: catKeys.map(k => getCategory(k).color),
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: { padding: 6 },
-          plugins: {
-            legend: { position: 'right', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } }
-          }
-        }
+    // 图表由 /fcircle/articles/ 页面引入的 fcircle-charts.js（recharts 打包产物）渲染
+    if (!window.EndyFcircleCharts) {
+      [catEl, authorEl, monthEl].forEach(function (el) {
+        if (el) el.insertAdjacentHTML('afterend', '<p class="fc-sub-chart-fail">图表库加载失败，已隐藏图表。</p>');
       });
-
-      // Top 10 作者
-      const authors = groupByAuthor(articles).sort((a, b) => b.count - a.count).slice(0, 10);
-      new Chart(canvasAuthor, {
-        type: 'bar',
-        data: {
-          labels: authors.map(a => a.author),
-          datasets: [{
-            label: '文章数',
-            data: authors.map(a => a.count),
-            backgroundColor: '#6366f1'
-          }]
-        },
-        options: {
-          indexAxis: 'y',
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: { padding: { bottom: 6 } },
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { beginAtZero: true, ticks: { precision: 0, padding: 4 } },
-            y: { ticks: { font: { size: 11 } } }
-          }
-        }
-      });
-
-      // 每月文章数
-      const monthCounts = {};
-      articles.forEach(a => {
-        const d = parseDate(a.created);
-        if (!d) return;
-        const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-        monthCounts[key] = (monthCounts[key] || 0) + 1;
-      });
-      const months = Object.keys(monthCounts).sort();
-      new Chart(canvasMonth, {
-        type: 'line',
-        data: {
-          labels: months,
-          datasets: [{
-            label: '文章数',
-            data: months.map(m => monthCounts[m]),
-            borderColor: '#10b981',
-            backgroundColor: 'rgba(16,185,129,0.15)',
-            fill: true,
-            tension: 0.3
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: { padding: { bottom: 8, right: 14 } },
-          plugins: { legend: { display: false } },
-          scales: {
-            x: {
-              ticks: {
-                maxRotation: 45,
-                minRotation: 45,
-                autoSkip: true,
-                maxTicksLimit: 8,
-                callback: function (value) {
-                  const label = this.getLabelForValue(value);
-                  return label ? label.slice(2) : label;
-                }
-              }
-            },
-            y: { beginAtZero: true, ticks: { precision: 0 } }
-          }
-        }
-      });
-    };
-
-    if (typeof Chart === 'undefined') {
-      loadScript(CHART_JS).then(render).catch(render);
-    } else {
-      render();
+      return;
     }
+
+    // 分类分布
+    const catCounts = {};
+    CATEGORIES.forEach(c => { if (c.key !== 'all') catCounts[c.key] = 0; });
+    articles.forEach(a => { catCounts[a.category] = (catCounts[a.category] || 0) + 1; });
+    const catData = Object.keys(catCounts)
+      .filter(k => catCounts[k] > 0)
+      .map(k => ({ name: getCategory(k).label, value: catCounts[k], color: getCategory(k).color }));
+
+    // 发文最多博主 Top 10
+    const authorData = groupByAuthor(articles)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+      .map(a => ({ name: a.author, value: a.count }));
+
+    // 每月文章数
+    const monthCounts = {};
+    articles.forEach(a => {
+      const d = parseDate(a.created);
+      if (!d) return;
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      monthCounts[key] = (monthCounts[key] || 0) + 1;
+    });
+    const monthData = Object.keys(monthCounts).sort().map(m => ({ name: m, value: monthCounts[m] }));
+
+    window.EndyFcircleCharts.render({
+      cat: { el: catEl, data: catData },
+      author: { el: authorEl, data: authorData },
+      month: { el: monthEl, data: monthData }
+    });
   }
 
   function init() {
