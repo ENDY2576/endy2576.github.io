@@ -5,8 +5,16 @@
 (function () {
   'use strict';
 
-  const API_URL = 'https://cdn.jsdelivr.net/gh/ENDY2576/Friend-Circle-Lite@page/all.json';
-  const ERROR_IMG = 'https://i.p-i.vip/30/20240815-66bced9226a36.webp';
+  // jsdelivr CDN 7 天缓存，{cache:"no-cache"} 只绕浏览器缓存绕不过 CDN。
+  // 加时间戳让 CDN 每次都重新回源。
+  const API_URL = 'https://cdn.jsdelivr.net/gh/ENDY2576/Friend-Circle-Lite@page/all.json'
+  const ERROR_IMG = 'https://i.p-i.vip/30/20240815-66bced9226a36.webp'
+
+  function apiUrl() {
+    // 每小时换一次时间戳，既绕过 CDN 又不至于每次都回源打爆上游
+    const bucket = Math.floor(Date.now() / 3600000)
+    return API_URL + '?t=' + bucket
+  }
 
   // 分类定义：key 用于内部筛选，label 显示名，color 主题色
   const CATEGORIES = [
@@ -439,25 +447,30 @@
   }
 
   function init() {
-    const root = document.getElementById('friend-circle-lite-root');
-    if (!root) return;
-    root.innerHTML = '<div class="fc-lite-loading">正在加载朋友圈...</div>';
+    const root = document.getElementById('friend-circle-lite-root')
+    if (!root) return
+    root.innerHTML = '<div class="fc-lite-loading">正在加载朋友圈...</div>'
 
-    fetch(API_URL, { cache: "no-cache" })
+    fetch(apiUrl(), { cache: "no-cache" })
       .then(r => {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
+        if (!r.ok) throw new Error('HTTP ' + r.status)
+        return r.json()
       })
       .then(data => render(root, data))
       .catch(err => {
-        root.innerHTML = '<div class="fc-lite-error">朋友圈数据加载失败，请稍后刷新重试。</div>';
-        console.error('[fcircle-lite-custom] 加载失败:', err);
-      });
+        root.innerHTML = '<div class="fc-lite-error">朋友圈数据加载失败，请稍后刷新重试。</div>'
+        console.error('[fcircle-lite-custom] 加载失败:', err)
+      })
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', init)
   } else {
-    init();
+    init()
   }
+
+  // pjax 切到 /fcircle/ 时，新注入的 root 不会再触发 DOMContentLoaded
+  document.addEventListener('pjax:complete', () => {
+    if (location.pathname.indexOf('/fcircle') === 0) init()
+  })
 })();
