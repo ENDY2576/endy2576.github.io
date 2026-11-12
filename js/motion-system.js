@@ -49,6 +49,10 @@
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
 
     Array.prototype.forEach.call(nodes, function (el) {
+      // 侧栏内容固定在视口右侧（banner 高时首屏外、banner 矮时永远在视口内），
+      // IntersectionObserver 的 rootMargin + Lenis transform 组合下会反复误判，
+      // 导致侧栏卡片卡在 opacity:0。侧栏根本不参与滚动进场编排。
+      if (el.closest && el.closest('#aside-content')) return;
       var r = el.getBoundingClientRect();
       // 首屏已经可见的不做隐藏，避免「闪一下才出现」
       if (r.top < window.innerHeight * 0.92) return;
